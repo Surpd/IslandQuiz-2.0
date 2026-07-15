@@ -17,7 +17,7 @@ from services.ai_prompts import (
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # ---------- Schemas ----------
 
@@ -67,7 +67,7 @@ async def call_openai(prompt: str) -> str:
                 "Content-Type": "application/json",
             },
             json={
-                "model": "gpt-4o-mini",
+                "model": "llama-3.1-8b-instant",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.8,
                 "response_format": {"type": "json_object"},
