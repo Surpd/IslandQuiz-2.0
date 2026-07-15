@@ -662,9 +662,12 @@ export async function nextQuestion(code: string) {
 
 export async function finishRoom(code: string) {
   const s = await sendAndWaitState(code, { action: "finish" });
+  console.log("[finishRoom] state:", s ? "received" : "null", "gameKind:", s?.gameKind);
   if (s?.gameKind === "quiz") {
     try {
+      console.log("[finishRoom] loading game:", s.gameId);
       const rec = await loadGame<QuizData>("quiz", s.gameId);
+      console.log("[finishRoom] game loaded:", rec ? "yes" : "no");
       if (rec) {
         const questions = rec.data.questions;
         const maxScore = questions.reduce((sum, q) => sum + (q.points || 0), 0);
@@ -697,6 +700,7 @@ export async function finishRoom(code: string) {
             answers,
           };
         });
+        console.log("[finishRoom] saving results...");
         await apiFetch(`/api/quiz/${s.gameId}/online-results`, {
           method: "POST",
           body: JSON.stringify({
@@ -706,6 +710,7 @@ export async function finishRoom(code: string) {
             players,
           }),
         });
+        console.log("[finishRoom] results saved");
       }
     } catch (err) {
       console.error("Failed to save online room result", err);
