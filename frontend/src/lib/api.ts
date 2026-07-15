@@ -1126,6 +1126,21 @@ export async function generateJeopardyQuestions(input: {
   });
 }
 
+export const __apiVersion = "2.0.0-rest-ws";
+
+export async function listPlayedGameIdsForUser(userId: string): Promise<Set<string>> {
+  try {
+    const games = await listGames();
+    const out = new Set<string>();
+    for (const g of games) {
+      if (g.ownerId === userId) out.add(g.id);
+    }
+    return out;
+  } catch {
+    return new Set();
+  }
+}
+
 // ---------- Ratings ----------
 export function computeRatingStats(g: StoredGame): { avg: number; count: number } {
   const r = g.ratings;
