@@ -12,9 +12,7 @@ app = FastAPI(title="IslandQuiz API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-    "https://islandquiz.pages.dev",
-    "https://6c2d161c.islandquiz.pages.dev",],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,12 +25,10 @@ app.include_router(results_router)
 app.include_router(ai_router)
 app.include_router(rooms_router)
 
-
 @app.on_event("startup")
 def startup():
     init_db()
     print("Database initialized")
-
 
 @app.get("/")
 def root():
