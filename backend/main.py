@@ -6,6 +6,7 @@ from routes.users import router as users_router
 from routes.games import router as games_router
 from routes.results import router as results_router
 from routes.ai import router as ai_router
+from routes.rooms import router as rooms_router
 
 app = FastAPI(title="IslandQuiz API", version="1.0.0")
 
@@ -22,6 +23,7 @@ app.include_router(users_router)
 app.include_router(games_router)
 app.include_router(results_router)
 app.include_router(ai_router)
+app.include_router(rooms_router)
 
 
 @app.on_event("startup")

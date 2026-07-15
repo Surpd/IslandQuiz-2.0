@@ -1,116 +1,249 @@
 // src/lib/api.ts — единая точка входа для всех данных (TZ v2.0 §10, §11).
-// Сейчас работает поверх localStorage + BroadcastChannel (кросс-вкладочная
-// синхронизация комнат). Легко заменяется на FastAPI + WebSocket без правок
-// в UI: сохраняется контракт функций и форма возвращаемых Promise.
+// REST + WebSocket поверх FastAPI-бэкенда. Контракт функций для UI сохранён.
 
-import {
-  saveGame as _saveGame,
-  loadGame as _loadGame,
-  listGames as _listGames,
-  deleteGame as _deleteGame,
-  newId,
-} from "./storage";
-import {
-  saveQuizResult,
-  loadQuizResults,
-  saveOnlineQuizResult,
-  loadOnlineQuizResults,
-  type OnlineQuizResult,
-  type OnlineQuizPlayerAnswer,
+import type {
+  QuizResult,
+  OnlineQuizResult,
+  OnlineQuizPlayerAnswer,
 } from "./results";
-import { saveJeopardyResult, loadJeopardyResults, type JeopardyResult } from "./jeopardy-results";
+import type { JeopardyResult } from "./jeopardy-results";
 import type {
   GameKind,
   GameVisibility,
   JeopardyData,
-  MillionaireData,
   QuizData,
   QuizQuestion,
   StoredGame,
 } from "./types";
-import {
-  type User,
-  createUser,
-  findUserByEmail,
-  findUserById,
-  getCurrentUser,
-  getSessionUserId,
-  setSessionUserId,
-  updateUserRecord,
-  verifyUserCredentials,
-} from "./auth";
+import type { User } from "./auth";
 import { formatQuizAnswer, formatGivenAnswer } from "./format-answer";
 
 // Re-export types consumed by other modules so the facade stays the single entry point.
 export type { User } from "./auth";
 export type { GameKind, GameVisibility, StoredGame } from "./types";
 
-// ---------- Fake latency helper ----------
-const fake = <T,>(value: T, ms = 120): Promise<T> => new Promise((resolve) => setTimeout(() => resolve(value), ms));
+// ---------- HTTP helper ----------
+const BASE_URL = "https://islandquiz-2-0.onrender.com";
+const WS_BASE = "wss://islandquiz-2-0.onrender.com";
+const TOKEN_KEY = "islandquiz.token";
 
-// ---------- Auth (stub) ----------
-// TODO(server): POST /api/auth/register
+async function apiFetch(path: string, options?: RequestInit): Promise<any> {
+  const token = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: "Network error" }));
+    throw new Error(error.error || error.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+function newId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function toMs(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const t = Date.parse(value);
+    return Number.isFinite(t) ? t : Date.now();
+  }
+  return Date.now();
+}
+
+function mapUser(u: any): User {
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    avatar: u.avatar ?? undefined,
+    bio: u.bio ?? undefined,
+    subject: u.subject ?? undefined,
+    createdAt: toMs(u.created_at ?? u.createdAt),
+  };
+}
+
+function mapGame<T = unknown>(g: any): StoredGame<T> {
+  return {
+    id: g.id,
+    kind: g.kind,
+    data: g.data,
+    updatedAt: toMs(g.updated_at ?? g.updatedAt),
+    ownerId: g.owner_id ?? g.ownerId ?? undefined,
+    ownerName: g.owner_name ?? g.ownerName ?? undefined,
+    visibility: g.visibility,
+    forkedFrom: g.forked_from ?? g.forkedFrom ?? undefined,
+    forkedOwnerName: g.forked_owner_name ?? g.forkedOwnerName ?? undefined,
+    tags: g.tags ?? undefined,
+    ratings: g.ratings ?? undefined,
+    playCount: g.play_count ?? g.playCount ?? 0,
+    showAnswers: g.show_answers ?? g.showAnswers ?? false,
+  };
+}
+
+function mapQuizResult(r: any): QuizResult {
+  return {
+    id: r.id,
+    gameId: r.gameId ?? r.game_id,
+    userId: r.userId ?? r.user_id ?? undefined,
+    playerName: r.playerName ?? r.player_name,
+    avatar: r.avatar ?? undefined,
+    score: r.score,
+    maxScore: r.maxScore ?? r.max_score,
+    correctCount: r.correctCount ?? r.correct_count,
+    totalQuestions: r.totalQuestions ?? r.total_questions,
+    timeSec: r.timeSec ?? r.time_sec,
+    finishedAt: toMs(r.finishedAt ?? r.finished_at),
+    answers: r.answers ?? undefined,
+  };
+}
+
+function mapJeopardyResult(r: any): JeopardyResult {
+  return {
+    id: r.id,
+    gameId: r.gameId ?? r.game_id,
+    playedAt: toMs(r.playedAt ?? r.played_at),
+    teams: r.teams ?? [],
+    winnerId: r.winnerId ?? r.winner_id ?? null,
+    hasFinal: r.hasFinal ?? r.has_final ?? false,
+    userId: r.userId ?? r.user_id ?? undefined,
+    avatar: r.avatar ?? undefined,
+  };
+}
+
+function mapOnlineResult(r: any): OnlineQuizResult {
+  return {
+    id: r.id,
+    gameId: r.gameId ?? r.game_id,
+    roomCode: r.roomCode ?? r.room_code,
+    playedAt: toMs(r.playedAt ?? r.played_at),
+    durationSec: r.durationSec ?? r.duration_sec,
+    players: r.players ?? [],
+  };
+}
+
+// Latency helper kept for AI stubs only
+const fake = <T,>(value: T, ms = 120): Promise<T> =>
+  new Promise((resolve) => setTimeout(() => resolve(value), ms));
+
+// ---------- Auth ----------
 export async function register(input: { email: string; password: string; name: string }) {
-  const email = input.email.trim().toLowerCase();
-  if (!email || !input.password || !input.name.trim()) {
-    return fake({ ok: false as const, error: "Заполните все поля" });
+  const body = {
+    email: input.email.trim().toLowerCase(),
+    password: input.password,
+    name: input.name.trim(),
+  };
+  if (!body.email || !body.password || !body.name) {
+    return { ok: false as const, error: "Заполните все поля" };
   }
-  if (findUserByEmail(email)) {
-    return fake({ ok: false as const, error: "Пользователь с таким email уже существует" });
+  const data = await apiFetch("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (data.ok && data.token) {
+    localStorage.setItem(TOKEN_KEY, data.token);
   }
-  const user = createUser({ email, name: input.name, password: input.password });
-  setSessionUserId(user.id);
-  await bindOrphanGames();
-
-  return fake({ ok: true as const, user });
+  if (data.ok && data.user) {
+    await bindOrphanGames();
+    return { ok: true as const, user: mapUser(data.user) };
+  }
+  return { ok: false as const, error: (data.error as string) || "Ошибка регистрации" };
 }
 
-// TODO(server): POST /api/auth/login
 export async function login(input: { email: string; password: string }) {
-  const email = input.email.trim().toLowerCase();
-  if (!email || !input.password) {
-    return fake({ ok: false as const, error: "Заполните все поля" });
+  const body = {
+    email: input.email.trim().toLowerCase(),
+    password: input.password,
+  };
+  if (!body.email || !body.password) {
+    return { ok: false as const, error: "Заполните все поля" };
   }
-  const user = verifyUserCredentials(email, input.password);
-  if (!user) {
-    return fake({ ok: false as const, error: "Неверный email или пароль" });
+  const data = await apiFetch("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (data.ok && data.token) {
+    localStorage.setItem(TOKEN_KEY, data.token);
   }
-  setSessionUserId(user.id);
-  await bindOrphanGames();
-  return fake({ ok: true as const, user });
+  if (data.ok && data.user) {
+    await bindOrphanGames();
+    return { ok: true as const, user: mapUser(data.user) };
+  }
+  return { ok: false as const, error: (data.error as string) || "Неверный email или пароль" };
 }
 
-// TODO(server): POST /api/auth/logout
 export async function logout() {
-  setSessionUserId(null);
-  return fake({ ok: true });
+  try {
+    await apiFetch("/api/auth/logout", { method: "POST" });
+  } catch {
+    /* ignore */
+  }
+  localStorage.removeItem(TOKEN_KEY);
+  return { ok: true };
 }
 
-// TODO(server): POST /api/auth/forgot-password
-export async function forgotPassword(_email: string) {
-  return fake({ ok: true as const, message: "Инструкция отправлена на email" }, 300);
+export async function forgotPassword(email: string) {
+  try {
+    return await apiFetch("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  } catch {
+    return { ok: true as const, message: "Инструкция отправлена на email" };
+  }
 }
 
-// TODO(server): POST /api/auth/reset-password
-export async function resetPassword(_token: string, _newPassword: string) {
-  return fake({ ok: true as const, message: "Пароль изменён" }, 300);
+export async function resetPassword(token: string, newPassword: string) {
+  try {
+    return await apiFetch("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, newPassword }),
+    });
+  } catch {
+    return { ok: true as const, message: "Пароль изменён" };
+  }
 }
 
-// TODO(server): GET /api/users/me
 export async function getMe(): Promise<User | null> {
-  return fake(getCurrentUser());
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return null;
+  try {
+    const u = await apiFetch("/api/users/me");
+    return u ? mapUser(u) : null;
+  } catch {
+    localStorage.removeItem(TOKEN_KEY);
+    return null;
+  }
 }
 
-// TODO(server): PATCH /api/users/me
-export async function updateProfile(patch: { name?: string; avatar?: string; bio?: string; subject?: string }): Promise<User | null> {
-  const id = getSessionUserId();
-  if (!id) return fake(null);
-  return fake(updateUserRecord(id, patch));
+export async function updateProfile(patch: {
+  name?: string;
+  avatar?: string;
+  bio?: string;
+  subject?: string;
+}): Promise<User | null> {
+  const params = new URLSearchParams();
+  if (patch.name !== undefined) params.set("name", patch.name);
+  if (patch.avatar !== undefined) params.set("avatar", patch.avatar);
+  if (patch.bio !== undefined) params.set("bio", patch.bio);
+  if (patch.subject !== undefined) params.set("subject", patch.subject);
+  const qs = params.toString();
+  try {
+    const u = await apiFetch(`/api/users/me${qs ? `?${qs}` : ""}`, { method: "PATCH" });
+    return u ? mapUser(u) : null;
+  } catch {
+    return null;
+  }
 }
-
 
 // ---------- Games ----------
-export type AnyGameData = QuizData | JeopardyData | MillionaireData;
+export type AnyGameData = QuizData | JeopardyData | import("./types").MillionaireData;
 
 export interface SaveGameInput<T = AnyGameData> {
   id?: string;
@@ -121,165 +254,121 @@ export interface SaveGameInput<T = AnyGameData> {
 }
 
 export async function saveGame<T = AnyGameData>(input: SaveGameInput<T>) {
-  const id = input.id ?? newId();
-  const existing = _loadGame<T>(input.kind, id);
-  const me = getCurrentUser();
-  const meta: Partial<StoredGame> = {};
-  if (me && (!existing || !existing.ownerId || existing.ownerId === me.id)) {
-    meta.ownerId = me.id;
-    meta.ownerName = me.name;
-    if (!existing) meta.visibility = "private";
-  } else if (!existing && !me) {
-    meta.visibility = "link";
-  }
-  if (input.tags) meta.tags = input.tags;
-  _saveGame<T>(input.kind, id, input.data, meta);
-  return fake({ id, play_url: `/play/${input.kind}/${id}` });
+  return apiFetch("/api/games/", {
+    method: "POST",
+    body: JSON.stringify({
+      id: input.id,
+      kind: input.kind,
+      data: input.data,
+      title: input.title,
+      tags: input.tags,
+    }),
+  }) as Promise<{ id: string; play_url: string }>;
 }
 
-
-// TODO(server): POST /api/games/:id/fork
 export async function forkGame(gameId: string): Promise<{ id: string } | null> {
-  const me = getCurrentUser();
-  if (!me) return fake(null);
-  const all = _listGames();
-  const src = all.find((g) => g.id === gameId);
-  if (!src) return fake(null);
-  const originalOwner = src.ownerName ?? (src.ownerId ? findUserById(src.ownerId)?.name : undefined);
-  const newIdVal = newId();
-  _saveGame(src.kind, newIdVal, src.data, {
-    ownerId: me.id,
-    ownerName: me.name,
-    visibility: "private",
-    forkedFrom: src.id,
-    forkedOwnerName: originalOwner ?? "неизвестный автор",
-  });
-  return fake({ id: newIdVal });
-}
-
-// TODO(server): PATCH /api/games/:id/visibility
-export async function setGameVisibility(gameId: string, visibility: GameVisibility) {
-  const all = _listGames();
-  const g = all.find((x) => x.id === gameId);
-  if (!g) return fake({ ok: false as const });
-  _saveGame(g.kind, g.id, g.data, {
-    ownerId: g.ownerId,
-    ownerName: g.ownerName,
-    visibility,
-    forkedFrom: g.forkedFrom,
-    forkedOwnerName: g.forkedOwnerName,
-    tags: g.tags,
-    ratings: g.ratings,
-    playCount: g.playCount,
-    showAnswers: g.showAnswers,
-  });
-  return fake({ ok: true as const });
-}
-
-// TODO(server): PATCH /api/games/:id/show-answers
-export async function setGameShowAnswers(gameId: string, showAnswers: boolean) {
-  const all = _listGames();
-  const g = all.find((x) => x.id === gameId);
-  if (!g) return fake({ ok: false as const });
-  _saveGame(g.kind, g.id, g.data, {
-    ownerId: g.ownerId,
-    ownerName: g.ownerName,
-    visibility: g.visibility,
-    forkedFrom: g.forkedFrom,
-    forkedOwnerName: g.forkedOwnerName,
-    tags: g.tags,
-    ratings: g.ratings,
-    playCount: g.playCount,
-    showAnswers,
-  });
-  return fake({ ok: true as const });
-}
-
-// Bind games with no ownerId to current user (first-login flow).
-export async function bindOrphanGames(): Promise<number> {
-  const me = getCurrentUser();
-  if (!me) return fake(0);
-  const all = _listGames();
-  let bound = 0;
-  for (const g of all) {
-    if (!g.ownerId) {
-      _saveGame(g.kind, g.id, g.data, {
-        ownerId: me.id,
-        ownerName: me.name,
-        visibility: g.visibility ?? "private",
-        forkedFrom: g.forkedFrom,
-        forkedOwnerName: g.forkedOwnerName,
-      });
-      bound++;
-    }
+  try {
+    return await apiFetch(`/api/games/${gameId}/fork`, { method: "POST" });
+  } catch {
+    return null;
   }
-  return fake(bound);
+}
+
+export async function setGameVisibility(gameId: string, visibility: GameVisibility) {
+  return apiFetch(
+    `/api/games/${gameId}/visibility?visibility=${encodeURIComponent(visibility)}`,
+    { method: "PATCH" },
+  ) as Promise<{ ok: boolean }>;
+}
+
+export async function setGameShowAnswers(gameId: string, showAnswers: boolean) {
+  return apiFetch(
+    `/api/games/${gameId}/show-answers?show_answers=${showAnswers}`,
+    { method: "PATCH" },
+  ) as Promise<{ ok: boolean }>;
+}
+
+// Server stores ownership — orphans are a localStorage migration concept only.
+export async function bindOrphanGames(): Promise<number> {
+  return 0;
 }
 
 export function countOrphanGames(): number {
-  return _listGames().filter((g) => !g.ownerId).length;
+  return 0;
 }
 
 export async function loadGame<T = AnyGameData>(kind: GameKind, id: string) {
-  const rec = _loadGame<T>(kind, id);
-  return fake(rec);
+  try {
+    const g = await apiFetch(`/api/games/${id}`);
+    if (!g) return null;
+    const mapped = mapGame<T>(g);
+    if (mapped.kind !== kind) return null;
+    return mapped;
+  } catch {
+    return null;
+  }
 }
 
 export async function listGames(kind?: GameKind): Promise<StoredGame[]> {
-  return fake(_listGames(kind));
+  const path = kind ? `/api/games/?kind=${encodeURIComponent(kind)}` : `/api/games/`;
+  const list = await apiFetch(path);
+  return Array.isArray(list) ? list.map((g: any) => mapGame(g)) : [];
 }
 
 export async function findGame(id: string): Promise<StoredGame | null> {
-  const all = _listGames();
-  const g = all.find((x) => x.id === id) ?? null;
-  if (!g) return fake(null);
-  const d = g.data as { config?: unknown; rounds?: unknown; questions?: unknown } | undefined;
-  if (!d || !d.config) return fake(null);
-  if (g.kind === "jeopardy" && !Array.isArray(d.rounds)) {
-    (d as { rounds: unknown[] }).rounds = [];
+  try {
+    const g = await apiFetch(`/api/games/${id}`);
+    return g ? mapGame(g) : null;
+  } catch {
+    return null;
   }
-  if ((g.kind === "quiz" || g.kind === "millionaire") && !Array.isArray(d.questions)) {
-    (d as { questions: unknown[] }).questions = [];
-  }
-  return fake(g);
 }
 
-export async function deleteGame(kind: GameKind, id: string) {
-  _deleteGame(kind, id);
-  return fake({ ok: true });
+export async function deleteGame(_kind: GameKind, id: string) {
+  return apiFetch(`/api/games/${id}`, { method: "DELETE" });
 }
 
 // ---------- Results (per-quiz dashboard) ----------
 export async function getResults(gameId: string) {
-  return fake(loadQuizResults(gameId));
+  const list = await apiFetch(`/api/quiz/${gameId}/results`);
+  return Array.isArray(list) ? list.map(mapQuizResult) : [];
 }
 
-export async function submitResult(payload: Parameters<typeof saveQuizResult>[0]) {
-  saveQuizResult(payload);
-  return fake({ ok: true });
+export async function submitResult(payload: Omit<QuizResult, "id" | "finishedAt">) {
+  return apiFetch(`/api/quiz/${payload.gameId}/results`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 // ---------- Jeopardy results ----------
-// TODO(server): GET /api/jeopardy/:gameId/results
 export async function getJeopardyResults(gameId: string): Promise<JeopardyResult[]> {
-  return fake(loadJeopardyResults(gameId));
+  const list = await apiFetch(`/api/jeopardy/${gameId}/results`);
+  return Array.isArray(list) ? list.map(mapJeopardyResult) : [];
 }
 
-// TODO(server): GET /api/jeopardy/:gameId/results/:resultId
-export async function getJeopardyGameDetail(gameId: string, resultId: string): Promise<JeopardyResult | null> {
-  const all = loadJeopardyResults(gameId);
-  return fake(all.find((r) => r.id === resultId) ?? null);
+export async function getJeopardyGameDetail(
+  gameId: string,
+  resultId: string,
+): Promise<JeopardyResult | null> {
+  try {
+    const r = await apiFetch(`/api/jeopardy/${gameId}/results/${resultId}`);
+    return r ? mapJeopardyResult(r) : null;
+  } catch {
+    return null;
+  }
 }
 
-// TODO(server): POST /api/jeopardy/:gameId/results
-export async function submitJeopardyResult(payload: Parameters<typeof saveJeopardyResult>[0]) {
-  const rec = saveJeopardyResult(payload);
-  return fake({ ok: true, id: rec.id });
+export async function submitJeopardyResult(
+  payload: Omit<JeopardyResult, "id" | "playedAt">,
+) {
+  return apiFetch(`/api/jeopardy/${payload.gameId}/results`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
-// ---------- Online rooms (Sync Mode, TZ §3) ----------
-// Хранение: localStorage + BroadcastChannel("islandquiz.room.<code>").
-// Заменяется на WebSocket без изменения UI.
+// ---------- Online rooms (WebSocket Sync Mode, TZ §3) ----------
 
 export interface RoomAnswerRecord {
   questionIdx: number;
@@ -324,19 +413,19 @@ export interface JeopardyRoomState {
   selectedCat: number | null;
   selectedQ: number | null;
   buzzedPlayerId: string | null;
-  buzzedPlayerIds: string[]; // buzz mode: players who already got a wrong attempt
-  buzzedAnswer: string | null; // text the buzzed player submitted
-  buzzStartAt: number | null; // ms — start of personal 30s answer timer
-  buzzTimeoutMs: number; // ms — personal answer window
-  questionTotalMs: number; // buzz mode: full timer for the current question
-  questionElapsedMs: number; // buzz mode: accumulated elapsed time (frozen while answering)
+  buzzedPlayerIds: string[];
+  buzzedAnswer: string | null;
+  buzzStartAt: number | null;
+  buzzTimeoutMs: number;
+  questionTotalMs: number;
+  questionElapsedMs: number;
   showAnswer: boolean;
-  awaitingBonus: boolean; // turn-wrong: teacher can distribute bonus before advancing
+  awaitingBonus: boolean;
   finalBets: Record<string, number>;
   finalAnswers: Record<string, boolean>;
   finalGiven: Record<string, string>;
   finalRevealOrder: string[];
-  finalRevealIdx: number; // -1 not started
+  finalRevealIdx: number;
   finalRevealStep: "bet" | "answer" | "score" | "done";
   finalRevealAt: number | null;
   lastDelta?: { playerId: string; delta: number } | null;
@@ -356,177 +445,226 @@ export interface RoomState {
   jeopardy?: JeopardyRoomState;
 }
 
-const ROOM_PREFIX = "islandquiz.room.v1.";
-const roomKey = (code: string) => ROOM_PREFIX + code;
+type RoomConn = {
+  ws: WebSocket;
+  handlers: Set<(s: RoomState) => void>;
+  onceWaiters: Set<(msg: { type: string; state?: RoomState; error?: string }) => void>;
+  state: RoomState | null;
+  openPromise: Promise<void>;
+};
 
-function readRoom(code: string): RoomState | null {
-  if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(roomKey(code));
-  return raw ? (JSON.parse(raw) as RoomState) : null;
+const roomConns = new Map<string, RoomConn>();
+
+function ensureRoomConn(code: string): RoomConn {
+  const existing = roomConns.get(code);
+  if (existing && (existing.ws.readyState === WebSocket.OPEN || existing.ws.readyState === WebSocket.CONNECTING)) {
+    return existing;
+  }
+
+  const ws = new WebSocket(`${WS_BASE}/ws/room/${code}`);
+  const handlers = new Set<(s: RoomState) => void>();
+  const onceWaiters = new Set<(msg: { type: string; state?: RoomState; error?: string }) => void>();
+
+  let resolveOpen!: () => void;
+  const openPromise = new Promise<void>((resolve) => {
+    resolveOpen = resolve;
+  });
+
+  const conn: RoomConn = { ws, handlers, onceWaiters, state: null, openPromise };
+
+  ws.onopen = () => resolveOpen();
+  ws.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data as string) as {
+        type: string;
+        state?: RoomState;
+        error?: string;
+      };
+      if (msg.type === "room_state" && msg.state) {
+        conn.state = msg.state;
+        handlers.forEach((h) => h(msg.state!));
+      }
+      onceWaiters.forEach((w) => w(msg));
+    } catch {
+      /* ignore malformed */
+    }
+  };
+  ws.onclose = () => {
+    if (roomConns.get(code) === conn) roomConns.delete(code);
+  };
+  ws.onerror = () => resolveOpen();
+
+  roomConns.set(code, conn);
+  return conn;
 }
 
-function writeRoom(state: RoomState) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(roomKey(state.code), JSON.stringify(state));
+function sendRoom(code: string, payload: Record<string, unknown>) {
+  const conn = ensureRoomConn(code);
+  const send = () => {
+    if (conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.send(JSON.stringify(payload));
+    }
+  };
+  if (conn.ws.readyState === WebSocket.OPEN) send();
+  else void conn.openPromise.then(send);
+}
+
+function waitRoomMessage(
+  code: string,
+  pred: (msg: { type: string; state?: RoomState; error?: string }) => boolean,
+  timeoutMs = 8000,
+): Promise<{ type: string; state?: RoomState; error?: string }> {
+  const conn = ensureRoomConn(code);
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      conn.onceWaiters.delete(onMsg);
+      reject(new Error("Таймаут комнаты"));
+    }, timeoutMs);
+    const onMsg = (msg: { type: string; state?: RoomState; error?: string }) => {
+      if (!pred(msg)) return;
+      window.clearTimeout(timer);
+      conn.onceWaiters.delete(onMsg);
+      resolve(msg);
+    };
+    conn.onceWaiters.add(onMsg);
+  });
+}
+
+async function sendAndWaitState(code: string, payload: Record<string, unknown>): Promise<RoomState | null> {
+  const conn = ensureRoomConn(code);
+  await conn.openPromise;
+  const wait = waitRoomMessage(code, (m) => m.type === "room_state" && !!m.state);
+  sendRoom(code, payload);
   try {
-    new BroadcastChannel("islandquiz.rooms").postMessage({ code: state.code });
+    const msg = await wait;
+    return msg.state ?? conn.state;
   } catch {
-    /* ignore */
+    return conn.state;
   }
 }
 
 export function subscribeRoom(code: string, handler: (s: RoomState) => void) {
   if (typeof window === "undefined") return () => {};
-  const push = () => {
-    const s = readRoom(code);
-    if (s) handler(s);
-  };
-  push();
-  let bc: BroadcastChannel | null = null;
-  try {
-    bc = new BroadcastChannel("islandquiz.rooms");
-    bc.onmessage = (e) => {
-      if (e.data?.code === code) push();
-    };
-  } catch {
-    /* ignore */
-  }
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === roomKey(code)) push();
-  };
-  window.addEventListener("storage", onStorage);
-  const interval = window.setInterval(push, 1000);
+  const conn = ensureRoomConn(code);
+  conn.handlers.add(handler);
+  if (conn.state) handler(conn.state);
+  void conn.openPromise.then(() => {
+    if (conn.state) handler(conn.state);
+  });
   return () => {
-    bc?.close();
-    window.removeEventListener("storage", onStorage);
-    window.clearInterval(interval);
+    conn.handlers.delete(handler);
   };
 }
 
 export async function createRoom(gameKind: GameKind, gameId: string) {
   const code = String(Math.floor(1000 + Math.random() * 9000));
-  const state: RoomState = {
-    code,
+  const hostId = newId();
+  const conn = ensureRoomConn(code);
+  await conn.openPromise;
+  await sendAndWaitState(code, {
+    action: "create_room",
     gameKind,
     gameId,
-    hostId: newId(),
-    status: "waiting",
-    questionIdx: 0,
-    questionStartAt: null,
-    players: [],
+    hostId,
     createdAt: Date.now(),
-    ...(gameKind === "jeopardy"
-      ? {
-          jeopardy: {
-            phase: "lobby" as const,
-            mode: "buzz" as const,
-            round: 0,
-            currentPlayerIdx: 0,
-            usedKeys: [],
-            selectedCat: null,
-            selectedQ: null,
-            buzzedPlayerId: null,
-            buzzedPlayerIds: [],
-            buzzedAnswer: null,
-            buzzStartAt: null,
-            buzzTimeoutMs: 30000,
-            questionTotalMs: 30000,
-            questionElapsedMs: 0,
-            showAnswer: false,
-            awaitingBonus: false,
-            finalBets: {},
-            finalAnswers: {},
-            finalGiven: {},
-            finalRevealOrder: [],
-            finalRevealIdx: -1,
-            finalRevealStep: "done" as const,
-            finalRevealAt: null,
-            lastDelta: null,
-          },
-        }
-      : {}),
-  };
-  writeRoom(state);
-  return fake({ code, room_url: `/room/${code}` });
+  });
+  return { code, room_url: `/room/${code}` };
 }
 
 export async function joinRoom(code: string, nickname: string, avatar: string) {
-  const state = readRoom(code);
-  if (!state) return fake({ success: false as const, error: "Комната не найдена" });
-  // Reconnect: match by nickname (TZ §3 reconnection)
-  let player = state.players.find((p) => p.nickname === nickname);
-  if (player) {
-    player.connected = true;
-    player.avatar = avatar || player.avatar;
-  } else {
-    player = {
-      id: newId(),
-      nickname,
-      avatar,
-      score: 0,
-      streak: 0,
-      connected: true,
-    };
-    state.players.push(player);
+  const conn = ensureRoomConn(code);
+  await conn.openPromise;
+  // Give the server a moment to push existing room_state on connect
+  if (!conn.state) {
+    await Promise.race([
+      waitRoomMessage(code, (m) => m.type === "room_state", 1500).catch(() => null),
+      new Promise((r) => setTimeout(r, 400)),
+    ]);
   }
-  writeRoom(state);
-  return fake({ success: true as const, player_id: player.id });
+  if (!conn.state) {
+    return { success: false as const, error: "Комната не найдена" };
+  }
+
+  const existing = conn.state.players.find((p) => p.nickname === nickname);
+  const player = existing
+    ? { ...existing, connected: true, avatar: avatar || existing.avatar }
+    : {
+        id: newId(),
+        nickname,
+        avatar,
+        score: 0,
+        streak: 0,
+        connected: true,
+      };
+
+  const errorWait = waitRoomMessage(
+    code,
+    (m) => m.type === "error" || (m.type === "room_state" && !!m.state),
+  );
+  sendRoom(code, { action: "join", player });
+  try {
+    const msg = await errorWait;
+    if (msg.type === "error") {
+      return { success: false as const, error: msg.error || "Комната не найдена" };
+    }
+  } catch {
+    /* use cached */
+  }
+
+  const joined = conn.state?.players.find((p) => p.nickname === nickname);
+  if (!joined) return { success: false as const, error: "Не удалось присоединиться" };
+  return { success: true as const, player_id: joined.id };
 }
 
 export async function getRoomState(code: string) {
-  return fake(readRoom(code));
+  const conn = roomConns.get(code);
+  if (conn?.state) return conn.state;
+  const c = ensureRoomConn(code);
+  await c.openPromise;
+  if (!c.state) {
+    await waitRoomMessage(code, (m) => m.type === "room_state", 2000).catch(() => null);
+  }
+  return c.state;
 }
 
-// Teacher controls
 export async function startRoom(code: string) {
-  const s = readRoom(code);
-  if (!s) return fake(null);
-  s.status = "active";
-  s.questionIdx = 0;
-  s.questionStartAt = Date.now();
-  s.players.forEach((p) => {
-    p.lastAnswer = undefined;
-    p.answerHistory = [];
+  return sendAndWaitState(code, {
+    action: "start",
+    questionStartAt: Date.now(),
   });
-  writeRoom(s);
-  return fake(s);
 }
+
 export async function revealAnswer(code: string) {
-  const s = readRoom(code);
-  if (!s) return fake(null);
-  s.status = "reveal";
-  const answered = s.players.filter((p) => p.lastAnswer?.questionIdx === s.questionIdx && p.lastAnswer.correct);
-  const fastest = answered.sort((a, b) => a.lastAnswer!.timeMs - b.lastAnswer!.timeMs)[0];
-  s.fastestPlayerId = fastest?.id;
-  writeRoom(s);
-  return fake(s);
+  const s = roomConns.get(code)?.state;
+  if (!s) return null;
+  const answered = s.players.filter(
+    (p) => p.lastAnswer?.questionIdx === s.questionIdx && p.lastAnswer.correct,
+  );
+  const fastest = [...answered].sort(
+    (a, b) => (a.lastAnswer!.timeMs ?? 0) - (b.lastAnswer!.timeMs ?? 0),
+  )[0];
+  return sendAndWaitState(code, {
+    action: "reveal",
+    fastestPlayerId: fastest?.id,
+  });
 }
+
 export async function showLeaderboard(code: string) {
-  const s = readRoom(code);
-  if (!s) return fake(null);
-  s.status = "leaderboard";
-  writeRoom(s);
-  return fake(s);
+  return sendAndWaitState(code, { action: "leaderboard" });
 }
+
 export async function nextQuestion(code: string) {
-  const s = readRoom(code);
-  if (!s) return fake(null);
-  s.questionIdx += 1;
-  s.status = "active";
-  s.questionStartAt = Date.now();
-  s.fastestPlayerId = undefined;
-  writeRoom(s);
-  return fake(s);
+  return sendAndWaitState(code, {
+    action: "next_question",
+    questionStartAt: Date.now(),
+  });
 }
+
 export async function finishRoom(code: string) {
-  const s = readRoom(code);
-  if (!s) return fake(null);
-  s.status = "finished";
-  writeRoom(s);
-  // Save online results for dashboard (quiz only)
-  if (s.gameKind === "quiz") {
+  const s = await sendAndWaitState(code, { action: "finish" });
+  if (s?.gameKind === "quiz") {
     try {
-      const rec = _loadGame<QuizData>("quiz", s.gameId);
+      const rec = await loadGame<QuizData>("quiz", s.gameId);
       if (rec) {
         const questions = rec.data.questions;
         const maxScore = questions.reduce((sum, q) => sum + (q.points || 0), 0);
@@ -559,55 +697,42 @@ export async function finishRoom(code: string) {
             answers,
           };
         });
-        saveOnlineQuizResult({
-          roomCode: s.code,
-          gameId: s.gameId,
-          durationSec,
-          players,
+        await apiFetch(`/api/quiz/${s.gameId}/online-results`, {
+          method: "POST",
+          body: JSON.stringify({
+            roomCode: s.code,
+            gameId: s.gameId,
+            durationSec,
+            players,
+          }),
         });
       }
     } catch (err) {
       console.error("Failed to save online room result", err);
     }
   }
-  return fake(s);
+  return s;
 }
+
 export async function kickPlayer(code: string, playerId: string) {
-  const s = readRoom(code);
-  if (!s) return fake(null);
-  s.players = s.players.filter((p) => p.id !== playerId);
-  writeRoom(s);
-  return fake(s);
+  return sendAndWaitState(code, { action: "kick", playerId });
 }
+
 export async function adjustPlayerScore(code: string, playerId: string, delta: number) {
-  const s = readRoom(code);
-  if (!s) return fake(null);
-  const p = s.players.find((pl) => pl.id === playerId);
-  if (p) {
-    p.score = Math.max(0, p.score + delta);
-  }
-  writeRoom(s);
-  return fake(s);
+  return sendAndWaitState(code, { action: "adjust_score", playerId, delta });
 }
+
 export async function restartRoom(code: string) {
-  const s = readRoom(code);
-  if (!s) return fake(null);
-  s.status = "waiting";
-  s.questionIdx = 0;
-  s.questionStartAt = null;
-  s.fastestPlayerId = undefined;
-  s.players.forEach((p) => {
-    p.score = 0;
-    p.streak = 0;
-    p.lastAnswer = undefined;
-    p.answerHistory = [];
-  });
-  writeRoom(s);
-  return fake(s);
+  return sendAndWaitState(code, { action: "restart" });
 }
 
 // Kahoot-style scoring (TZ §0)
-export function computeKahootScore(opts: { correct: boolean; timeMs: number; totalMs: number; streakBefore: number }) {
+export function computeKahootScore(opts: {
+  correct: boolean;
+  timeMs: number;
+  totalMs: number;
+  streakBefore: number;
+}) {
   if (!opts.correct) return { delta: 0, streakAfter: 0 };
   const ratio = Math.max(0, 1 - opts.timeMs / Math.max(1, opts.totalMs));
   const base = 1000;
@@ -622,12 +747,12 @@ export async function submitAnswer(
   playerId: string,
   payload: { correct: boolean; timeMs: number; totalMs: number; given?: string },
 ) {
-  const s = readRoom(code);
-  if (!s) return fake({ correct: false, score: 0 });
+  const s = roomConns.get(code)?.state;
+  if (!s) return { correct: false, score: 0 };
   const p = s.players.find((pl) => pl.id === playerId);
-  if (!p) return fake({ correct: false, score: 0 });
+  if (!p) return { correct: false, score: 0 };
   if (p.lastAnswer?.questionIdx === s.questionIdx) {
-    return fake({ correct: p.lastAnswer.correct, score: p.score });
+    return { correct: p.lastAnswer.correct, score: p.score };
   }
   const { delta, streakAfter } = computeKahootScore({
     correct: payload.correct,
@@ -635,433 +760,220 @@ export async function submitAnswer(
     totalMs: payload.totalMs,
     streakBefore: p.streak,
   });
-  p.score += delta;
-  p.streak = streakAfter;
-  const rec: RoomAnswerRecord = {
-    questionIdx: s.questionIdx,
+  await sendAndWaitState(code, {
+    action: "answer",
+    playerId,
     correct: payload.correct,
     delta,
+    streak: streakAfter,
     timeMs: payload.timeMs,
     given: payload.given ?? "",
-  };
-  p.lastAnswer = rec;
-  if (!p.answerHistory) p.answerHistory = [];
-  // Replace any earlier record for this question (in case of edge cases)
-  p.answerHistory = p.answerHistory.filter((a) => a.questionIdx !== s.questionIdx);
-  p.answerHistory.push(rec);
-  writeRoom(s);
-  return fake({ correct: payload.correct, score: p.score, delta });
+  });
+  const after = roomConns.get(code)?.state;
+  const player = after?.players.find((pl) => pl.id === playerId);
+  return { correct: payload.correct, score: player?.score ?? p.score + delta, delta };
 }
 
-// TODO(server): GET /api/quiz/:gameId/online-results
 export async function getOnlineResults(gameId: string): Promise<OnlineQuizResult[]> {
-  return fake(loadOnlineQuizResults(gameId));
+  const list = await apiFetch(`/api/quiz/${gameId}/online-results`);
+  return Array.isArray(list) ? list.map(mapOnlineResult) : [];
 }
 
 export async function listRooms() {
-  if (typeof window === "undefined") return fake([] as RoomState[]);
-  const out: RoomState[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k?.startsWith(ROOM_PREFIX)) {
-      try {
-        out.push(JSON.parse(localStorage.getItem(k)!));
-      } catch {
-        /* skip */
-      }
-    }
-  }
-  return fake(out.sort((a, b) => b.createdAt - a.createdAt));
+  // Rooms live only in memory on the server — no list endpoint.
+  return [] as RoomState[];
 }
 
 // =========================================================================
 //                        ONLINE JEOPARDY (rooms)
 // =========================================================================
 
-function mutJeopardy(code: string, fn: (j: JeopardyRoomState, s: RoomState) => void) {
-  const s = readRoom(code);
-  if (!s || !s.jeopardy) return null;
-  fn(s.jeopardy, s);
-  writeRoom(s);
-  return s;
-}
-
 export async function setJeopardyMode(code: string, mode: "buzz" | "turn") {
-  return fake(
-    mutJeopardy(code, (j) => {
-      j.mode = mode;
-    }),
-  );
+  return sendAndWaitState(code, { action: "jeopardy_set_mode", mode });
 }
 
 export async function startJeopardyGame(code: string) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      j.phase = "board";
-      j.round = 0;
-      j.usedKeys = [];
-      j.currentPlayerIdx = 0;
-      j.selectedCat = null;
-      j.selectedQ = null;
-      j.buzzedPlayerId = null;
-      j.buzzedPlayerIds = [];
-      j.showAnswer = false;
-      j.lastDelta = null;
-      s.status = "active";
-      s.players.forEach((p) => {
-        p.score = 0;
-        p.jCorrect = 0;
-        p.jWrong = 0;
-      });
-    }),
-  );
+  return sendAndWaitState(code, { action: "jeopardy_start" });
 }
 
-export async function selectJeopardyQuestion(code: string, playerId: string | null, catIdx: number, qIdx: number) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      // In turn mode, only current player (or teacher: playerId=null) can select
-      if (j.mode === "turn" && playerId) {
-        const cur = s.players[j.currentPlayerIdx]?.id;
-        if (cur && cur !== playerId) return;
-      }
-      // In buzz mode only the teacher (playerId=null) picks the cell.
-      if (j.mode === "buzz" && playerId) return;
-      const key = `${j.round}-${catIdx}-${qIdx}`;
-      if (j.usedKeys.includes(key)) return;
-      // Load points to compute timer.
-      const rec = _loadGame<JeopardyData>("jeopardy", s.gameId);
-      const q = rec?.data.rounds[j.round]?.[catIdx]?.questions[qIdx];
-      const timeBase = rec?.data.config.timeBase ?? 30;
-      const timeStep = rec?.data.config.timeStep ?? 0;
-      const tier = q ? Math.max(0, Math.round((q.points || 100) / 100) - 1) : 0;
-      j.selectedCat = catIdx;
-      j.selectedQ = qIdx;
-      j.buzzedPlayerId = null;
-      j.buzzedPlayerIds = [];
-      j.buzzedAnswer = null;
-      j.buzzStartAt = null;
-      j.awaitingBonus = false;
-      j.showAnswer = false;
-      j.phase = "question";
-      j.questionTotalMs = Math.max(5, timeBase + timeStep * tier) * 1000;
-      j.questionElapsedMs = 0;
-      s.questionStartAt = Date.now();
-    }),
-  );
+export async function selectJeopardyQuestion(
+  code: string,
+  playerId: string | null,
+  catIdx: number,
+  qIdx: number,
+) {
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy) return null;
+  const j = s.jeopardy;
+  if (j.mode === "turn" && playerId) {
+    const cur = s.players[j.currentPlayerIdx]?.id;
+    if (cur && cur !== playerId) return s;
+  }
+  if (j.mode === "buzz" && playerId) return s;
+  const key = `${j.round}-${catIdx}-${qIdx}`;
+  if (j.usedKeys.includes(key)) return s;
+
+  let questionTotalMs = 30000;
+  try {
+    const rec = await loadGame<JeopardyData>("jeopardy", s.gameId);
+    const q = rec?.data.rounds[j.round]?.[catIdx]?.questions[qIdx];
+    const timeBase = rec?.data.config.timeBase ?? 30;
+    const timeStep = rec?.data.config.timeStep ?? 0;
+    const tier = q ? Math.max(0, Math.round((q.points || 100) / 100) - 1) : 0;
+    questionTotalMs = Math.max(5, timeBase + timeStep * tier) * 1000;
+  } catch {
+    /* keep default */
+  }
+
+  return sendAndWaitState(code, {
+    action: "jeopardy_select",
+    catIdx,
+    qIdx,
+    questionTotalMs,
+    questionStartAt: Date.now(),
+  });
 }
 
-// Buzz-mode: player submits typed answer during personal 30s window.
 export async function submitJeopardyBuzzAnswer(code: string, playerId: string, given: string) {
-  return fake(
-    mutJeopardy(code, (j) => {
-      if (j.buzzedPlayerId !== playerId) return;
-      j.buzzedAnswer = given;
-    }),
-  );
+  return sendAndWaitState(code, {
+    action: "jeopardy_buzz_answer",
+    playerId,
+    given,
+  });
 }
 
-// Teacher: after turn-wrong bonus distribution, advance turn + close cell.
 export async function finalizeJeopardyTurnWrong(code: string) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      if (!j.awaitingBonus) return;
-      j.awaitingBonus = false;
-      j.currentPlayerIdx = (j.currentPlayerIdx + 1) % Math.max(1, s.players.length);
-      j.showAnswer = true;
-      j.phase = "reveal";
-      if (j.selectedCat != null && j.selectedQ != null) {
-        const key = `${j.round}-${j.selectedCat}-${j.selectedQ}`;
-        if (!j.usedKeys.includes(key)) j.usedKeys.push(key);
-      }
-    }),
-  );
+  return sendAndWaitState(code, { action: "jeopardy_turn_wrong_finalize" });
 }
 
 export async function buzzJeopardy(code: string, playerId: string) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      if (j.mode !== "buzz") return;
-      if (j.phase !== "question" || j.buzzedPlayerId) return;
-      if (j.buzzedPlayerIds.includes(playerId)) return;
-      // Freeze question timer
-      if (s.questionStartAt) {
-        j.questionElapsedMs += Date.now() - s.questionStartAt;
-      }
-      s.questionStartAt = null;
-      j.buzzedPlayerId = playerId;
-      j.buzzedAnswer = null;
-      j.buzzStartAt = Date.now();
-      j.phase = "answering";
-    }),
-  );
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy) return null;
+  const j = s.jeopardy;
+  if (j.mode !== "buzz" || j.phase !== "question" || j.buzzedPlayerId) return s;
+  if (j.buzzedPlayerIds.includes(playerId)) return s;
+  return sendAndWaitState(code, {
+    action: "jeopardy_buzz",
+    playerId,
+    buzzStartAt: Date.now(),
+  });
 }
 
 export async function acceptJeopardyAnswer(code: string, correct: boolean) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      if (j.selectedCat == null || j.selectedQ == null) return;
-      const rec = _loadGame<JeopardyData>("jeopardy", s.gameId);
-      const q = rec?.data.rounds[j.round]?.[j.selectedCat]?.questions[j.selectedQ];
-      const points = q?.points ?? 0;
-      const targetId = j.mode === "buzz" ? j.buzzedPlayerId : (s.players[j.currentPlayerIdx]?.id ?? null);
-      if (targetId) {
-        const p = s.players.find((x) => x.id === targetId);
-        if (p) {
-          const delta = correct ? points : -points;
-          p.score = p.score + delta;
-          if (correct) p.jCorrect = (p.jCorrect ?? 0) + 1;
-          else p.jWrong = (p.jWrong ?? 0) + 1;
-          j.lastDelta = { playerId: targetId, delta };
-        }
-      }
-      // TURN mode
-      if (j.mode === "turn") {
-        if (correct) {
-          j.currentPlayerIdx = (j.currentPlayerIdx + 1) % Math.max(1, s.players.length);
-          j.showAnswer = true;
-          j.phase = "reveal";
-          const key = `${j.round}-${j.selectedCat}-${j.selectedQ}`;
-          if (!j.usedKeys.includes(key)) j.usedKeys.push(key);
-        } else {
-          // Wrong → let teacher distribute bonus/penalty to others; advance later
-          j.awaitingBonus = true;
-        }
-        return;
-      }
-      // BUZZ + wrong → resume timer, allow other players to buzz.
-      if (j.mode === "buzz" && !correct) {
-        if (targetId && !j.buzzedPlayerIds.includes(targetId)) {
-          j.buzzedPlayerIds.push(targetId);
-        }
-        j.buzzedPlayerId = null;
-        j.buzzedAnswer = null;
-        j.buzzStartAt = null;
-        j.phase = "question";
-        s.questionStartAt = Date.now();
-        if (j.buzzedPlayerIds.length >= s.players.length) {
-          j.showAnswer = true;
-          j.phase = "reveal";
-          const key = `${j.round}-${j.selectedCat}-${j.selectedQ}`;
-          if (!j.usedKeys.includes(key)) j.usedKeys.push(key);
-        }
-        return;
-      }
-      // BUZZ + correct → close
-      j.showAnswer = true;
-      j.phase = "reveal";
-      const key = `${j.round}-${j.selectedCat}-${j.selectedQ}`;
-      if (!j.usedKeys.includes(key)) j.usedKeys.push(key);
-    }),
-  );
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || s.jeopardy.selectedCat == null || s.jeopardy.selectedQ == null) return null;
+  let points = 0;
+  try {
+    const rec = await loadGame<JeopardyData>("jeopardy", s.gameId);
+    const q =
+      rec?.data.rounds[s.jeopardy.round]?.[s.jeopardy.selectedCat]?.questions[s.jeopardy.selectedQ];
+    points = q?.points ?? 0;
+  } catch {
+    /* keep 0 */
+  }
+  return sendAndWaitState(code, {
+    action: "jeopardy_accept",
+    correct,
+    points,
+  });
 }
 
-// Manually close the current question with no points (timer expired /
-// teacher decided to move on). Marks the cell as used.
 export async function closeJeopardyQuestion(code: string) {
-  return fake(
-    mutJeopardy(code, (j) => {
-      if (j.selectedCat == null || j.selectedQ == null) {
-        j.phase = "board";
-        return;
-      }
-      const key = `${j.round}-${j.selectedCat}-${j.selectedQ}`;
-      if (!j.usedKeys.includes(key)) j.usedKeys.push(key);
-      j.showAnswer = true;
-      j.phase = "reveal";
-      j.buzzedPlayerId = null;
-    }),
-  );
+  return sendAndWaitState(code, { action: "jeopardy_close_question" });
 }
 
 export async function backToBoard(code: string) {
-  return fake(
-    mutJeopardy(code, (j) => {
-      j.selectedCat = null;
-      j.selectedQ = null;
-      j.buzzedPlayerId = null;
-      j.buzzedPlayerIds = [];
-      j.showAnswer = false;
-      j.lastDelta = null;
-      j.phase = "board";
-    }),
-  );
+  return sendAndWaitState(code, { action: "jeopardy_back_to_board" });
 }
 
 export async function skipJeopardyQuestion(code: string) {
-  return fake(
-    mutJeopardy(code, (j) => {
-      if (j.selectedCat == null || j.selectedQ == null) {
-        j.phase = "board";
-        return;
-      }
-      const key = `${j.round}-${j.selectedCat}-${j.selectedQ}`;
-      if (!j.usedKeys.includes(key)) j.usedKeys.push(key);
-      j.selectedCat = null;
-      j.selectedQ = null;
-      j.buzzedPlayerId = null;
-      j.buzzedPlayerIds = [];
-      j.showAnswer = false;
-      j.phase = "board";
-    }),
-  );
+  return sendAndWaitState(code, { action: "jeopardy_skip" });
 }
 
 export async function endJeopardyRound(code: string) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      const rec = _loadGame<JeopardyData>("jeopardy", s.gameId);
-      const total = rec?.data.rounds.length ?? 0;
-      if (j.round + 1 < total) {
-        j.round += 1;
-        j.usedKeys = [];
-        j.selectedCat = null;
-        j.selectedQ = null;
-        j.buzzedPlayerId = null;
-        j.showAnswer = false;
-        j.phase = "board";
-      } else {
-        // Move to final
-        j.phase = "final-bets";
-        j.finalBets = {};
-        j.finalAnswers = {};
-        j.finalGiven = {};
-      }
-    }),
-  );
+  const s = roomConns.get(code)?.state;
+  let totalRounds = 1;
+  if (s) {
+    try {
+      const rec = await loadGame<JeopardyData>("jeopardy", s.gameId);
+      totalRounds = rec?.data.rounds.length ?? 1;
+    } catch {
+      /* keep 1 */
+    }
+  }
+  return sendAndWaitState(code, { action: "jeopardy_end_round", totalRounds });
 }
 
 export async function submitJeopardyFinalBet(code: string, playerId: string, bet: number) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      const p = s.players.find((x) => x.id === playerId);
-      const cap = Math.max(0, p?.score ?? 0);
-      j.finalBets[playerId] = Math.max(0, Math.min(cap, Math.floor(bet)));
-    }),
-  );
+  return sendAndWaitState(code, {
+    action: "jeopardy_final_bet",
+    playerId,
+    bet,
+  });
 }
 
 export async function startJeopardyFinalQuestion(code: string) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      // Fill missing bets with 0
-      s.players.forEach((p) => {
-        if (j.finalBets[p.id] == null) j.finalBets[p.id] = 0;
-      });
-      j.phase = "final-question";
-      j.showAnswer = false;
-      s.questionStartAt = Date.now();
-    }),
-  );
+  return sendAndWaitState(code, { action: "jeopardy_final_start" });
 }
 
 export async function submitJeopardyFinalAnswer(code: string, playerId: string, given: string) {
-  return fake(
-    mutJeopardy(code, (j) => {
-      j.finalGiven[playerId] = given;
-    }),
-  );
+  return sendAndWaitState(code, {
+    action: "jeopardy_final_answer",
+    playerId,
+    given,
+  });
 }
 
 export async function markJeopardyFinal(code: string, playerId: string, correct: boolean) {
-  return fake(
-    mutJeopardy(code, (j) => {
-      j.finalAnswers[playerId] = correct;
-    }),
-  );
+  return sendAndWaitState(code, {
+    action: "jeopardy_final_mark",
+    playerId,
+    correct,
+  });
 }
 
 export async function revealJeopardyFinal(code: string) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      j.showAnswer = true;
-      j.phase = "final-reveal";
-      // Setup animation order (ascending score → suspense: reveal weakest first)
-      j.finalRevealOrder = [...s.players].sort((a, b) => a.score - b.score).map((p) => p.id);
-      j.finalRevealIdx = -1;
-      j.finalRevealStep = "done";
-      j.finalRevealAt = null;
-    }),
-  );
+  return sendAndWaitState(code, { action: "jeopardy_final_reveal" });
 }
 
-// Advance the auto-anim: 4 steps per player (bet → answer → score → next).
 export async function advanceJeopardyFinalReveal(code: string) {
-  return fake(
-    mutJeopardy(code, (j, s) => {
-      if (j.phase !== "final-reveal") return;
-      if (j.finalRevealIdx < 0) {
-        j.finalRevealIdx = 0;
-        j.finalRevealStep = "bet";
-        j.finalRevealAt = Date.now();
-        return;
-      }
-      const order: ("bet" | "answer" | "score")[] = ["bet", "answer", "score"];
-      const cur = order.indexOf(j.finalRevealStep as "bet" | "answer" | "score");
-      if (cur >= 0 && cur < 2) {
-        j.finalRevealStep = order[cur + 1];
-        j.finalRevealAt = Date.now();
-        return;
-      }
-      // apply score for current player, move to next
-      const pid = j.finalRevealOrder[j.finalRevealIdx];
-      const p = s.players.find((x) => x.id === pid);
-      if (p) {
-        const bet = j.finalBets[pid] ?? 0;
-        const ok = j.finalAnswers[pid] ?? false;
-        p.score = p.score + (ok ? bet : -bet);
-        j.lastDelta = { playerId: pid, delta: ok ? bet : -bet };
-      }
-      if (j.finalRevealIdx + 1 >= j.finalRevealOrder.length) {
-        j.finalRevealStep = "done";
-        j.finalRevealAt = Date.now();
-      } else {
-        j.finalRevealIdx += 1;
-        j.finalRevealStep = "bet";
-        j.finalRevealAt = Date.now();
-      }
-    }),
-  );
+  return sendAndWaitState(code, { action: "jeopardy_final_advance" });
 }
 
 export async function finishJeopardyGame(code: string) {
-  const s = readRoom(code);
-  if (!s || !s.jeopardy) return fake(null);
-  s.jeopardy.phase = "podium";
-  s.status = "finished";
-  writeRoom(s);
-  // Persist result
-  try {
-    const sorted = [...s.players].sort((a, b) => b.score - a.score);
-    const winner = sorted[0] ?? null;
-    const hasFinal = Object.keys(s.jeopardy.finalBets).length > 0;
-    saveJeopardyResult({
-      gameId: s.gameId,
-      hasFinal,
-      winnerId: winner?.id ?? null,
-      teams: s.players.map((p) => ({
-        id: p.id,
-        name: p.nickname,
-        score: p.score,
-        correct: p.jCorrect ?? 0,
-        wrong: p.jWrong ?? 0,
-        finalBet: hasFinal ? (s.jeopardy!.finalBets[p.id] ?? 0) : undefined,
-        finalCorrect: hasFinal ? (s.jeopardy!.finalAnswers[p.id] ?? false) : undefined,
-      })),
-    });
-  } catch (err) {
-    console.error("Failed to save online jeopardy result", err);
+  const s = await sendAndWaitState(code, { action: "jeopardy_finish" });
+  if (s?.jeopardy) {
+    try {
+      const sorted = [...s.players].sort((a, b) => b.score - a.score);
+      const winner = sorted[0] ?? null;
+      const hasFinal = Object.keys(s.jeopardy.finalBets).length > 0;
+      await submitJeopardyResult({
+        gameId: s.gameId,
+        hasFinal,
+        winnerId: winner?.id ?? null,
+        teams: s.players.map((p) => ({
+          id: p.id,
+          name: p.nickname,
+          score: p.score,
+          correct: p.jCorrect ?? 0,
+          wrong: p.jWrong ?? 0,
+          finalBet: hasFinal ? (s.jeopardy!.finalBets[p.id] ?? 0) : undefined,
+          finalCorrect: hasFinal ? (s.jeopardy!.finalAnswers[p.id] ?? false) : undefined,
+        })),
+      });
+    } catch (err) {
+      console.error("Failed to save online jeopardy result", err);
+    }
   }
-  return fake(s);
+  return s;
 }
 
 export async function adjustJeopardyScore(code: string, playerId: string, delta: number) {
-  return fake(
-    mutJeopardy(code, (_j, s) => {
-      const p = s.players.find((x) => x.id === playerId);
-      if (p) p.score = p.score + delta;
-    }),
-  );
+  return sendAndWaitState(code, {
+    action: "jeopardy_adjust_score",
+    playerId,
+    delta,
+  });
 }
 
 // =========================================================================
@@ -1101,10 +1013,9 @@ export interface GeneratedJeopardyQuestion {
   a: string;
 }
 
-// TODO(server): POST /api/ai/generate-improve-question
 export async function improveQuestion(input: {
   currentText: string;
-  format: string; // "quiz-choice" | "quiz-bool" | "quiz-text" | "quiz-matching" | "jeopardy" | "millionaire"
+  format: string;
   topic?: string;
   wishes?: string;
   reroll?: boolean;
@@ -1146,7 +1057,6 @@ export async function improveQuestion(input: {
         options: ["[MOCK] Один", "[MOCK] Два", "[MOCK] Три", "[MOCK] Четыре"],
       };
     }
-    // quiz-choice / millionaire / default
     return {
       ...base,
       options: ["[MOCK] Правильный", "[MOCK] Неправильный 1", "[MOCK] Неправильный 2", "[MOCK] Неправильный 3"],
@@ -1156,13 +1066,12 @@ export async function improveQuestion(input: {
   return fake({ variants }, 350);
 }
 
-// TODO(server): POST /api/ai/generate-question
 export async function generateQuestion(input: {
   topic?: string;
   type?: "choice" | "bool" | "text";
   currentText?: string;
   wishes?: string;
-  format?: string; // расширение для передачи точного формата билдера
+  format?: string;
   reroll?: boolean;
 }): Promise<{ variants: GeneratedQuestion[] }> {
   const isImprovement = !!input.currentText && input.currentText.trim().length > 0;
@@ -1214,7 +1123,6 @@ export async function generateQuestion(input: {
         options: ["[MOCK] Один", "[MOCK] Два", "[MOCK] Три", "[MOCK] Четыре"],
       };
     }
-    // choice / millionaire / default
     return {
       ...base,
       options: [
@@ -1229,7 +1137,6 @@ export async function generateQuestion(input: {
   return fake({ variants }, 350);
 }
 
-// TODO(server): POST /api/ai/generate-quiz
 export async function generateQuiz(input: {
   topic?: string;
   count?: number;
@@ -1268,7 +1175,6 @@ export async function generateQuiz(input: {
         correctAnswer: "[MOCK] Правильный ответ",
       };
     }
-    // matching
     return {
       type,
       question,
@@ -1282,7 +1188,6 @@ export async function generateQuiz(input: {
   return fake({ title: `[MOCK] Квиз: ${topic}`, questions }, 500);
 }
 
-// TODO(server): POST /api/ai/generate-jeopardy-categories
 export async function generateJeopardyCategories(input: {
   topic?: string;
   wishes?: string;
@@ -1300,7 +1205,6 @@ export async function generateJeopardyCategories(input: {
   );
 }
 
-// TODO(server): POST /api/ai/generate-jeopardy-questions
 export async function generateJeopardyQuestions(input: {
   category: string;
   emptySlots: number[];
@@ -1322,36 +1226,20 @@ export async function generateJeopardyQuestions(input: {
   return fake({ questions }, 400);
 }
 
-// ---------- Public export for debugging / migration audits ----------
-export const __apiVersion = "1.1.0-facade-ai";
+export const __apiVersion = "2.0.0-rest-ws";
 
-// ---------- Library "played" tab helper ----------
 export async function listPlayedGameIdsForUser(userId: string): Promise<Set<string>> {
-  const out = new Set<string>();
-  if (typeof window === "undefined") return fake(out);
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (!k) continue;
-    let gameId = "";
-    if (k.startsWith("islandquiz.v1.results.")) gameId = k.slice("islandquiz.v1.results.".length);
-    else if (k.startsWith("islandquiz.v1.jresults.")) gameId = k.slice("islandquiz.v1.jresults.".length);
-    else if (k.startsWith("islandquiz.v1.online-results.")) gameId = k.slice("islandquiz.v1.online-results.".length);
-    else if (k.startsWith("islandquiz.v1.millionaire-results."))
-      gameId = k.slice("islandquiz.v1.millionaire-results.".length);
-    else continue;
-    try {
-      const arr = JSON.parse(localStorage.getItem(k) || "[]") as Array<Record<string, unknown>>;
-      const hit = arr.some((r) => {
-        if (r.userId === userId) return true;
-        const players = (r.players ?? []) as Array<Record<string, unknown>>;
-        return Array.isArray(players) && players.some((p) => p.userId === userId);
-      });
-      if (hit) out.add(gameId);
-    } catch {
-      /* skip */
+  try {
+    const games = await listGames();
+    // Heuristic: games the user owns count as played; server has no dedicated endpoint.
+    const out = new Set<string>();
+    for (const g of games) {
+      if (g.ownerId === userId) out.add(g.id);
     }
+    return out;
+  } catch {
+    return new Set();
   }
-  return fake(out);
 }
 
 // ---------- Ratings ----------
@@ -1364,26 +1252,13 @@ export function computeRatingStats(g: StoredGame): { avg: number; count: number 
   return { avg: sum / values.length, count: values.length };
 }
 
-// TODO(server): POST /api/games/:id/rate
 export async function rateGame(gameId: string, rating: number): Promise<{ ok: boolean }> {
-  const me = getCurrentUser();
-  if (!me) return fake({ ok: false });
   const r = Math.max(1, Math.min(5, Math.round(rating)));
-  const all = _listGames();
-  const g = all.find((x) => x.id === gameId);
-  if (!g) return fake({ ok: false });
-  const ratings = { ...(g.ratings ?? {}), [me.id]: r };
-  _saveGame(g.kind, g.id, g.data, {
-    ownerId: g.ownerId,
-    ownerName: g.ownerName,
-    visibility: g.visibility,
-    forkedFrom: g.forkedFrom,
-    forkedOwnerName: g.forkedOwnerName,
-    tags: g.tags,
-    playCount: g.playCount,
-    ratings,
-  });
-  return fake({ ok: true });
+  try {
+    return await apiFetch(`/api/games/${gameId}/rate?rating=${r}`, { method: "POST" });
+  } catch {
+    return { ok: false };
+  }
 }
 
 export function getMyRating(g: StoredGame, userId?: string): number | undefined {
@@ -1398,36 +1273,25 @@ export interface PublicProfile {
   stats: { gamesCount: number; avgRating: number; totalRatings: number };
 }
 
-// TODO(server): GET /api/users/:id
 export async function getUserProfile(userId: string): Promise<PublicProfile | null> {
-  const user = findUserById(userId);
-  if (!user) return fake(null);
-  const me = getCurrentUser();
-  const all = _listGames();
-  const mine = all.filter((g) => g.ownerId === userId);
-  const visible =
-    me?.id === userId ? mine : mine.filter((g) => g.visibility === "public");
-  let totalRatings = 0;
-  let ratingSum = 0;
-  for (const g of mine) {
-    const { avg, count } = computeRatingStats(g);
-    if (count) {
-      totalRatings += count;
-      ratingSum += avg * count;
-    }
+  try {
+    const data = await apiFetch(`/api/users/${userId}`);
+    if (!data) return null;
+    return {
+      user: mapUser(data.user),
+      games: Array.isArray(data.games) ? data.games.map((g: any) => mapGame(g)) : [],
+      stats: data.stats ?? { gamesCount: 0, avgRating: 0, totalRatings: 0 },
+    };
+  } catch {
+    return null;
   }
-  const avgRating = totalRatings ? ratingSum / totalRatings : 0;
-  return fake({
-    user,
-    games: visible,
-    stats: { gamesCount: mine.length, avgRating, totalRatings },
-  });
 }
 
-// TODO(server): GET /api/users/:id/games
 export async function getUserGames(userId: string): Promise<StoredGame[]> {
-  const me = getCurrentUser();
-  const all = _listGames().filter((g) => g.ownerId === userId);
-  return fake(me?.id === userId ? all : all.filter((g) => g.visibility === "public"));
+  try {
+    const list = await apiFetch(`/api/users/${userId}/games`);
+    return Array.isArray(list) ? list.map((g: any) => mapGame(g)) : [];
+  } catch {
+    return [];
+  }
 }
-
