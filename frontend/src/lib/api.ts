@@ -1033,6 +1033,10 @@ export async function adjustJeopardyScore(code: string, playerId: string, delta:
 // меняем только тело функций, сигнатуры сохраняем. Промпты, роли и модель
 // формируются на сервере — фронт передаёт только input-параметры.
 
+// =========================================================================
+//                        AI HELPERS (TZ AI v2.0)
+// =========================================================================
+
 export interface GeneratedQuestion {
   difficulty: "easy" | "medium" | "hard";
   question: string;
@@ -1070,50 +1074,10 @@ export async function improveQuestion(input: {
   wishes?: string;
   reroll?: boolean;
 }): Promise<{ variants: GeneratedQuestion[] }> {
-  const salt = input.reroll ? ` (reroll ${Math.floor(Math.random() * 100)})` : "";
-  const difficulties = ["easy", "medium", "hard"] as const;
-  const variants: GeneratedQuestion[] = difficulties.map((difficulty) => {
-    const base = {
-      difficulty,
-      question: `[MOCK] [${difficulty}] Улучшено под ${input.format}: ${input.currentText}${salt}`,
-    };
-    if (input.format === "quiz-bool") {
-      return { ...base, options: ["Да", "Нет"], correct: Math.random() > 0.5 };
-    }
-    if (input.format === "quiz-text" || input.format === "jeopardy") {
-      return { ...base, correctAnswer: `[MOCK] Улучшенный ответ` };
-    }
-    if (input.format === "quiz-matching") {
-      return {
-        ...base,
-        pairs: [
-          { left: "[MOCK] A", right: "[MOCK] 1" },
-          { left: "[MOCK] B", right: "[MOCK] 2" },
-          { left: "[MOCK] C", right: "[MOCK] 3" },
-        ],
-      };
-    }
-    if (input.format === "quiz-close") {
-      return {
-        ...base,
-        question: `[MOCK] [${difficulty}] Столица Франции — ___, Германии — ___`,
-        correctAnswer: "Париж|Берлин",
-      };
-    }
-    if (input.format === "quiz-ordering") {
-      return {
-        ...base,
-        question: `[MOCK] [${difficulty}] Расставьте по возрастанию:`,
-        options: ["[MOCK] Один", "[MOCK] Два", "[MOCK] Три", "[MOCK] Четыре"],
-      };
-    }
-    return {
-      ...base,
-      options: ["[MOCK] Правильный", "[MOCK] Неправильный 1", "[MOCK] Неправильный 2", "[MOCK] Неправильный 3"],
-      correct: Math.floor(Math.random() * 4),
-    };
+  return apiFetch("/api/ai/improve-question", {
+    method: "POST",
+    body: JSON.stringify(input),
   });
-  return fake({ variants }, 350);
 }
 
 export async function generateQuestion(input: {
@@ -1124,67 +1088,10 @@ export async function generateQuestion(input: {
   format?: string;
   reroll?: boolean;
 }): Promise<{ variants: GeneratedQuestion[] }> {
-  const isImprovement = !!input.currentText && input.currentText.trim().length > 0;
-  if (isImprovement) {
-    return improveQuestion({
-      currentText: input.currentText!,
-      format: input.format ?? input.type ?? "quiz-choice",
-      topic: input.topic,
-      wishes: input.wishes,
-      reroll: input.reroll,
-    });
-  }
-  const topic = input.topic?.trim() || "Неожиданные факты";
-  const effectiveFormat = input.format ?? input.type ?? "choice";
-  const salt = input.reroll ? ` (reroll ${Math.floor(Math.random() * 100)})` : "";
-  const difficulties = ["easy", "medium", "hard"] as const;
-  const variants: GeneratedQuestion[] = difficulties.map((difficulty, i) => {
-    const base = {
-      difficulty,
-      question: `[MOCK] [${difficulty}] Вопрос ${i + 1} по теме "${topic}"${salt}`,
-    };
-    if (effectiveFormat === "quiz-bool" || input.type === "bool") {
-      return { ...base, options: ["Да", "Нет"], correct: Math.random() > 0.5 };
-    }
-    if (effectiveFormat === "quiz-text" || input.type === "text") {
-      return { ...base, correctAnswer: `[MOCK] Правильный ответ на вопрос` };
-    }
-    if (effectiveFormat === "quiz-matching") {
-      return {
-        ...base,
-        pairs: [
-          { left: "[MOCK] A", right: "[MOCK] 1" },
-          { left: "[MOCK] B", right: "[MOCK] 2" },
-          { left: "[MOCK] C", right: "[MOCK] 3" },
-        ],
-      };
-    }
-    if (effectiveFormat === "quiz-close") {
-      return {
-        ...base,
-        question: `[MOCK] [${difficulty}] Столица Франции — ___, Германии — ___`,
-        correctAnswer: "Париж|Берлин",
-      };
-    }
-    if (effectiveFormat === "quiz-ordering") {
-      return {
-        ...base,
-        question: `[MOCK] [${difficulty}] Расставьте по возрастанию:`,
-        options: ["[MOCK] Один", "[MOCK] Два", "[MOCK] Три", "[MOCK] Четыре"],
-      };
-    }
-    return {
-      ...base,
-      options: [
-        "[MOCK] Правильный ответ",
-        "[MOCK] Неправильный ответ 1",
-        "[MOCK] Неправильный ответ 2",
-        "[MOCK] Неправильный ответ 3",
-      ],
-      correct: Math.floor(Math.random() * 4),
-    };
+  return apiFetch("/api/ai/generate-question", {
+    method: "POST",
+    body: JSON.stringify(input),
   });
-  return fake({ variants }, 350);
 }
 
 export async function generateQuiz(input: {
@@ -1192,67 +1099,20 @@ export async function generateQuiz(input: {
   count?: number;
   wishes?: string;
 }): Promise<{ title: string; questions: GeneratedQuizQuestion[] }> {
-  const topic = input.topic?.trim() || "Удивительные открытия";
-  const count = Math.min(20, Math.max(5, input.count ?? 10));
-  const questions: GeneratedQuizQuestion[] = Array.from({ length: count }).map((_, i) => {
-    const pos = i % 10;
-    let type: GeneratedQuizQuestion["type"];
-    if (pos < 6) type = "choice";
-    else if (pos < 8) type = "text";
-    else if (pos === 8) type = "bool";
-    else type = "matching";
-    const question = `[MOCK] Вопрос ${i + 1} (${type}) по теме "${topic}"`;
-    if (type === "choice") {
-      return {
-        type,
-        question,
-        options: ["[MOCK] Правильный", "[MOCK] Неправильный 1", "[MOCK] Неправильный 2", "[MOCK] Неправильный 3"],
-        correct: Math.floor(Math.random() * 4),
-      };
-    }
-    if (type === "bool") {
-      return {
-        type,
-        question,
-        options: ["Да", "Нет"],
-        correct: Math.random() > 0.5,
-      };
-    }
-    if (type === "text") {
-      return {
-        type,
-        question,
-        correctAnswer: "[MOCK] Правильный ответ",
-      };
-    }
-    return {
-      type,
-      question,
-      pairs: [
-        { left: "[MOCK] A", right: "[MOCK] 1" },
-        { left: "[MOCK] B", right: "[MOCK] 2" },
-        { left: "[MOCK] C", right: "[MOCK] 3" },
-      ],
-    };
+  return apiFetch("/api/ai/generate-quiz", {
+    method: "POST",
+    body: JSON.stringify(input),
   });
-  return fake({ title: `[MOCK] Квиз: ${topic}`, questions }, 500);
 }
 
 export async function generateJeopardyCategories(input: {
   topic?: string;
   wishes?: string;
 }): Promise<{ categories: GeneratedJeopardyCategory[] }> {
-  const topic = input.topic?.trim() || "Удивительные явления";
-  return fake(
-    {
-      categories: [
-        { name: `[MOCK] ${topic}: ключевые события`, description: "Основные даты и факты" },
-        { name: `[MOCK] ${topic}: личности`, description: "Выдающиеся деятели" },
-        { name: `[MOCK] ${topic}: малоизвестные факты`, description: "Удивительные подробности" },
-      ],
-    },
-    400,
-  );
+  return apiFetch("/api/ai/generate-jeopardy-categories", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function generateJeopardyQuestions(input: {
@@ -1260,36 +1120,10 @@ export async function generateJeopardyQuestions(input: {
   emptySlots: number[];
   wishes?: string;
 }): Promise<{ questions: GeneratedJeopardyQuestion[] }> {
-  const difficultyMap: Record<number, string> = {
-    100: "easy",
-    200: "easy-medium",
-    300: "medium",
-    400: "medium-hard",
-    500: "hard",
-  };
-  const questions = input.emptySlots.map((points) => ({
-    points,
-    difficulty: difficultyMap[points] ?? "medium",
-    q: `[MOCK] [${points}] Вопрос по теме "${input.category}"`,
-    a: `[MOCK] Ответ на ${points}`,
-  }));
-  return fake({ questions }, 400);
-}
-
-export const __apiVersion = "2.0.0-rest-ws";
-
-export async function listPlayedGameIdsForUser(userId: string): Promise<Set<string>> {
-  try {
-    const games = await listGames();
-    // Heuristic: games the user owns count as played; server has no dedicated endpoint.
-    const out = new Set<string>();
-    for (const g of games) {
-      if (g.ownerId === userId) out.add(g.id);
-    }
-    return out;
-  } catch {
-    return new Set();
-  }
+  return apiFetch("/api/ai/generate-jeopardy-questions", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 // ---------- Ratings ----------
