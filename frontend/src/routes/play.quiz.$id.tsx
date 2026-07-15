@@ -10,8 +10,7 @@ import { RefreshCw, Trophy, Timer } from "lucide-react";
 import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
 import { LaTeX } from "@/lib/latex";
-import { loadGame } from "@/lib/storage";
-import { saveQuizResult } from "@/lib/results";
+import { loadGame, submitResult } from "@/lib/api";
 import { formatQuizAnswer, formatGivenAnswer, checkQuizAnswerCore } from "@/lib/format-answer";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
@@ -65,9 +64,16 @@ function PlayQuiz() {
   }, [user, nameTouched, name]);
 
   useEffect(() => {
-    const g = loadGame<QuizData>("quiz", id);
-    if (g) setStored(g.data);
-    setLoading(false);
+    let cancel = false;
+    (async () => {
+      const g = await loadGame<QuizData>("quiz", id);
+      if (cancel) return;
+      if (g) setStored(g.data);
+      setLoading(false);
+    })();
+    return () => {
+      cancel = true;
+    };
   }, [id]);
 
   const config = stored?.config;
@@ -129,32 +135,31 @@ function PlayQuiz() {
     const earned = finalAnswers.reduce((s, a) => s + a.earned, 0);
     const correct = finalAnswers.filter((a) => a.correct).length;
     const timeSec = Math.max(0, Math.floor((Date.now() - startedAt.current) / 1000));
-    try {
-      const saved = saveQuizResult({
-        gameId: id,
-        playerName: name.trim(),
-        score: earned,
-        maxScore: totalPts,
-        correctCount: correct,
-        totalQuestions: questions.length,
-        timeSec,
-        userId: user?.id,
-        avatar: user?.avatar,
-        answers: finalAnswers.map((a) => ({
-          qId: a.qId,
-          question: a.question,
-          given: a.given,
-          correctAnswer: a.correctAnswer,
-          isCorrect: a.correct,
-          earned: a.earned,
-          points: a.points,
-        })),
-      });
+    void submitResult({
+      gameId: id,
+      playerName: name.trim(),
+      score: earned,
+      maxScore: totalPts,
+      correctCount: correct,
+      totalQuestions: questions.length,
+      timeSec,
+      userId: user?.id,
+      avatar: user?.avatar,
+      answers: finalAnswers.map((a) => ({
+        qId: a.qId,
+        question: a.question,
+        given: a.given,
+        correctAnswer: a.correctAnswer,
+        isCorrect: a.correct,
+        earned: a.earned,
+        points: a.points,
+      })),
+    }).then((saved) => {
       console.log("[quiz] результат сохранён", saved);
-    } catch (e) {
+    }).catch((e) => {
       savedRef.current = false;
       console.error("Не удалось сохранить результат", e);
-    }
+    });
   };
 
   // Safety net: whenever phase transitions to "done", persist result.

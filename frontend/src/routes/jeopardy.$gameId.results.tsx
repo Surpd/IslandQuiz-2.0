@@ -2,10 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Trophy, ArrowLeft, ChevronDown, ChevronRight, Check, X } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
-import { getJeopardyResults } from "@/lib/api";
-import { loadGame } from "@/lib/storage";
+import { getJeopardyResults, loadGame, type JeopardyResult } from "@/lib/api";
 import type { JeopardyData } from "@/lib/types";
-import type { JeopardyResult } from "@/lib/jeopardy-results";
 
 export const Route = createFileRoute("/jeopardy/$gameId/results")({
   head: () => ({
@@ -23,18 +21,21 @@ function JeopardyResultsPage() {
 
   useEffect(() => {
     let cancel = false;
-    const g = loadGame<JeopardyData>("jeopardy", gameId);
-    setGame(g?.data ?? null);
     setState("loading");
-    getJeopardyResults(gameId)
-      .then((rs) => {
+    (async () => {
+      try {
+        const [g, rs] = await Promise.all([
+          loadGame<JeopardyData>("jeopardy", gameId),
+          getJeopardyResults(gameId),
+        ]);
         if (cancel) return;
+        setGame(g?.data ?? null);
         setResults(rs);
         setState("idle");
-      })
-      .catch(() => {
+      } catch {
         if (!cancel) setState("error");
-      });
+      }
+    })();
     return () => {
       cancel = true;
     };

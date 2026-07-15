@@ -11,8 +11,11 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { SiteHeader } from "@/components/site-header";
-import { loadMillionaireResults, type MillionaireResult } from "@/lib/results";
-import { loadGame } from "@/lib/storage";
+import {
+  getMillionaireResults,
+  loadGame,
+  type MillionaireResult,
+} from "@/lib/api";
 import type { MillionaireData } from "@/lib/types";
 
 export const Route = createFileRoute("/millionaire/$gameId/results")({
@@ -37,9 +40,19 @@ function MillionaireResultsPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    setResults(loadMillionaireResults(gameId));
-    const g = loadGame<MillionaireData>("millionaire", gameId);
-    setGame(g?.data ?? null);
+    let cancel = false;
+    (async () => {
+      const [rs, g] = await Promise.all([
+        getMillionaireResults(gameId),
+        loadGame<MillionaireData>("millionaire", gameId),
+      ]);
+      if (cancel) return;
+      setResults(rs);
+      setGame(g?.data ?? null);
+    })();
+    return () => {
+      cancel = true;
+    };
   }, [gameId, tick]);
 
   const stats = useMemo(() => {

@@ -5,13 +5,13 @@ import { Avatar } from "@/components/avatar";
 
 import { SiteHeader } from "@/components/site-header";
 import {
-  loadQuizResults,
-  loadOnlineQuizResults,
+  getResults,
+  getOnlineResults,
+  loadGame,
   type QuizResult,
   type OnlineQuizResult,
   type OnlineQuizPlayerResult,
-} from "@/lib/results";
-import { loadGame } from "@/lib/storage";
+} from "@/lib/api";
 import type { QuizData } from "@/lib/types";
 
 export const Route = createFileRoute("/quiz/$gameId/results")({
@@ -58,10 +58,21 @@ function ResultsPage() {
   const [expandedOffline, setExpandedOffline] = useState<string | null>(null);
 
   useEffect(() => {
-    setOffline(loadQuizResults(gameId));
-    setOnline(loadOnlineQuizResults(gameId));
-    const g = loadGame<QuizData>("quiz", gameId);
-    setGame(g?.data ?? null);
+    let cancel = false;
+    (async () => {
+      const [off, on, g] = await Promise.all([
+        getResults(gameId),
+        getOnlineResults(gameId),
+        loadGame<QuizData>("quiz", gameId),
+      ]);
+      if (cancel) return;
+      setOffline(off);
+      setOnline(on);
+      setGame(g?.data ?? null);
+    })();
+    return () => {
+      cancel = true;
+    };
   }, [gameId, tick]);
 
   const rows: UnifiedRow[] = useMemo(() => {

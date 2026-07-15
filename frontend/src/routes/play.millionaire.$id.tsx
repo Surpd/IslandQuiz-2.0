@@ -4,10 +4,9 @@ import { Sparkles, RefreshCw } from "lucide-react";
 import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
 import { LaTeX } from "@/lib/latex";
-import { loadGame } from "@/lib/storage";
+import { loadGame, submitMillionaireResult, type MillionaireAnswerDetail } from "@/lib/api";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
-import { saveMillionaireResult, type MillionaireAnswerDetail } from "@/lib/results";
 import type { MilestoneMode, MillionaireData, MillionaireQuestion } from "@/lib/types";
 
 export const Route = createFileRoute("/play/millionaire/$id")({
@@ -45,8 +44,15 @@ function PlayMillionaire() {
   const savedRef = useRef(false);
 
   useEffect(() => {
-    const g = loadGame<MillionaireData>("millionaire", id);
-    if (g) setData(g.data);
+    let cancel = false;
+    (async () => {
+      const g = await loadGame<MillionaireData>("millionaire", id);
+      if (cancel) return;
+      if (g) setData(g.data);
+    })();
+    return () => {
+      cancel = true;
+    };
   }, [id]);
 
   const config = data?.config;
@@ -99,7 +105,7 @@ function PlayMillionaire() {
     if (phase === "playing" || phase === "start" || savedRef.current || !questions.length) return;
     savedRef.current = true;
     const reached = answersRef.current.filter((a) => a.isCorrect).length;
-    saveMillionaireResult({
+    void submitMillionaireResult({
       gameId: id,
       playerName: playerName.trim() || user?.name || "Аноним",
       avatar: user?.avatar,

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Minus, X, Trophy } from "lucide-react";
 import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { LaTeX } from "@/lib/latex";
-import { loadGame } from "@/lib/storage";
+import { loadGame } from "@/lib/api";
 import { submitJeopardyResult } from "@/lib/api";
 import { fitQuestionSize } from "@/lib/fit-text";
 import type { JeopardyData } from "@/lib/types";
@@ -49,8 +49,15 @@ function PlayJeopardy() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const g = loadGame<JeopardyData>("jeopardy", id);
-    if (g) setData(g.data);
+    let cancel = false;
+    (async () => {
+      const g = await loadGame<JeopardyData>("jeopardy", id);
+      if (cancel) return;
+      if (g) setData(g.data);
+    })();
+    return () => {
+      cancel = true;
+    };
   }, [id]);
 
   const config = data?.config;

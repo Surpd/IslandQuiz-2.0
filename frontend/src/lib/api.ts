@@ -5,6 +5,9 @@ import type {
   QuizResult,
   OnlineQuizResult,
   OnlineQuizPlayerAnswer,
+  OnlineQuizPlayerResult,
+  MillionaireResult,
+  MillionaireAnswerDetail,
 } from "./results";
 import type { JeopardyResult } from "./jeopardy-results";
 import type {
@@ -21,6 +24,15 @@ import { formatQuizAnswer, formatGivenAnswer } from "./format-answer";
 // Re-export types consumed by other modules so the facade stays the single entry point.
 export type { User } from "./auth";
 export type { GameKind, GameVisibility, StoredGame } from "./types";
+export type {
+  QuizResult,
+  OnlineQuizResult,
+  OnlineQuizPlayerAnswer,
+  OnlineQuizPlayerResult,
+  MillionaireResult,
+  MillionaireAnswerDetail,
+} from "./results";
+export type { JeopardyResult } from "./jeopardy-results";
 
 // ---------- HTTP helper ----------
 const BASE_URL = "https://islandquiz-2-0.onrender.com";
@@ -114,6 +126,24 @@ function mapJeopardyResult(r: any): JeopardyResult {
     hasFinal: r.hasFinal ?? r.has_final ?? false,
     userId: r.userId ?? r.user_id ?? undefined,
     avatar: r.avatar ?? undefined,
+  };
+}
+
+function mapMillionaireResult(r: any): MillionaireResult {
+  return {
+    id: r.id,
+    gameId: r.gameId ?? r.game_id,
+    userId: r.userId ?? r.user_id ?? undefined,
+    playerName: r.playerName ?? r.player_name,
+    avatar: r.avatar ?? undefined,
+    outcome: r.outcome,
+    wonAmount: r.wonAmount ?? r.won_amount,
+    guaranteedAmount: r.guaranteedAmount ?? r.guaranteed_amount,
+    reachedCount: r.reachedCount ?? r.reached_count,
+    totalQuestions: r.totalQuestions ?? r.total_questions,
+    timeSec: r.timeSec ?? r.time_sec,
+    finishedAt: toMs(r.finishedAt ?? r.finished_at),
+    answers: r.answers ?? [],
   };
 }
 
@@ -336,6 +366,21 @@ export async function getResults(gameId: string) {
 
 export async function submitResult(payload: Omit<QuizResult, "id" | "finishedAt">) {
   return apiFetch(`/api/quiz/${payload.gameId}/results`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ---------- Millionaire results ----------
+export async function getMillionaireResults(gameId: string): Promise<MillionaireResult[]> {
+  const list = await apiFetch(`/api/millionaire/${gameId}/results`);
+  return Array.isArray(list) ? list.map(mapMillionaireResult) : [];
+}
+
+export async function submitMillionaireResult(
+  payload: Omit<MillionaireResult, "id" | "finishedAt">,
+) {
+  return apiFetch(`/api/millionaire/${payload.gameId}/results`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
