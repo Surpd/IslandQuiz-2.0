@@ -74,8 +74,10 @@ async def call_openai(prompt: str) -> str:
             },
         )
         data = response.json()
-       # return data["choices"][0]["message"]["content"]
-
+        return data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"]["content"]
+        print(f"[AI] Raw response: {content[:300]}")
+        return content
 
 # ---------- Routes ----------
 
