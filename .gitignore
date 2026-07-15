@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+.vite/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backend
+backend/__pycache__/
+backend/*.pyc
+backend/.venv/
+backend/venv/
+backend/islandquiz.db
+backend/*.db
+
+# Cursor
+.cursor/

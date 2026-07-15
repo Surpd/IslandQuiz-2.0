@@ -1,0 +1,19 @@
+# IslandQuiz Cursor Rules
+
+## Контекст
+- Фронтенд: React + TypeScript + TanStack Router + Tailwind CSS
+- Бэкенд: FastAPI + SQLAlchemy + SQLite + WebSocket
+- Фронт в папке `frontend/`, бэкенд в папке `backend/`
+- Все API-вызовы только через `src/lib/api.ts`
+
+## API контракт
+- Бэкенд на `http://localhost:8000` (или `VITE_API_URL` из .env)
+- Авторизация: JWT токен в `Authorization: Bearer ${token}`
+- Комнаты: WebSocket `ws://localhost:8000/ws/room/${code}`
+- Все ответы в JSON
+
+## Правила
+- Не менять сигнатуры функций в `api.ts`
+- Не трогать UI-компоненты
+- Использовать TypeScript типы из `src/lib/types.ts`
+- После изменений запускать `npm run build` для проверки

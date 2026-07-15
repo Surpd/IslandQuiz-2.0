@@ -1,0 +1,43 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from database import init_db
+from routes.auth import router as auth_router
+from routes.users import router as users_router
+from routes.games import router as games_router
+from routes.results import router as results_router
+from routes.ai import router as ai_router
+
+app = FastAPI(title="IslandQuiz API", version="1.0.0")
+
+# CORS — разрешаем запросы с фронтенда
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # В продакшене заменить на конкретный домен
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Подключаем роуты
+app.include_router(auth_router)
+app.include_router(users_router)
+app.include_router(games_router)
+app.include_router(results_router)
+app.include_router(ai_router)
+
+
+@app.on_event("startup")
+def startup():
+    init_db()
+    print("Database initialized")
+
+
+@app.get("/")
+def root():
+    return {"name": "IslandQuiz API", "version": "1.0.0"}
+
+
+# В продакшене — раздача статики фронтенда
+# app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="frontend")
