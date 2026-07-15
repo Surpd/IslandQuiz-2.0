@@ -1,25 +1,12 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+import os
+from supabase import create_client
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./islandquiz.db"
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-class Base(DeclarativeBase):
-    pass
-
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
+    return supabase
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    print("Supabase connected")

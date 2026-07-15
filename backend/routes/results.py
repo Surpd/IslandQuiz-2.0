@@ -4,15 +4,12 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+
+from database import supabase
 from routes.auth import get_current_user
-from database import get_db
-from models import User, Game, QuizResult, JeopardyResult, MillionaireResult, OnlineQuizResult
 
 router = APIRouter(prefix="/api", tags=["results"])
 
-
-# ---------- Schemas ----------
 
 class QuizAnswer(BaseModel):
     qId: str
@@ -94,7 +91,7 @@ class MillionaireAnswerDetail(BaseModel):
 class MillionaireResultInput(BaseModel):
     gameId: str
     playerName: str
-    outcome: str  # won, lost
+    outcome: str
     wonAmount: float
     guaranteedAmount: float
     reachedCount: int
@@ -155,203 +152,119 @@ class OnlineQuizResultOut(BaseModel):
 # ---------- Quiz Results ----------
 
 @router.get("/quiz/{gameId}/results", response_model=List[QuizResultOut])
-def get_quiz_results(gameId: str, db: Session = Depends(get_db)):
-    results = db.query(QuizResult).filter(QuizResult.game_id == gameId).order_by(QuizResult.finished_at.desc()).all()
+def get_quiz_results(gameId: str):
+    res = supabase.table("quiz_results").select("*").eq("game_id", gameId).order("finished_at", desc=True).execute()
     return [
         QuizResultOut(
-            id=r.id,
-            gameId=r.game_id,
-            userId=r.user_id,
-            playerName=r.player_name,
-            avatar=r.avatar,
-            score=r.score,
-            maxScore=r.max_score,
-            correctCount=r.correct_count,
-            totalQuestions=r.total_questions,
-            timeSec=r.time_sec,
-            finishedAt=r.finished_at.isoformat(),
-            answers=r.answers,
+            id=r["id"], gameId=r["game_id"], userId=r.get("user_id"), playerName=r["player_name"],
+            avatar=r.get("avatar"), score=r["score"], maxScore=r["max_score"],
+            correctCount=r["correct_count"], totalQuestions=r["total_questions"],
+            timeSec=r["time_sec"], finishedAt=r["finished_at"], answers=r.get("answers"),
         )
-        for r in results
+        for r in (res.data or [])
     ]
 
 
 @router.post("/quiz/{gameId}/results", response_model=dict)
-def submit_quiz_result(
-    gameId: str,
-    payload: QuizResultInput,
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-):
-    result = QuizResult(
-        id=str(uuid.uuid4())[:8],
-        game_id=gameId,
-        user_id=current_user.id if current_user else None,
-        player_name=payload.playerName,
-        score=payload.score,
-        max_score=payload.maxScore,
-        correct_count=payload.correctCount,
-        total_questions=payload.totalQuestions,
-        time_sec=payload.timeSec,
-        finished_at=datetime.utcnow(),
-        answers=[a.model_dump() for a in payload.answers],
-    )
-    db.add(result)
+def submit_quiz_result(gameId: str, payload: QuizResultInput, current_user=Depends(get_current_user)):
+    result_id = str(uuid.uuid4())[:8]
+    supabase.table("quiz_results").insert({
+        "id": result_id, "game_id": gameId,
+        "user_id": current_user["id"] if current_user else None,
+        "player_name": payload.playerName, "score": payload.score, "max_score": payload.maxScore,
+        "correct_count": payload.correctCount, "total_questions": payload.totalQuestions,
+        "time_sec": payload.timeSec, "finished_at": datetime.utcnow().isoformat(),
+        "answers": [a.model_dump() for a in payload.answers],
+    }).execute()
 
-    # Increment play count
-    game = db.query(Game).filter(Game.id == gameId).first()
-    if game:
-        game.play_count = (game.play_count or 0) + 1
+    supabase.table("games").select("play_count").eq("id", gameId).execute()
+    supabase.table("games").update({"play_count": supabase.table("games").select("play_count").eq("id", gameId).execute().data[0]["play_count"] + 1}).eq("id", gameId).execute()
 
-    db.commit()
-    return {"ok": True, "id": result.id}
+    return {"ok": True, "id": result_id}
 
 
 # ---------- Jeopardy Results ----------
 
 @router.get("/jeopardy/{gameId}/results", response_model=List[JeopardyResultOut])
-def get_jeopardy_results(gameId: str, db: Session = Depends(get_db)):
-    results = db.query(JeopardyResult).filter(JeopardyResult.game_id == gameId).order_by(JeopardyResult.played_at.desc()).all()
+def get_jeopardy_results(gameId: str):
+    res = supabase.table("jeopardy_results").select("*").eq("game_id", gameId).order("played_at", desc=True).execute()
     return [
-        JeopardyResultOut(
-            id=r.id,
-            gameId=r.game_id,
-            playedAt=r.played_at.isoformat(),
-            teams=r.teams,
-            winnerId=r.winner_id,
-            hasFinal=r.has_final,
-        )
-        for r in results
+        JeopardyResultOut(id=r["id"], gameId=r["game_id"], playedAt=r["played_at"],
+                          teams=r["teams"], winnerId=r.get("winner_id"), hasFinal=r["has_final"])
+        for r in (res.data or [])
     ]
 
 
 @router.get("/jeopardy/{gameId}/results/{resultId}", response_model=Optional[JeopardyResultOut])
-def get_jeopardy_result_detail(gameId: str, resultId: str, db: Session = Depends(get_db)):
-    r = db.query(JeopardyResult).filter(JeopardyResult.id == resultId, JeopardyResult.game_id == gameId).first()
-    if not r:
+def get_jeopardy_result_detail(gameId: str, resultId: str):
+    res = supabase.table("jeopardy_results").select("*").eq("id", resultId).eq("game_id", gameId).execute()
+    if not res.data:
         return None
-    return JeopardyResultOut(
-        id=r.id,
-        gameId=r.game_id,
-        playedAt=r.played_at.isoformat(),
-        teams=r.teams,
-        winnerId=r.winner_id,
-        hasFinal=r.has_final,
-    )
+    r = res.data[0]
+    return JeopardyResultOut(id=r["id"], gameId=r["game_id"], playedAt=r["played_at"],
+                             teams=r["teams"], winnerId=r.get("winner_id"), hasFinal=r["has_final"])
 
 
 @router.post("/jeopardy/{gameId}/results", response_model=dict)
-def submit_jeopardy_result(gameId: str, payload: JeopardyResultInput, db: Session = Depends(get_db)):
-    result = JeopardyResult(
-        id=str(uuid.uuid4())[:8],
-        game_id=gameId,
-        played_at=datetime.utcnow(),
-        teams=[t.model_dump() for t in payload.teams],
-        winner_id=payload.winnerId,
-        has_final=payload.hasFinal,
-    )
-    db.add(result)
-
-    # Increment play count
-    game = db.query(Game).filter(Game.id == gameId).first()
-    if game:
-        game.play_count = (game.play_count or 0) + 1
-
-    db.commit()
-    return {"ok": True, "id": result.id}
+def submit_jeopardy_result(gameId: str, payload: JeopardyResultInput):
+    result_id = str(uuid.uuid4())[:8]
+    supabase.table("jeopardy_results").insert({
+        "id": result_id, "game_id": gameId, "played_at": datetime.utcnow().isoformat(),
+        "teams": [t.model_dump() for t in payload.teams],
+        "winner_id": payload.winnerId, "has_final": payload.hasFinal,
+    }).execute()
+    return {"ok": True, "id": result_id}
 
 
 # ---------- Millionaire Results ----------
 
 @router.get("/millionaire/{gameId}/results", response_model=List[MillionaireResultOut])
-def get_millionaire_results(gameId: str, db: Session = Depends(get_db)):
-    results = db.query(MillionaireResult).filter(MillionaireResult.game_id == gameId).order_by(MillionaireResult.finished_at.desc()).all()
+def get_millionaire_results(gameId: str):
+    res = supabase.table("millionaire_results").select("*").eq("game_id", gameId).order("finished_at", desc=True).execute()
     return [
-        MillionaireResultOut(
-            id=r.id,
-            gameId=r.game_id,
-            userId=r.user_id,
-            playerName=r.player_name,
-            avatar=r.avatar,
-            outcome=r.outcome,
-            wonAmount=r.won_amount,
-            guaranteedAmount=r.guaranteed_amount,
-            reachedCount=r.reached_count,
-            totalQuestions=r.total_questions,
-            timeSec=r.time_sec,
-            finishedAt=r.finished_at.isoformat(),
-            answers=r.answers,
-        )
-        for r in results
+        MillionaireResultOut(id=r["id"], gameId=r["game_id"], userId=r.get("user_id"),
+                             playerName=r["player_name"], avatar=r.get("avatar"),
+                             outcome=r["outcome"], wonAmount=r["won_amount"],
+                             guaranteedAmount=r["guaranteed_amount"], reachedCount=r["reached_count"],
+                             totalQuestions=r["total_questions"], timeSec=r["time_sec"],
+                             finishedAt=r["finished_at"], answers=r.get("answers"))
+        for r in (res.data or [])
     ]
 
 
 @router.post("/millionaire/{gameId}/results", response_model=dict)
-def submit_millionaire_result(
-    gameId: str,
-    payload: MillionaireResultInput,
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-):
-    result = MillionaireResult(
-        id=str(uuid.uuid4())[:8],
-        game_id=gameId,
-        user_id=current_user.id if current_user else None,
-        player_name=payload.playerName,
-        outcome=payload.outcome,
-        won_amount=payload.wonAmount,
-        guaranteed_amount=payload.guaranteedAmount,
-        reached_count=payload.reachedCount,
-        total_questions=payload.totalQuestions,
-        time_sec=payload.timeSec,
-        finished_at=datetime.utcnow(),
-        answers=[a.model_dump() for a in payload.answers],
-    )
-    db.add(result)
-
-    # Increment play count
-    game = db.query(Game).filter(Game.id == gameId).first()
-    if game:
-        game.play_count = (game.play_count or 0) + 1
-
-    db.commit()
-    return {"ok": True, "id": result.id}
+def submit_millionaire_result(gameId: str, payload: MillionaireResultInput, current_user=Depends(get_current_user)):
+    result_id = str(uuid.uuid4())[:8]
+    supabase.table("millionaire_results").insert({
+        "id": result_id, "game_id": gameId,
+        "user_id": current_user["id"] if current_user else None,
+        "player_name": payload.playerName, "outcome": payload.outcome,
+        "won_amount": payload.wonAmount, "guaranteed_amount": payload.guaranteedAmount,
+        "reached_count": payload.reachedCount, "total_questions": payload.totalQuestions,
+        "time_sec": payload.timeSec, "finished_at": datetime.utcnow().isoformat(),
+        "answers": [a.model_dump() for a in payload.answers],
+    }).execute()
+    return {"ok": True, "id": result_id}
 
 
 # ---------- Online Quiz Results ----------
 
 @router.get("/quiz/{gameId}/online-results", response_model=List[OnlineQuizResultOut])
-def get_online_results(gameId: str, db: Session = Depends(get_db)):
-    results = db.query(OnlineQuizResult).filter(OnlineQuizResult.game_id == gameId).order_by(OnlineQuizResult.played_at.desc()).all()
+def get_online_results(gameId: str):
+    res = supabase.table("online_quiz_results").select("*").eq("game_id", gameId).order("played_at", desc=True).execute()
     return [
-        OnlineQuizResultOut(
-            id=r.id,
-            gameId=r.game_id,
-            roomCode=r.room_code,
-            playedAt=r.played_at.isoformat(),
-            durationSec=r.duration_sec,
-            players=r.players,
-        )
-        for r in results
+        OnlineQuizResultOut(id=r["id"], gameId=r["game_id"], roomCode=r["room_code"],
+                            playedAt=r["played_at"], durationSec=r["duration_sec"], players=r["players"])
+        for r in (res.data or [])
     ]
 
 
 @router.post("/quiz/{gameId}/online-results", response_model=dict)
-def submit_online_result(gameId: str, payload: OnlineQuizResultInput, db: Session = Depends(get_db)):
-    result = OnlineQuizResult(
-        id=str(uuid.uuid4())[:8],
-        game_id=gameId,
-        room_code=payload.roomCode,
-        played_at=datetime.utcnow(),
-        duration_sec=payload.durationSec,
-        players=[p.model_dump() for p in payload.players],
-    )
-    db.add(result)
-
-    # Increment play count
-    game = db.query(Game).filter(Game.id == gameId).first()
-    if game:
-        game.play_count = (game.play_count or 0) + 1
-
-    db.commit()
-    return {"ok": True, "id": result.id}
+def submit_online_result(gameId: str, payload: OnlineQuizResultInput):
+    result_id = str(uuid.uuid4())[:8]
+    supabase.table("online_quiz_results").insert({
+        "id": result_id, "game_id": gameId, "room_code": payload.roomCode,
+        "played_at": datetime.utcnow().isoformat(), "duration_sec": payload.durationSec,
+        "players": [p.model_dump() for p in payload.players],
+    }).execute()
+    return {"ok": True, "id": result_id}

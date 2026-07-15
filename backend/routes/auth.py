@@ -1,30 +1,26 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
-from sqlalchemy.orm import Session
 
-from database import get_db
-from models import User
+from database import supabase
 
 import os
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# JWT config
 SECRET_KEY = os.getenv("JWT_SECRET", "islandquiz-dev-secret-key-change-in-production")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-
-# ---------- Schemas ----------
 
 class RegisterInput(BaseModel):
     email: EmailStr
@@ -57,8 +53,6 @@ class AuthResponse(BaseModel):
     error: Optional[str] = None
 
 
-# ---------- Helpers ----------
-
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -73,7 +67,7 @@ def create_access_token(user_id: str) -> str:
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Неверный токен",
@@ -87,57 +81,51 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except JWTError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
+    res = supabase.table("users").select("*").eq("id", user_id).execute()
+    if not res.data:
         raise credentials_exception
-    return user
+    return res.data[0]
 
-
-# ---------- Routes ----------
 
 @router.post("/register", response_model=AuthResponse)
-def register(input: RegisterInput, db: Session = Depends(get_db)):
-    # Check if user exists
-    existing = db.query(User).filter(User.email == input.email).first()
-    if existing:
+def register(input: RegisterInput):
+    res = supabase.table("users").select("id").eq("email", input.email).execute()
+    if res.data:
         return {"ok": False, "error": "Пользователь с таким email уже существует"}
 
-    # Create user
-    import uuid
-    user = User(
-        id=str(uuid.uuid4())[:8],
-        email=input.email,
-        password_hash=hash_password(input.password),
-        name=input.name,
-        created_at=datetime.utcnow(),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user_id = str(uuid.uuid4())[:8]
+    user = {
+        "id": user_id,
+        "email": input.email,
+        "password_hash": hash_password(input.password),
+        "name": input.name,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    supabase.table("users").insert(user).execute()
 
-    token = create_access_token(user.id)
-    return {"ok": True, "user": UserOut.model_validate(user), "token": token}
+    token = create_access_token(user_id)
+    return {"ok": True, "user": UserOut(**user), "token": token}
 
 
 @router.post("/login", response_model=AuthResponse)
-def login(input: LoginInput, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == input.email).first()
-    if not user or not verify_password(input.password, user.password_hash):
+def login(input: LoginInput):
+    res = supabase.table("users").select("*").eq("email", input.email).execute()
+    if not res.data or not verify_password(input.password, res.data[0]["password_hash"]):
         return {"ok": False, "error": "Неверный email или пароль"}
 
-    token = create_access_token(user.id)
-    return {"ok": True, "user": UserOut.model_validate(user), "token": token}
+    user = res.data[0]
+    token = create_access_token(user["id"])
+    return {"ok": True, "user": UserOut(**user), "token": token}
 
 
 @router.post("/logout")
 def logout():
-    # JWT is stateless — client just removes token
     return {"ok": True}
 
 
 @router.get("/me", response_model=Optional[UserOut])
-def get_me(current_user: User = Depends(get_current_user)):
-    return UserOut.model_validate(current_user)
+def get_me(current_user=Depends(get_current_user)):
+    return UserOut(**current_user)
 
 
 @router.patch("/me", response_model=Optional[UserOut])
@@ -146,18 +134,20 @@ def update_me(
     avatar: Optional[str] = None,
     bio: Optional[str] = None,
     subject: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
+    updates = {}
     if name is not None:
-        current_user.name = name
+        updates["name"] = name
     if avatar is not None:
-        current_user.avatar = avatar
+        updates["avatar"] = avatar
     if bio is not None:
-        current_user.bio = bio
+        updates["bio"] = bio
     if subject is not None:
-        current_user.subject = subject
+        updates["subject"] = subject
 
-    db.commit()
-    db.refresh(current_user)
-    return UserOut.model_validate(current_user)
+    if updates:
+        supabase.table("users").update(updates).eq("id", current_user["id"]).execute()
+
+    res = supabase.table("users").select("*").eq("id", current_user["id"]).execute()
+    return UserOut(**res.data[0]) if res.data else None

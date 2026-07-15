@@ -28,7 +28,6 @@ app.include_router(rooms_router)
 @app.on_event("startup")
 def startup():
     init_db()
-    print("Database initialized")
 
 @app.get("/")
 def root():

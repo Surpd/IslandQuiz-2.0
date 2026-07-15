@@ -2,15 +2,12 @@ from typing import Optional, List
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+
+from database import supabase
 from routes.auth import get_current_user
-from database import get_db
-from models import User, Game, Rating
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
-
-# ---------- Schemas ----------
 
 class GameOut(BaseModel):
     id: str
@@ -51,19 +48,9 @@ class PublicProfile(BaseModel):
     stats: dict
 
 
-# ---------- Routes ----------
-
 @router.get("/me", response_model=Optional[UserOut])
-def get_me(current_user: User = Depends(get_current_user)):
-    return UserOut(
-        id=current_user.id,
-        email=current_user.email,
-        name=current_user.name,
-        avatar=current_user.avatar,
-        bio=current_user.bio,
-        subject=current_user.subject,
-        created_at=current_user.created_at.isoformat(),
-    )
+def get_me(current_user=Depends(get_current_user)):
+    return UserOut(**current_user)
 
 
 @router.patch("/me", response_model=Optional[UserOut])
@@ -72,84 +59,54 @@ def update_me(
     avatar: Optional[str] = None,
     bio: Optional[str] = None,
     subject: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
+    updates = {}
     if name is not None:
-        current_user.name = name
+        updates["name"] = name
     if avatar is not None:
-        current_user.avatar = avatar
+        updates["avatar"] = avatar
     if bio is not None:
-        current_user.bio = bio
+        updates["bio"] = bio
     if subject is not None:
-        current_user.subject = subject
+        updates["subject"] = subject
 
-    db.commit()
-    db.refresh(current_user)
-    return UserOut(
-        id=current_user.id,
-        email=current_user.email,
-        name=current_user.name,
-        avatar=current_user.avatar,
-        bio=current_user.bio,
-        subject=current_user.subject,
-        created_at=current_user.created_at.isoformat(),
-    )
+    if updates:
+        supabase.table("users").update(updates).eq("id", current_user["id"]).execute()
+
+    res = supabase.table("users").select("*").eq("id", current_user["id"]).execute()
+    return UserOut(**res.data[0]) if res.data else None
 
 
 @router.get("/{user_id}", response_model=Optional[PublicProfile])
-def get_user_profile(user_id: str, db: Session = Depends(get_db), current_user: Optional[User] = Depends(get_current_user)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
+def get_user_profile(user_id: str, current_user=Depends(get_current_user)):
+    user_res = supabase.table("users").select("*").eq("id", user_id).execute()
+    if not user_res.data:
         return None
+    user = user_res.data[0]
 
-    # Get user's games
-    all_games = db.query(Game).filter(Game.owner_id == user_id).all()
+    games_res = supabase.table("games").select("*").eq("owner_id", user_id).execute()
+    all_games = games_res.data or []
 
-    # Filter visibility
-    is_me = current_user and current_user.id == user_id
-    visible = all_games if is_me else [g for g in all_games if g.visibility == "public"]
+    is_me = current_user and current_user["id"] == user_id
+    visible = all_games if is_me else [g for g in all_games if g.get("visibility") == "public"]
 
-    # Calculate rating stats
     total_ratings = 0
     rating_sum = 0
     for g in all_games:
-        if g.ratings_data:
-            values = list(g.ratings_data.values())
+        if g.get("ratings_data"):
+            values = list(g["ratings_data"].values())
             if values:
                 total_ratings += len(values)
                 rating_sum += sum(values)
     avg_rating = rating_sum / total_ratings if total_ratings else 0
 
     return {
-        "user": UserOut(
-            id=user.id,
-            email=user.email,
-            name=user.name,
-            avatar=user.avatar,
-            bio=user.bio,
-            subject=user.subject,
-            created_at=user.created_at.isoformat(),
-        ),
+        "user": UserOut(**user),
         "games": [
-            GameOut(
-                id=g.id,
-                kind=g.kind,
-                data=g.data,
-                owner_id=g.owner_id,
-                owner_name=g.owner_name,
-                visibility=g.visibility,
-                forked_from=g.forked_from,
-                forked_owner_name=g.forked_owner_name,
-                tags=g.tags,
-                ratings=g.ratings_data,
-                play_count=g.play_count,
-                show_answers=g.show_answers,
-                created_at=g.created_at.isoformat(),
-                updated_at=g.updated_at.isoformat(),
-            )
+            GameOut(**{**g, "data": g.get("data") or {}})
             for g in visible
-            if g.data and g.data.get("config")
+            if g.get("data") and g["data"].get("config")
         ],
         "stats": {
             "gamesCount": len(all_games),
@@ -160,28 +117,15 @@ def get_user_profile(user_id: str, db: Session = Depends(get_db), current_user: 
 
 
 @router.get("/{user_id}/games", response_model=List[GameOut])
-def get_user_games(user_id: str, db: Session = Depends(get_db), current_user: Optional[User] = Depends(get_current_user)):
-    games = db.query(Game).filter(Game.owner_id == user_id).all()
-    is_me = current_user and current_user.id == user_id
-    visible = games if is_me else [g for g in games if g.visibility == "public"]
+def get_user_games(user_id: str, current_user=Depends(get_current_user)):
+    res = supabase.table("games").select("*").eq("owner_id", user_id).execute()
+    all_games = res.data or []
+
+    is_me = current_user and current_user["id"] == user_id
+    visible = all_games if is_me else [g for g in all_games if g.get("visibility") == "public"]
 
     return [
-        GameOut(
-            id=g.id,
-            kind=g.kind,
-            data=g.data,
-            owner_id=g.owner_id,
-            owner_name=g.owner_name,
-            visibility=g.visibility,
-            forked_from=g.forked_from,
-            forked_owner_name=g.forked_owner_name,
-            tags=g.tags,
-            ratings=g.ratings_data,
-            play_count=g.play_count,
-            show_answers=g.show_answers,
-            created_at=g.created_at.isoformat(),
-            updated_at=g.updated_at.isoformat(),
-        )
+        GameOut(**{**g, "data": g.get("data") or {}})
         for g in visible
-        if g.data and g.data.get("config")
+        if g.get("data") and g["data"].get("config")
     ]
