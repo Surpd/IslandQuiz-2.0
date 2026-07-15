@@ -19,7 +19,8 @@ import { TagInput } from "@/components/tag-input";
 import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
 import { ThemeSelect } from "@/components/theme-select";
-import { newId, saveGame, loadGame } from "@/lib/storage";
+import { newId, loadGame } from "@/lib/storage";
+import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
 import { BuilderToolbar, BuilderFabs, BuilderSettingsSection } from "@/components/builder-actions";
@@ -230,7 +231,7 @@ function BuilderJeopardy() {
   const handleSave = (): string | null => {
     const id = savedId ?? newId();
     const data: JeopardyData = { config, rounds, final };
-    saveGame<JeopardyData>("jeopardy", id, data, { tags });
+    saveGame({ kind: "jeopardy", id, data, tags });
     setSavedId(id);
     clearDraft("jeopardy");
     showToast(savedId ? "Изменения сохранены" : "Игра сохранена!");
@@ -239,7 +240,7 @@ function BuilderJeopardy() {
 
   const handleSaveAsCopy = (): string | null => {
     const id = newId();
-    saveGame<JeopardyData>("jeopardy", id, { config, rounds, final }, { tags });
+    saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags });
     setSavedId(id);
     clearDraft("jeopardy");
     showToast("Создана копия");

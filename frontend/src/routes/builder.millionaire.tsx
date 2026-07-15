@@ -11,7 +11,8 @@ import { CharCounter } from "@/components/char-counter";
 import { TagInput } from "@/components/tag-input";
 
 import { LIMITS } from "@/lib/limits";
-import { newId, saveGame, loadGame } from "@/lib/storage";
+import { newId, loadGame } from "@/lib/storage";
+import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
 import { BuilderToolbar, BuilderFabs, BuilderSettingsSection } from "@/components/builder-actions";
@@ -191,7 +192,7 @@ function BuilderMillionaire() {
   const handleSave = (): string | null => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    saveGame<MillionaireData>("millionaire", id, { config, questions }, { tags });
+    saveGame({ kind: "millionaire", id, data: { config, questions }, tags });
 
     setSavedId(id);
     clearDraft("millionaire");
@@ -202,7 +203,7 @@ function BuilderMillionaire() {
   const handleSaveAsCopy = (): string | null => {
     if (!validate()) return null;
     const id = newId();
-    saveGame<MillionaireData>("millionaire", id, { config, questions }, { tags });
+    saveGame({ kind: "millionaire", id, data: { config, questions }, tags });
     setSavedId(id);
     clearDraft("millionaire");
     showToast("Создана копия");

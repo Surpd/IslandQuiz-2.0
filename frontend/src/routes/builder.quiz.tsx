@@ -25,7 +25,8 @@ import { TagInput } from "@/components/tag-input";
 import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
 import { ThemeSelect } from "@/components/theme-select";
-import { newId, saveGame, loadGame } from "@/lib/storage";
+import { newId, loadGame } from "@/lib/storage";
+import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
 import { BuilderToolbar, BuilderFabs, BuilderSettingsSection } from "@/components/builder-actions";
@@ -170,7 +171,7 @@ function BuilderQuiz() {
   const handleSave = (): string | null => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    saveGame<QuizData>("quiz", id, { config, questions }, { tags });
+    saveGame({ kind: "quiz", id, data: { config, questions }, tags });
     setSavedId(id);
     clearDraft("quiz");
     showToast(savedId ? "Изменения сохранены" : "Квиз сохранён!");
@@ -180,10 +181,15 @@ function BuilderQuiz() {
   const handleSaveAsCopy = (): string | null => {
     if (!validate()) return null;
     const id = newId();
-    saveGame<QuizData>("quiz", id, {
-      config: { ...config, title: `${config.title} (копия)` },
-      questions,
-    }, { tags });
+    saveGame({
+      kind: "quiz",
+      id,
+      data: {
+        config: { ...config, title: `${config.title} (копия)` },
+        questions,
+      },
+      tags,
+    });
     setSavedId(id);
     clearDraft("quiz");
     showToast("Создана копия квиза");
