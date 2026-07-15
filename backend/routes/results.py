@@ -5,8 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-
-from auth import get_current_user
+from routes.auth import get_current_user
 from database import get_db
 from models import User, Game, QuizResult, JeopardyResult, MillionaireResult, OnlineQuizResult
 
