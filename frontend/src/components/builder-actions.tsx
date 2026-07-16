@@ -316,6 +316,7 @@ export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, themeAccent }
   const changeVisibility = async (v: GameVisibility) => {
     setVisibility(v);
     setVisOpen(false);
+    localStorage.setItem("islandquiz.visibility", v);  // ← ВОТ ЭТУ СТРОКУ
     if (savedId) await apiSetGameVisibility(savedId, v);
   };
 
