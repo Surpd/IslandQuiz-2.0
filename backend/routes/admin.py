@@ -5,7 +5,6 @@ import json
 import os
 import httpx
 import asyncio
-from datetime import datetime, timedelta
 
 from database import supabase
 from routes.auth import get_current_user
@@ -20,6 +19,31 @@ def require_admin(user):
         raise HTTPException(status_code=403, detail="Access denied")
 
 
+def _call_ai(model: str, prompt: str, temperature: float = 0.8) -> str:
+    async def _call():
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        key = os.getenv("OPENAI_API_KEY", "")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": temperature},
+            )
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+    return asyncio.run(_call())
+
+
+def clean_json(raw: str) -> str:
+    cleaned = raw.strip()
+    if "```" in cleaned:
+        if "```json" in cleaned:
+            cleaned = cleaned.split("```json")[1].split("```")[0]
+        else:
+            cleaned = cleaned.split("```")[1].split("```")[0]
+    return cleaned.strip()
+
+
 # ==================== SCHEMAS ====================
 
 class AITestRequest(BaseModel):
@@ -31,11 +55,24 @@ class AITestRequest(BaseModel):
     temperature: float = 0.8
 
 
-class AICompareRequest(BaseModel):
+class AITestQuizRequest(BaseModel):
     topic: str
-    type: str = "choice"
+    count: int = 10
     wishes: Optional[str] = None
-    models: List[str] = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
+    model: Optional[str] = "llama-3.1-8b-instant"
+
+
+class AITestJeopardyCategoriesRequest(BaseModel):
+    topic: str
+    wishes: Optional[str] = None
+    model: Optional[str] = "llama-3.1-8b-instant"
+
+
+class AITestJeopardyQuestionsRequest(BaseModel):
+    category: str
+    empty_slots: List[int] = [100, 200, 300, 400, 500]
+    wishes: Optional[str] = None
+    model: Optional[str] = "llama-3.1-8b-instant"
 
 
 # ==================== AI LAB ====================
@@ -43,42 +80,18 @@ class AICompareRequest(BaseModel):
 @router.post("/ai/test")
 def ai_test(req: AITestRequest, user=Depends(get_current_user)):
     require_admin(user)
-
     from services.ai_prompts import generate_question_prompt
 
     prompt = generate_question_prompt(
-        topic=req.topic,
-        question_type=req.type,
-        difficulty="mixed",
-        wishes=req.wishes,
-        count=3,
+        topic=req.topic, question_type=req.type,
+        difficulty="mixed", wishes=req.wishes, count=3,
     )
-
-    async def _call():
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        key = os.getenv("OPENAI_API_KEY", "")
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                url,
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json={
-                    "model": req.model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": req.temperature,
-                },
-            )
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
-
-    raw = asyncio.run(_call())
+    raw = _call_ai(req.model, prompt, req.temperature)
 
     parsed = None
     error = None
     try:
-        cleaned = raw
-        if "```" in cleaned:
-            cleaned = cleaned.split("```json")[1].split("```")[0] if "```json" in cleaned else cleaned.split("```")[1].split("```")[0]
-        result = json.loads(cleaned.strip())
+        result = json.loads(clean_json(raw))
         variants = None
         if isinstance(result, dict):
             if "variants" in result:
@@ -98,50 +111,49 @@ def ai_test(req: AITestRequest, user=Depends(get_current_user)):
     return {"prompt": prompt[:500], "raw": raw, "parsed": parsed, "error": error}
 
 
-@router.post("/ai/compare")
-def ai_compare(req: AICompareRequest, user=Depends(get_current_user)):
+@router.post("/ai/test-quiz")
+def ai_test_quiz(req: AITestQuizRequest, user=Depends(get_current_user)):
     require_admin(user)
-
-    from services.ai_prompts import generate_question_prompt
-
-    results = {}
-    for model in req.models:
-        prompt = generate_question_prompt(
-            topic=req.topic,
-            question_type=req.type,
-            difficulty="mixed",
-            wishes=req.wishes,
-            count=2,
-        )
-
-        async def _call(m=model, p=prompt):
-            url = "https://api.groq.com/openai/v1/chat/completions"
-            key = os.getenv("OPENAI_API_KEY", "")
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    url,
-                    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                    json={
-                        "model": m,
-                        "messages": [{"role": "user", "content": p}],
-                        "temperature": 0.8,
-                    },
-                )
-                data = response.json()
-                return data["choices"][0]["message"]["content"]
-
-        raw = asyncio.run(_call())
-        results[model] = raw[:1000]
-
-    return {"results": results}
+    from services.ai_prompts import generate_quiz_prompt
+    prompt = generate_quiz_prompt(topic=req.topic, count=req.count, wishes=req.wishes)
+    raw = _call_ai(req.model, prompt)
+    parsed = None
+    error = None
+    try:
+        parsed = json.loads(clean_json(raw))
+    except Exception as e:
+        error = str(e)
+    return {"prompt": prompt[:500], "raw": raw, "parsed": parsed, "error": error}
 
 
-@router.post("/ai/save-default-model")
-def save_default_model(model: str, user=Depends(get_current_user)):
+@router.post("/ai/test-jeopardy-categories")
+def ai_test_jeopardy_categories(req: AITestJeopardyCategoriesRequest, user=Depends(get_current_user)):
     require_admin(user)
-    # Сохраняем в файл или env (упрощённо — в БД)
-    supabase.table("settings").upsert({"key": "default_ai_model", "value": model}).execute()
-    return {"ok": True}
+    from services.ai_prompts import generate_jeopardy_categories_prompt
+    prompt = generate_jeopardy_categories_prompt(topic=req.topic, wishes=req.wishes)
+    raw = _call_ai(req.model, prompt)
+    parsed = None
+    error = None
+    try:
+        parsed = json.loads(clean_json(raw))
+    except Exception as e:
+        error = str(e)
+    return {"prompt": prompt[:500], "raw": raw, "parsed": parsed, "error": error}
+
+
+@router.post("/ai/test-jeopardy-questions")
+def ai_test_jeopardy_questions(req: AITestJeopardyQuestionsRequest, user=Depends(get_current_user)):
+    require_admin(user)
+    from services.ai_prompts import generate_jeopardy_questions_prompt
+    prompt = generate_jeopardy_questions_prompt(category=req.category, empty_slots=req.empty_slots, wishes=req.wishes)
+    raw = _call_ai(req.model, prompt)
+    parsed = None
+    error = None
+    try:
+        parsed = json.loads(clean_json(raw))
+    except Exception as e:
+        error = str(e)
+    return {"prompt": prompt[:500], "raw": raw, "parsed": parsed, "error": error}
 
 
 # ==================== USERS ====================
@@ -205,12 +217,10 @@ def admin_set_visibility(game_id: str, visibility: str = "public", user=Depends(
 @router.get("/stats")
 def get_stats(user=Depends(get_current_user)):
     require_admin(user)
-
     users = supabase.table("users").select("id", count="exact").execute()
     games = supabase.table("games").select("id", count="exact").execute()
     quiz_results = supabase.table("quiz_results").select("id", count="exact").execute()
     online_results = supabase.table("online_quiz_results").select("id", count="exact").execute()
-
     return {
         "users": users.count if hasattr(users, 'count') else len(users.data or []),
         "games": games.count if hasattr(games, 'count') else len(games.data or []),

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
-  Sparkles, Users, Gamepad2, BarChart3, Shield, ScrollText, Trash2, Ban, UserCheck, Play,
+  Sparkles, Users, Gamepad2, BarChart3, Shield, ScrollText, Trash2, Ban, UserCheck,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,10 +13,10 @@ export const Route = createFileRoute("/admin")({
 });
 
 type AdminTab = "ai" | "users" | "games" | "stats" | "limits" | "logs";
+type AIMode = "question" | "quiz" | "jeopardy-categories" | "jeopardy-questions";
 
 function AdminPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<AdminTab>("ai");
 
   if (!user || user.role !== "admin") {
     return (
@@ -32,13 +32,14 @@ function AdminPage() {
     );
   }
 
+  const [tab, setTab] = useState<AdminTab>("ai");
+
   return (
     <div className="min-h-screen bg-surface">
       <SiteHeader />
       <main className="mx-auto max-w-7xl px-6 py-10">
         <h1 className="font-display text-4xl font-bold tracking-tight">Админ-панель</h1>
 
-        {/* Tabs */}
         <div className="mb-8 mt-6 flex flex-wrap gap-2">
           {([
             { key: "ai", label: "AI-лаборатория", icon: Sparkles },
@@ -52,9 +53,7 @@ function AdminPage() {
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-                tab === t.key
-                  ? "bg-foreground text-white"
-                  : "bg-surface-muted text-muted-foreground hover:bg-border"
+                tab === t.key ? "bg-foreground text-white" : "bg-surface-muted text-muted-foreground hover:bg-border"
               }`}
             >
               <t.icon className="h-4 w-4" />
@@ -77,6 +76,40 @@ function AdminPage() {
 // ==================== AI LAB ====================
 
 function AILab() {
+  const [mode, setMode] = useState<AIMode>("question");
+
+  const modes: Array<{ key: AIMode; label: string }> = [
+    { key: "question", label: "Вопрос" },
+    { key: "quiz", label: "Квиз" },
+    { key: "jeopardy-categories", label: "Категории Jeopardy" },
+    { key: "jeopardy-questions", label: "Вопросы Jeopardy" },
+  ];
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap gap-2">
+        {modes.map((m) => (
+          <button
+            key={m.key}
+            onClick={() => setMode(m.key)}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+              mode === m.key ? "bg-foreground text-white" : "bg-surface-muted text-muted-foreground hover:bg-border"
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "question" && <AIQuestionTest />}
+      {mode === "quiz" && <AIQuizTest />}
+      {mode === "jeopardy-categories" && <AIJeopardyCategoriesTest />}
+      {mode === "jeopardy-questions" && <AIJeopardyQuestionsTest />}
+    </div>
+  );
+}
+
+function AIQuestionTest() {
   const [topic, setTopic] = useState("Древний Рим");
   const [type, setType] = useState("choice");
   const [wishes, setWishes] = useState("");
@@ -100,47 +133,191 @@ function AILab() {
     setLoading(false);
   };
 
+  return <AITestUI loading={loading} result={result} onTest={test}>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Тема</span>
+      <input className="input-base mt-1" value={topic} onChange={(e) => setTopic(e.target.value)} />
+    </label>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Тип</span>
+      <select className="input-base mt-1" value={type} onChange={(e) => setType(e.target.value)}>
+        <option value="choice">ABCD</option>
+        <option value="bool">Да/Нет</option>
+        <option value="text">Текст</option>
+        <option value="matching">Пары</option>
+        <option value="close">Пропуски</option>
+        <option value="ordering">Порядок</option>
+      </select>
+    </label>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Пожелания</span>
+      <input className="input-base mt-1" value={wishes} onChange={(e) => setWishes(e.target.value)} placeholder="для 5 класса, сложные..." />
+    </label>
+    <ModelSelect model={model} setModel={setModel} temperature={temperature} setTemperature={setTemperature} />
+  </AITestUI>;
+}
+
+function AIQuizTest() {
+  const [topic, setTopic] = useState("Древний Рим");
+  const [count, setCount] = useState(10);
+  const [wishes, setWishes] = useState("");
+  const [model, setModel] = useState("llama-3.1-8b-instant");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const test = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await apiFetch("/api/admin/ai/test-quiz", {
+        method: "POST",
+        body: JSON.stringify({ topic, count, wishes, model }),
+      });
+      setResult(res);
+    } catch (e: any) {
+      setResult({ error: e.message });
+    }
+    setLoading(false);
+  };
+
+  return <AITestUI loading={loading} result={result} onTest={test}>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Тема</span>
+      <input className="input-base mt-1" value={topic} onChange={(e) => setTopic(e.target.value)} />
+    </label>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Количество вопросов</span>
+      <input type="number" className="input-base mt-1" value={count} onChange={(e) => setCount(+e.target.value)} min={5} max={20} />
+    </label>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Пожелания</span>
+      <input className="input-base mt-1" value={wishes} onChange={(e) => setWishes(e.target.value)} placeholder="для 5 класса, сложные..." />
+    </label>
+    <ModelSelect model={model} setModel={setModel} />
+  </AITestUI>;
+}
+
+function AIJeopardyCategoriesTest() {
+  const [topic, setTopic] = useState("Древний Рим");
+  const [wishes, setWishes] = useState("");
+  const [model, setModel] = useState("llama-3.1-8b-instant");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const test = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await apiFetch("/api/admin/ai/test-jeopardy-categories", {
+        method: "POST",
+        body: JSON.stringify({ topic, wishes, model }),
+      });
+      setResult(res);
+    } catch (e: any) {
+      setResult({ error: e.message });
+    }
+    setLoading(false);
+  };
+
+  return <AITestUI loading={loading} result={result} onTest={test}>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Тема</span>
+      <input className="input-base mt-1" value={topic} onChange={(e) => setTopic(e.target.value)} />
+    </label>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Пожелания</span>
+      <input className="input-base mt-1" value={wishes} onChange={(e) => setWishes(e.target.value)} />
+    </label>
+    <ModelSelect model={model} setModel={setModel} />
+  </AITestUI>;
+}
+
+function AIJeopardyQuestionsTest() {
+  const [category, setCategory] = useState("Древний Рим");
+  const [slots, setSlots] = useState("100,200,300,400,500");
+  const [wishes, setWishes] = useState("");
+  const [model, setModel] = useState("llama-3.1-8b-instant");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const test = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await apiFetch("/api/admin/ai/test-jeopardy-questions", {
+        method: "POST",
+        body: JSON.stringify({
+          category,
+          empty_slots: slots.split(",").map(Number).filter(n => !isNaN(n)),
+          wishes,
+          model,
+        }),
+      });
+      setResult(res);
+    } catch (e: any) {
+      setResult({ error: e.message });
+    }
+    setLoading(false);
+  };
+
+  return <AITestUI loading={loading} result={result} onTest={test}>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Категория</span>
+      <input className="input-base mt-1" value={category} onChange={(e) => setCategory(e.target.value)} />
+    </label>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Слоты (через запятую)</span>
+      <input className="input-base mt-1" value={slots} onChange={(e) => setSlots(e.target.value)} placeholder="100,200,300,400,500" />
+    </label>
+    <label className="block">
+      <span className="text-xs font-semibold text-muted-foreground">Пожелания</span>
+      <input className="input-base mt-1" value={wishes} onChange={(e) => setWishes(e.target.value)} />
+    </label>
+    <ModelSelect model={model} setModel={setModel} />
+  </AITestUI>;
+}
+
+function ModelSelect({
+  model, setModel, temperature, setTemperature,
+}: {
+  model: string; setModel: (m: string) => void;
+  temperature?: number; setTemperature?: (t: number) => void;
+}) {
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <div className="surface-card p-6 space-y-4">
-        <h2 className="font-display text-lg font-bold">Тестовый запрос</h2>
-        <label className="block">
-          <span className="text-xs font-semibold text-muted-foreground">Тема</span>
-          <input className="input-base mt-1" value={topic} onChange={(e) => setTopic(e.target.value)} />
-        </label>
-        <label className="block">
-          <span className="text-xs font-semibold text-muted-foreground">Тип</span>
-          <select className="input-base mt-1" value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="choice">ABCD</option>
-            <option value="bool">Да/Нет</option>
-            <option value="text">Текст</option>
-            <option value="matching">Пары</option>
-            <option value="close">Пропуски</option>
-            <option value="ordering">Порядок</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-xs font-semibold text-muted-foreground">Пожелания</span>
-          <input className="input-base mt-1" value={wishes} onChange={(e) => setWishes(e.target.value)} placeholder="для 5 класса, сложные..." />
-        </label>
-        <label className="block">
-          <span className="text-xs font-semibold text-muted-foreground">Модель</span>
-          <select className="input-base mt-1" value={model} onChange={(e) => setModel(e.target.value)}>
-            <option value="llama-3.1-8b-instant">Llama 3.1 8B</option>
-            <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
-            <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-            <option value="gemma-2-9b-it">Gemma 2 9B</option>
-          </select>
-        </label>
+    <>
+      <label className="block">
+        <span className="text-xs font-semibold text-muted-foreground">Модель</span>
+        <select className="input-base mt-1" value={model} onChange={(e) => setModel(e.target.value)}>
+          <option value="llama-3.1-8b-instant">Llama 3.1 8B</option>
+          <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
+          <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+          <option value="gemma-2-9b-it">Gemma 2 9B</option>
+        </select>
+      </label>
+      {temperature !== undefined && setTemperature && (
         <label className="block">
           <span className="text-xs font-semibold text-muted-foreground">Temperature: {temperature}</span>
           <input type="range" min="0" max="2" step="0.1" value={temperature} onChange={(e) => setTemperature(+e.target.value)} className="w-full mt-1" />
         </label>
-        <button onClick={test} disabled={loading} className="btn-accent w-full justify-center">
+      )}
+    </>
+  );
+}
+
+function AITestUI({
+  children, loading, result, onTest,
+}: {
+  children: React.ReactNode; loading: boolean; result: any; onTest: () => void;
+}) {
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <div className="surface-card p-6 space-y-4">
+        <h2 className="font-display text-lg font-bold">Тестовый запрос</h2>
+        {children}
+        <button onClick={onTest} disabled={loading} className="btn-accent w-full justify-center">
           <Sparkles className="h-4 w-4" /> {loading ? "Генерируем..." : "Тест"}
         </button>
       </div>
-
       <div className="surface-card p-6 space-y-4 overflow-auto max-h-[80vh]">
         <h2 className="font-display text-lg font-bold">Результат</h2>
         {result ? (
@@ -175,21 +352,13 @@ function UsersTab() {
 
   const load = async () => {
     setLoading(true);
-    try {
-      const res = await apiFetch("/api/admin/users");
-      setUsers(res || []);
-    } catch (e) {
-      console.error(e);
-    }
+    try { const res = await apiFetch("/api/admin/users"); setUsers(res || []); } catch (e) { console.error(e); }
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
-  const action = async (path: string) => {
-    await apiFetch(path, { method: "POST" });
-    load();
-  };
+  const action = async (path: string) => { await apiFetch(path, { method: "POST" }); load(); };
 
   if (loading) return <div className="surface-card p-6 text-sm text-muted-foreground">Загрузка...</div>;
 
@@ -199,33 +368,22 @@ function UsersTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-primary-soft text-left text-xs font-bold uppercase tracking-wider text-primary">
-              <th className="px-4 py-3">ID</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Имя</th>
-              <th className="px-4 py-3">Роль</th>
-              <th className="px-4 py-3">Бан</th>
-              <th className="px-4 py-3">Дата</th>
-              <th className="px-4 py-3">Действия</th>
+              <th className="px-4 py-3">ID</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Имя</th>
+              <th className="px-4 py-3">Роль</th><th className="px-4 py-3">Бан</th><th className="px-4 py-3">Дата</th><th className="px-4 py-3">Действия</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u: any) => (
               <tr key={u.id} className="border-t border-border">
-                <td className="px-4 py-3 font-mono text-xs">{u.id}</td>
-                <td className="px-4 py-3">{u.email}</td>
-                <td className="px-4 py-3 font-semibold">{u.name}</td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${u.role === "admin" ? "bg-amber-soft text-amber" : "bg-surface-muted text-muted-foreground"}`}>
-                    {u.role || "user"}
-                  </span>
-                </td>
+                <td className="px-4 py-3 font-mono text-xs">{u.id}</td><td className="px-4 py-3">{u.email}</td><td className="px-4 py-3 font-semibold">{u.name}</td>
+                <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${u.role === "admin" ? "bg-amber-soft text-amber" : "bg-surface-muted text-muted-foreground"}`}>{u.role || "user"}</span></td>
                 <td className="px-4 py-3">{u.banned ? "🚫" : "✅"}</td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString("ru-RU")}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
                     <button onClick={() => action(`/api/admin/users/${u.id}/ban`)} className="btn-ghost p-1.5" title="Бан/разбан"><Ban className="h-3.5 w-3.5" /></button>
                     <button onClick={() => action(`/api/admin/users/${u.id}/make-admin`)} className="btn-ghost p-1.5" title="Сделать админом"><UserCheck className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => { if (confirm("Удалить пользователя?")) action(`/api/admin/users/${u.id}`); }} className="btn-ghost p-1.5 text-danger"><Trash2 className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => { if (confirm("Удалить пользователя?")) apiFetch(`/api/admin/users/${u.id}`, { method: "DELETE" }).then(load); }} className="btn-ghost p-1.5 text-danger"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 </td>
               </tr>
@@ -245,27 +403,14 @@ function GamesTab() {
 
   const load = async () => {
     setLoading(true);
-    try {
-      const res = await apiFetch("/api/admin/games");
-      setGames(res || []);
-    } catch (e) {
-      console.error(e);
-    }
+    try { const res = await apiFetch("/api/admin/games"); setGames(res || []); } catch (e) { console.error(e); }
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
-  const action = async (path: string) => {
-    await apiFetch(path, { method: "PATCH" });
-    load();
-  };
-
-  const deleteGame = async (id: string) => {
-    if (!confirm("Удалить игру?")) return;
-    await apiFetch(`/api/admin/games/${id}`, { method: "DELETE" });
-    load();
-  };
+  const action = async (path: string) => { await apiFetch(path, { method: "PATCH" }); load(); };
+  const deleteGame = async (id: string) => { if (!confirm("Удалить игру?")) return; await apiFetch(`/api/admin/games/${id}`, { method: "DELETE" }); load(); };
 
   if (loading) return <div className="surface-card p-6 text-sm text-muted-foreground">Загрузка...</div>;
 
@@ -275,22 +420,15 @@ function GamesTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-primary-soft text-left text-xs font-bold uppercase tracking-wider text-primary">
-              <th className="px-4 py-3">ID</th>
-              <th className="px-4 py-3">Название</th>
-              <th className="px-4 py-3">Тип</th>
-              <th className="px-4 py-3">Владелец</th>
-              <th className="px-4 py-3">Видимость</th>
-              <th className="px-4 py-3">Действия</th>
+              <th className="px-4 py-3">ID</th><th className="px-4 py-3">Название</th><th className="px-4 py-3">Тип</th>
+              <th className="px-4 py-3">Владелец</th><th className="px-4 py-3">Видимость</th><th className="px-4 py-3">Действия</th>
             </tr>
           </thead>
           <tbody>
             {games.map((g: any) => (
               <tr key={g.id} className="border-t border-border">
-                <td className="px-4 py-3 font-mono text-xs">{g.id}</td>
-                <td className="px-4 py-3 font-semibold">{g.data?.config?.title || "—"}</td>
-                <td className="px-4 py-3">{g.kind}</td>
-                <td className="px-4 py-3">{g.owner_name || "—"}</td>
-                <td className="px-4 py-3">{g.visibility}</td>
+                <td className="px-4 py-3 font-mono text-xs">{g.id}</td><td className="px-4 py-3 font-semibold">{g.data?.config?.title || "—"}</td><td className="px-4 py-3">{g.kind}</td>
+                <td className="px-4 py-3">{g.owner_name || "—"}</td><td className="px-4 py-3">{g.visibility}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
                     <button onClick={() => action(`/api/admin/games/${g.id}/visibility?visibility=public`)} className="btn-ghost p-1.5 text-xs" title="Публичная">🌐</button>
@@ -311,31 +449,16 @@ function GamesTab() {
 
 function StatsTab() {
   const [stats, setStats] = useState<any>(null);
-
-  useEffect(() => {
-    apiFetch("/api/admin/stats").then(setStats).catch(console.error);
-  }, []);
-
+  useEffect(() => { apiFetch("/api/admin/stats").then(setStats).catch(console.error); }, []);
   if (!stats) return <div className="surface-card p-6 text-sm text-muted-foreground">Загрузка...</div>;
-
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="surface-card p-6 text-center">
-        <div className="font-display text-4xl font-black text-primary">{stats.users}</div>
-        <div className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">Пользователей</div>
-      </div>
-      <div className="surface-card p-6 text-center">
-        <div className="font-display text-4xl font-black text-primary">{stats.games}</div>
-        <div className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">Игр</div>
-      </div>
-      <div className="surface-card p-6 text-center">
-        <div className="font-display text-4xl font-black text-primary">{stats.quizResults}</div>
-        <div className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">Прохождений</div>
-      </div>
-      <div className="surface-card p-6 text-center">
-        <div className="font-display text-4xl font-black text-primary">{stats.onlineResults}</div>
-        <div className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">Онлайн-игр</div>
-      </div>
+      {[{ label: "Пользователей", value: stats.users }, { label: "Игр", value: stats.games }, { label: "Прохождений", value: stats.quizResults }, { label: "Онлайн-игр", value: stats.onlineResults }].map((s) => (
+        <div key={s.label} className="surface-card p-6 text-center">
+          <div className="font-display text-4xl font-black text-primary">{s.value}</div>
+          <div className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">{s.label}</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -346,22 +469,9 @@ function LimitsTab() {
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
-
-  const load = async () => {
-    const res = await apiFetch("/api/admin/limits");
-    setLimits(res || {});
-  };
-
+  const load = async () => { const res = await apiFetch("/api/admin/limits"); setLimits(res || {}); };
   useEffect(() => { load(); }, []);
-
-  const save = async () => {
-    if (!key || !value) return;
-    await apiFetch(`/api/admin/limits?key=${key}&value=${value}`, { method: "POST" });
-    setKey("");
-    setValue("");
-    load();
-  };
-
+  const save = async () => { if (!key || !value) return; await apiFetch(`/api/admin/limits?key=${key}&value=${value}`, { method: "POST" }); setKey(""); setValue(""); load(); };
   return (
     <div className="surface-card p-6 space-y-4">
       <h2 className="font-display text-lg font-bold">Лимиты</h2>
@@ -370,15 +480,9 @@ function LimitsTab() {
         <input className="input-base flex-1" placeholder="Значение" value={value} onChange={(e) => setValue(e.target.value)} />
         <button onClick={save} className="btn-accent">Сохранить</button>
       </div>
-      <div className="space-y-2">
-        {Object.entries(limits).map(([k, v]) => (
-          <div key={k} className="flex justify-between rounded-lg bg-surface-muted px-4 py-2 text-sm">
-            <span className="font-semibold">{k}</span>
-            <span className="font-mono">{v}</span>
-          </div>
-        ))}
-        {Object.keys(limits).length === 0 && <p className="text-sm text-muted-foreground">Нет установленных лимитов.</p>}
-      </div>
+      {Object.keys(limits).length === 0 ? <p className="text-sm text-muted-foreground">Нет установленных лимитов.</p> : (
+        <div className="space-y-2">{Object.entries(limits).map(([k, v]) => <div key={k} className="flex justify-between rounded-lg bg-surface-muted px-4 py-2 text-sm"><span className="font-semibold">{k}</span><span className="font-mono">{v}</span></div>)}</div>
+      )}
     </div>
   );
 }
@@ -388,36 +492,14 @@ function LimitsTab() {
 function LogsTab() {
   const [errors, setErrors] = useState<any[]>([]);
   const [aiLogs, setAiLogs] = useState<any[]>([]);
-
   useEffect(() => {
     apiFetch("/api/admin/logs/errors").then(setErrors).catch(console.error);
     apiFetch("/api/admin/logs/ai").then(setAiLogs).catch(console.error);
   }, []);
-
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <div className="surface-card p-6">
-        <h2 className="font-display text-lg font-bold mb-4">Ошибки</h2>
-        {errors.length === 0 ? <p className="text-sm text-muted-foreground">Нет ошибок.</p> : (
-          <div className="space-y-2 max-h-96 overflow-auto">
-            {errors.map((e, i) => (
-              <div key={i} className="rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger">{e.message || JSON.stringify(e)}</div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="surface-card p-6">
-        <h2 className="font-display text-lg font-bold mb-4">AI-запросы</h2>
-        {aiLogs.length === 0 ? <p className="text-sm text-muted-foreground">Нет запросов.</p> : (
-          <div className="space-y-2 max-h-96 overflow-auto">
-            {aiLogs.map((l, i) => (
-              <div key={i} className="rounded-lg bg-surface-muted px-3 py-2 text-xs">
-                <span className="font-semibold">{l.model}</span> · {l.topic} · {l.success ? "✅" : "❌"}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <div className="surface-card p-6"><h2 className="font-display text-lg font-bold mb-4">Ошибки</h2>{errors.length === 0 ? <p className="text-sm text-muted-foreground">Нет ошибок.</p> : <div className="space-y-2 max-h-96 overflow-auto">{errors.map((e, i) => <div key={i} className="rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger">{e.message || JSON.stringify(e)}</div>)}</div>}</div>
+      <div className="surface-card p-6"><h2 className="font-display text-lg font-bold mb-4">AI-запросы</h2>{aiLogs.length === 0 ? <p className="text-sm text-muted-foreground">Нет запросов.</p> : <div className="space-y-2 max-h-96 overflow-auto">{aiLogs.map((l, i) => <div key={i} className="rounded-lg bg-surface-muted px-3 py-2 text-xs"><span className="font-semibold">{l.model}</span> · {l.topic} · {l.success ? "✅" : "❌"}</div>)}</div>}</div>
     </div>
   );
 }
