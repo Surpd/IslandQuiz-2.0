@@ -178,7 +178,8 @@ function BuilderQuiz() {
   const handleSave = (): string | null => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    const vis = localStorage.getItem("islandquiz.visibility") || (user ? "private" : "link");
+    const vis = localStorage.getItem("islandquiz.visibility") || "private";
+    console.log("[handleSave] visibility:", vis);
     saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility: vis });
     setSavedId(id);
     clearDraft("quiz");
