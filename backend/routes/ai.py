@@ -155,9 +155,14 @@ async def improve_question(input: ImproveQuestionInput):
         wishes=input.wishes,
     )
     raw = await call_openai(prompt)
-    result = json.loads(raw) if isinstance(raw, str) else raw
-    variants = normalize_variants(result)
-    return {"variants": variants}
+    if not raw or not raw.strip():
+        return {"error": "Empty response from AI"}
+    try:
+        result = json.loads(raw) if isinstance(raw, str) else raw
+        variants = normalize_variants(result)
+        return {"variants": variants}
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON", "raw": raw[:500]}
 
 
 @router.post("/generate-quiz", response_model=dict)
@@ -168,8 +173,12 @@ async def generate_quiz(input: GenerateQuizInput):
         wishes=input.wishes,
     )
     raw = await call_openai(prompt)
-    result = json.loads(raw) if isinstance(raw, str) else raw
-    return result
+    if not raw or not raw.strip():
+        return {"error": "Empty response from AI"}
+    try:
+        return json.loads(raw) if isinstance(raw, str) else raw
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON", "raw": raw[:500]}
 
 
 @router.post("/generate-jeopardy-categories", response_model=dict)
@@ -179,8 +188,12 @@ async def generate_jeopardy_categories(input: GenerateJeopardyCategoriesInput):
         wishes=input.wishes,
     )
     raw = await call_openai(prompt)
-    result = json.loads(raw) if isinstance(raw, str) else raw
-    return result
+    if not raw or not raw.strip():
+        return {"error": "Empty response from AI"}
+    try:
+        return json.loads(raw) if isinstance(raw, str) else raw
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON", "raw": raw[:500]}
 
 
 @router.post("/generate-jeopardy-questions", response_model=dict)
@@ -191,5 +204,9 @@ async def generate_jeopardy_questions(input: GenerateJeopardyQuestionsInput):
         wishes=input.wishes,
     )
     raw = await call_openai(prompt)
-    result = json.loads(raw) if isinstance(raw, str) else raw
-    return result
+    if not raw or not raw.strip():
+        return {"error": "Empty response from AI"}
+    try:
+        return json.loads(raw) if isinstance(raw, str) else raw
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON", "raw": raw[:500]}
