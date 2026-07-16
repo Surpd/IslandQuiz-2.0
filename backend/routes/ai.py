@@ -24,7 +24,7 @@ async def call_openai(prompt: str) -> str:
     if not OPENAI_API_KEY:
         return json.dumps({"mock": True, "prompt": prompt[:100]})
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             GROQ_URL,
             headers={
@@ -38,6 +38,9 @@ async def call_openai(prompt: str) -> str:
             },
         )
         data = response.json()
+        if "choices" not in data or not data["choices"]:
+            print(f"[AI] Bad response: {json.dumps(data)[:300]}")
+            return json.dumps({"error": "Empty response"})
         content = data["choices"][0]["message"]["content"]
         return content
 
