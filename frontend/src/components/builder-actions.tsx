@@ -278,10 +278,11 @@ interface FabsProps {
   savedId: string | null;
   onSave: () => string | null;
   onSaveAsCopy: () => string | null;
+  onVisibilityChange?: (v: GameVisibility) => void;
   themeAccent?: string;
 }
 
-export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, themeAccent }: FabsProps) {
+export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, onVisibilityChange, themeAccent }: FabsProps) {
   const { user } = useAuth();
   const [openSaveMenu, setOpenSaveMenu] = useState(false);
   const [openPlay, setOpenPlay] = useState(false);
@@ -309,6 +310,7 @@ export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, themeAccent }
 
   const changeVisibility = async (v: GameVisibility) => {
     setVisibility(v);
+    onVisibilityChange?.(v);
     setVisOpen(false);
     if (savedId) await apiSetGameVisibility(savedId, v);
   };

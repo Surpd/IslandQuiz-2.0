@@ -44,6 +44,9 @@ import type {
   QuizQuestionType,
 } from "@/lib/types";
 
+import { useAuth } from "@/hooks/use-auth";
+import type { GameVisibility } from "@/lib/types";
+
 export const Route = createFileRoute("/builder/quiz")({
   validateSearch: (search: Record<string, unknown>) => ({
     id: typeof search.id === "string" ? search.id : undefined,
@@ -78,6 +81,7 @@ function makeQuestion(type: QuizQuestionType, points = 100, time = 30): QuizQues
 
 function BuilderQuiz() {
   const { id: urlId } = Route.useSearch();
+  const { user } = useAuth();
   const [config, setConfig] = useState<QuizConfig>({
     title: "Новый квиз",
     description: "",
@@ -95,7 +99,7 @@ function BuilderQuiz() {
   const [toast, setToast] = useState<string | null>(null);
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
-
+  const [visibility, setVisibility] = useState<GameVisibility>(user ? "private" : "link");
   const listRef = useRef<HTMLDivElement>(null);
 
   // Bug 1.2: подгружаем сохранённый квиз по ?id=
@@ -168,10 +172,11 @@ function BuilderQuiz() {
   };
 
   // Bug 1.3: если есть savedId — обновляем, иначе создаём.
+
   const handleSave = (): string | null => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    saveGame({ kind: "quiz", id, data: { config, questions }, tags });
+    saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility });
     setSavedId(id);
     clearDraft("quiz");
     showToast(savedId ? "Изменения сохранены" : "Квиз сохранён!");
