@@ -122,7 +122,8 @@ async def generate_question(
     wishes: Optional[str] = None,
     format: Optional[str] = None,
 ):
-    # If currentText provided — improve instead
+    print(f"[AI] generate_question called: topic={topic!r}, type={type!r}, format={format!r}")
+
     if currentText and currentText.strip():
         prompt = improve_question_prompt(
             current_text=currentText,
@@ -130,6 +131,7 @@ async def generate_question(
             topic=topic,
             wishes=wishes,
         )
+        print(f"[AI] improve prompt: {prompt[:200]}")
         raw = await call_openai(prompt)
         result = json.loads(raw) if isinstance(raw, str) else raw
         variants = normalize_variants(result)
@@ -142,6 +144,7 @@ async def generate_question(
         wishes=wishes,
         count=3,
     )
+    print(f"[AI] generate prompt: {prompt[:200]}")
     raw = await call_openai(prompt)
     result = json.loads(raw) if isinstance(raw, str) else raw
     variants = normalize_variants(result)
