@@ -46,7 +46,6 @@ async def call_openai(prompt: str) -> str:
 
 
 def normalize_variants(result) -> list:
-    """Приводит ответ AI к списку вариантов с difficulty и correctAnswer."""
     variants = []
     if isinstance(result, dict):
         if "variants" in result:
@@ -71,12 +70,27 @@ def normalize_variants(result) -> list:
         if isinstance(v, dict):
             if "difficulty" not in v:
                 v["difficulty"] = difficulties[i] if i < len(difficulties) else "medium"
-            if "correctAnswer" not in v and "options" in v and "correct" in v:
-                idx = v["correct"]
-                if isinstance(idx, int) and 0 <= idx < len(v["options"]):
-                    v["correctAnswer"] = v["options"][idx]
+            
+            # Добавить correctAnswer для всех типов
+            if "correctAnswer" not in v:
+                if "options" in v and "correct" in v:
+                    idx = v["correct"]
+                    if isinstance(idx, int) and 0 <= idx < len(v["options"]):
+                        v["correctAnswer"] = v["options"][idx]
+                elif "answer" in v:
+                    v["correctAnswer"] = v["answer"]
+                elif "correctAnswer" not in v:
+                    v["correctAnswer"] = ""
+
+            # Добавить pairs для matching
+            if "pairs" not in v and v.get("type") == "matching":
+                if "matching" in v:
+                    v["pairs"] = v["matching"]
+                else:
+                    v["pairs"] = []
 
     return variants
+
 
 def clean_json(raw: str) -> str:
     cleaned = raw.strip()
