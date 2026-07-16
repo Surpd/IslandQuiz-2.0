@@ -141,7 +141,7 @@ async def generate_question(input: GenerateQuestionInput):
             wishes=input.wishes,
         )
         raw = await call_openai(prompt)
-        result = json..loads(clean_json(raw)) if isinstance(raw, str) else raw
+        result = json.loads(clean_json(raw)) if isinstance(raw, str) else raw
         variants = normalize_variants(result)
         return {"variants": variants}
 
@@ -153,7 +153,7 @@ async def generate_question(input: GenerateQuestionInput):
         count=3,
     )
     raw = await call_openai(prompt)
-    result = json..loads(clean_json(raw)) if isinstance(raw, str) else raw
+    result = json.loads(clean_json(raw)) if isinstance(raw, str) else raw
     variants = normalize_variants(result)
     return {"variants": variants}
 
@@ -170,7 +170,7 @@ async def improve_question(input: ImproveQuestionInput):
     if not raw or not raw.strip():
         return {"error": "Empty response from AI"}
     try:
-        result = json..loads(clean_json(raw)) if isinstance(raw, str) else raw
+        result = json.loads(clean_json(raw)) if isinstance(raw, str) else raw
         variants = normalize_variants(result)
         return {"variants": variants}
     except json.JSONDecodeError:
@@ -188,7 +188,7 @@ async def generate_quiz(input: GenerateQuizInput):
     if not raw or not raw.strip():
         return {"error": "Empty response from AI"}
     try:
-        return json..loads(clean_json(raw)) if isinstance(raw, str) else raw
+        return json.loads(clean_json(raw)) if isinstance(raw, str) else raw
     except json.JSONDecodeError:
         return {"error": "Invalid JSON", "raw": raw[:500]}
 
@@ -203,7 +203,7 @@ async def generate_jeopardy_categories(input: GenerateJeopardyCategoriesInput):
     if not raw or not raw.strip():
         return {"error": "Empty response from AI"}
     try:
-        return json..loads(clean_json(raw)) if isinstance(raw, str) else raw
+        return json.loads(clean_json(raw)) if isinstance(raw, str) else raw
     except json.JSONDecodeError:
         return {"error": "Invalid JSON", "raw": raw[:500]}
 
@@ -219,6 +219,6 @@ async def generate_jeopardy_questions(input: GenerateJeopardyQuestionsInput):
     if not raw or not raw.strip():
         return {"error": "Empty response from AI"}
     try:
-        return json..loads(clean_json(raw)) if isinstance(raw, str) else raw
+        return json.loads(clean_json(raw)) if isinstance(raw, str) else raw
     except json.JSONDecodeError:
         return {"error": "Invalid JSON", "raw": raw[:500]}
