@@ -8,6 +8,7 @@ export interface User {
   avatar?: string;
   bio?: string;
   subject?: string;
+  role?: string; 
   createdAt: number;
 }
 

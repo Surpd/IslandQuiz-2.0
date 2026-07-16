@@ -77,6 +77,7 @@ function mapUser(u: any): User {
     avatar: u.avatar ?? undefined,
     bio: u.bio ?? undefined,
     subject: u.subject ?? undefined,
+    role: u.role ?? undefined,  // ← добавить
     createdAt: toMs(u.created_at ?? u.createdAt),
   };
 }
