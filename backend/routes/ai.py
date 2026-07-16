@@ -67,7 +67,7 @@ async def call_openai(prompt: str) -> str:
                 "Content-Type": "application/json",
             },
             json={
-                "model": "llama-3.1-8b-instant",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.8,
                 "response_format": {"type": "json_object"},
