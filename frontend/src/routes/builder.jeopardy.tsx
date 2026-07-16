@@ -19,7 +19,8 @@ import { TagInput } from "@/components/tag-input";
 import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
 import { ThemeSelect } from "@/components/theme-select";
-import { newId, loadGame } from "@/lib/api";
+import { newId } from "@/lib/storage";  // генерация id
+import { loadGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
@@ -92,21 +93,24 @@ function BuilderJeopardy() {
 
   useEffect(() => {
     if (!urlId) return;
-    try {
-      const rec = loadGame<JeopardyData>("jeopardy", urlId);
-      if (rec) {
-        setConfig(rec.data.config);
-        setRounds(rec.data.rounds);
-        setFinal(rec.data.final);
-        setTags(rec.tags ?? []);
-        setSavedId(urlId);
-        setLoadState("idle");
-      } else setLoadState("error");
-
-    } catch (err) {
-      console.error(err);
-      setLoadState("error");
-    }
+    (async () => {
+      try {
+        const rec = await loadGame<JeopardyData>("jeopardy", urlId);
+        if (rec) {
+          setConfig(rec.data.config);
+          setRounds(rec.data.rounds);
+          setFinal(rec.data.final);
+          setTags(rec.tags ?? []);
+          setSavedId(urlId);
+          setLoadState("idle");
+        } else {
+          setLoadState("error");
+        }
+      } catch (err) {
+        console.error(err);
+        setLoadState("error");
+      }
+    })();
   }, [urlId]);
 
   const draftEnabled = !urlId;

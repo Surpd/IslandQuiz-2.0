@@ -24,7 +24,7 @@ import {
   listPlayedGameIdsForUser,
   computeRatingStats,
 } from "@/lib/api";
-import { cleanupInvalidGames } from "@/lib/api";
+import { cleanupInvalidGames } from "@/lib/storage";
 import { useAuth } from "@/hooks/use-auth";
 import { RatingStars } from "@/components/rating-stars";
 import { Avatar } from "@/components/avatar";

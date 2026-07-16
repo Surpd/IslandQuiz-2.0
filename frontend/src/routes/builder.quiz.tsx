@@ -25,7 +25,8 @@ import { TagInput } from "@/components/tag-input";
 import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
 import { ThemeSelect } from "@/components/theme-select";
-import { newId, loadGame } from "@/lib/api";
+import { newId } from "@/lib/storage";  // генерация id
+import { loadGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
@@ -105,22 +106,23 @@ function BuilderQuiz() {
   // Bug 1.2: подгружаем сохранённый квиз по ?id=
   useEffect(() => {
     if (!urlId) return;
-    try {
-      const rec = loadGame<QuizData>("quiz", urlId);
-      if (rec) {
-        setConfig(rec.data.config);
-        setQuestions(rec.data.questions);
-        setTags(rec.tags ?? []);
-        setSavedId(urlId);
-        setLoadState("idle");
-      } else {
-
+    (async () => {
+      try {
+        const rec = await loadGame<QuizData>("quiz", urlId);
+        if (rec) {
+          setConfig(rec.data.config);
+          setQuestions(rec.data.questions);
+          setTags(rec.tags ?? []);
+          setSavedId(urlId);
+          setLoadState("idle");
+        } else {
+          setLoadState("error");
+        }
+      } catch (err) {
+        console.error(err);
         setLoadState("error");
       }
-    } catch (err) {
-      console.error(err);
-      setLoadState("error");
-    }
+    })();
   }, [urlId]);
 
   // Draft autosave — only for NEW games (no urlId, no savedId yet).
