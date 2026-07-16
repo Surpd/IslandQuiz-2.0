@@ -301,10 +301,16 @@ export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, themeAccent }
 
   // Load current visibility from saved game
   useEffect(() => {
-    if (!savedId) return;
-    findGame(savedId).then((g) => {
-      if (g?.visibility) setVisibility(g.visibility);
-    });
+    if (savedId) {
+      findGame(savedId).then(g => {
+        if (g?.visibility) {
+          setVisibility(g.visibility);
+          localStorage.setItem("islandquiz.visibility", g.visibility);
+        }
+      });
+    } else {
+      localStorage.setItem("islandquiz.visibility", user ? "private" : "link");
+    }
   }, [savedId]);
 
   const changeVisibility = async (v: GameVisibility) => {

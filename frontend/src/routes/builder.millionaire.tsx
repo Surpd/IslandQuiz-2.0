@@ -196,7 +196,7 @@ function BuilderMillionaire() {
   const handleSave = (): string | null => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    const vis = (document.querySelector('[data-visibility]')?.getAttribute('data-visibility') as string) || "private";
+    const vis = localStorage.getItem("islandquiz.visibility") || "private";
     saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility: vis });
     setSavedId(id);
     clearDraft("millionaire");

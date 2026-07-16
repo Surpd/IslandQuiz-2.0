@@ -235,8 +235,8 @@ function BuilderJeopardy() {
   const handleSave = (): string | null => {
     const id = savedId ?? newId();
     const data: JeopardyData = { config, rounds, final };
-    const vis = (document.querySelector('[data-visibility]')?.getAttribute('data-visibility') as string) || "private";
-    saveGame({ kind: "jeopardy", id, data, tags, visibility: vis });
+    const vis = localStorage.getItem("islandquiz.visibility") || "private";
+    saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility: vis });
     setSavedId(id);
     clearDraft("jeopardy");
     showToast(savedId ? "Изменения сохранены" : "Игра сохранена!");
