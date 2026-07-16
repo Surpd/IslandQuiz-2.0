@@ -40,6 +40,7 @@ class UserOut(BaseModel):
     avatar: Optional[str] = None
     bio: Optional[str] = None
     subject: Optional[str] = None
+    role: Optional[str] = None  # ← добавить
     created_at: datetime
 
     class Config:
