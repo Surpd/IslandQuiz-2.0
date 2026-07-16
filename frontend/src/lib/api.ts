@@ -39,7 +39,7 @@ const BASE_URL = "https://islandquiz-2-0.onrender.com";
 const WS_BASE = "wss://islandquiz-2-0.onrender.com";
 const TOKEN_KEY = "islandquiz.token";
 
-async function apiFetch(path: string, options?: RequestInit): Promise<any> {
+export async function apiFetch(path: string, options?: RequestInit): Promise<any> {
   const token = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,

@@ -17,6 +17,7 @@ type StoredUser = User & {
   // Backward-compatible fallback for any records that may have been written by
   // an older local stub while debugging. New writes always use passwordHash.
   password?: string;
+  role?: string;
 };
 
 const USERS_KEY = "islandquiz.v1.auth.users";
