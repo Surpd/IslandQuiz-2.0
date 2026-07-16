@@ -145,7 +145,21 @@ class GenerateJeopardyQuestionsInput(BaseModel):
 
 @router.post("/generate-question", response_model=dict)
 async def generate_question(input: GenerateQuestionInput):
-    print(f"[AI] generate_question called: topic={input.topic!r}, type={input.type!r}")
+    # Определить тип из format
+    qtype = input.type or "choice"
+    fmt = input.format or ""
+    if fmt == "quiz-matching":
+        qtype = "matching"
+    elif fmt == "quiz-close":
+        qtype = "close"
+    elif fmt == "quiz-ordering":
+        qtype = "ordering"
+    elif fmt == "quiz-bool":
+        qtype = "bool"
+    elif fmt == "quiz-text":
+        qtype = "text"
+    
+    print(f"[AI] generate_question called: topic={input.topic!r}, type={qtype!r}")
 
     if input.currentText and input.currentText.strip():
         prompt = improve_question_prompt(
@@ -155,21 +169,31 @@ async def generate_question(input: GenerateQuestionInput):
             wishes=input.wishes,
         )
         raw = await call_openai(prompt)
-        result = json.loads(clean_json(raw)) if isinstance(raw, str) else raw
-        variants = normalize_variants(result)
-        return {"variants": variants}
+        if not raw or not raw.strip():
+            return {"error": "Empty response from AI"}
+        try:
+            result = json.loads(clean_json(raw)) if isinstance(raw, str) else raw
+            variants = normalize_variants(result)
+            return {"variants": variants}
+        except json.JSONDecodeError:
+            return {"error": "Invalid JSON", "raw": raw[:500]}
 
     prompt = generate_question_prompt(
         topic=input.topic or "общая эрудиция",
-        question_type=input.type or "choice",
+        question_type=qtype,
         difficulty="mixed",
         wishes=input.wishes,
         count=3,
     )
     raw = await call_openai(prompt)
-    result = json.loads(clean_json(raw)) if isinstance(raw, str) else raw
-    variants = normalize_variants(result)
-    return {"variants": variants}
+    if not raw or not raw.strip():
+        return {"error": "Empty response from AI"}
+    try:
+        result = json.loads(clean_json(raw)) if isinstance(raw, str) else raw
+        variants = normalize_variants(result)
+        return {"variants": variants}
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON", "raw": raw[:500]}
 
 
 @router.post("/improve-question", response_model=dict)

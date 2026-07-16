@@ -3,7 +3,7 @@ def generate_question_prompt(topic: str, question_type: str, difficulty: str, wi
         "choice": "вопрос с 4 вариантами ответа (A/B/C/D), только один правильный. Формат: {\"question\": \"...\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correct\": 0}",
         "bool": "утверждение, на которое нужно ответить Да или Нет. Формат: {\"question\": \"...\", \"correct\": true/false}",
         "text": "открытый вопрос с кратким ответом (одно-два слова). Формат: {\"question\": \"...\", \"correctAnswer\": \"краткий ответ\"}",
-        "matching": "три пары для сопоставления. Формат: {\"question\": \"...\", \"pairs\": [{\"left\": \"A\", \"right\": \"1\"}, ...]}",
+        "matching": "три пары для сопоставления. Формат: {\"question\": \"...\", \"pairs\": [{\"left\": \"A\", \"right\": \"1\"}, {\"left\": \"B\", \"right\": \"2\"}, {\"left\": \"C\", \"right\": \"3\"}]}",
     }
     type_desc = type_descriptions.get(question_type, type_descriptions["choice"])
 
