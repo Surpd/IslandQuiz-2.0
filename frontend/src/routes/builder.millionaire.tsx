@@ -11,7 +11,7 @@ import { CharCounter } from "@/components/char-counter";
 import { TagInput } from "@/components/tag-input";
 
 import { LIMITS } from "@/lib/limits";
-import { newId, loadGame } from "@/lib/storage";
+import { newId, loadGame } from "@/lib/api";
 import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
