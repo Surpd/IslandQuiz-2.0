@@ -282,6 +282,7 @@ export interface SaveGameInput<T = AnyGameData> {
   data: T;
   title?: string;
   tags?: string[];
+  visibility?: string;  // ← добавить
 }
 
 export async function saveGame<T = AnyGameData>(input: SaveGameInput<T>) {
@@ -293,6 +294,7 @@ export async function saveGame<T = AnyGameData>(input: SaveGameInput<T>) {
       data: input.data,
       title: input.title,
       tags: input.tags,
+      visibility: input.visibility,  // ← добавить
     }),
   }) as Promise<{ id: string; play_url: string }>;
 }
