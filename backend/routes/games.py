@@ -50,6 +50,7 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
         supabase.table("games").update({
             "data": input.data,
             "tags": input.tags,
+            "visibility": input.visibility,  # ← добавить
             "updated_at": datetime.utcnow().isoformat(),
         }).eq("id", game_id).execute()
     else:
@@ -59,8 +60,7 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
             "data": input.data,
             "owner_id": user["id"] if user else None,
             "owner_name": user["name"] if user else None,
-            "visibility": "private" if user else "link",
-            "tags": input.tags,
+            "visibility": input.visibility or ("private" if user else "link"),
         }).execute()
 
     return {"id": game_id, "play_url": f"/play/{input.kind}/{game_id}"}
