@@ -278,11 +278,10 @@ interface FabsProps {
   savedId: string | null;
   onSave: () => string | null;
   onSaveAsCopy: () => string | null;
-  onVisibilityChange?: (v: GameVisibility) => void;
   themeAccent?: string;
 }
 
-export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, onVisibilityChange, themeAccent }: FabsProps) {
+export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, themeAccent }: FabsProps) {
   const { user } = useAuth();
   const [openSaveMenu, setOpenSaveMenu] = useState(false);
   const [openPlay, setOpenPlay] = useState(false);
@@ -310,7 +309,6 @@ export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, onVisibilityC
 
   const changeVisibility = async (v: GameVisibility) => {
     setVisibility(v);
-    onVisibilityChange?.(v);
     setVisOpen(false);
     if (savedId) await apiSetGameVisibility(savedId, v);
   };
@@ -333,7 +331,7 @@ export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, onVisibilityC
     <>
       <div className="fixed bottom-4 right-4 left-4 z-40 flex items-center justify-end gap-1.5 sm:bottom-6 sm:right-6 sm:left-auto sm:gap-2">
         {/* Visibility */}
-        <div ref={visRef} className="relative">
+        <div ref={visRef} className="relative" data-visibility={visibility}>
           <button
             type="button"
             onClick={() => setVisOpen((v) => !v)}

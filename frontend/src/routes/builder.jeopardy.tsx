@@ -39,10 +39,6 @@ import type {
   PlayerTheme,
 } from "@/lib/types";
 
-import { useAuth } from "@/hooks/use-auth";
-import type { GameVisibility } from "@/lib/types";
-
-
 export const Route = createFileRoute("/builder/jeopardy")({
   validateSearch: (search: Record<string, unknown>) => ({
     id: typeof search.id === "string" ? search.id : undefined,
@@ -57,8 +53,6 @@ export const Route = createFileRoute("/builder/jeopardy")({
 });
 
 const DEFAULT_POINTS = [100, 200, 300, 400, 500];
-const { user } = useAuth();
-const [visibility, setVisibility] = useState<GameVisibility>(user ? "private" : "link");
 
 function makeCategory(round: number): JeopardyCategory {
   const step = round === 1 ? 100 : round === 2 ? 200 : 300;
@@ -76,7 +70,6 @@ interface ModalTarget {
 
 function BuilderJeopardy() {
   const { id: urlId } = Route.useSearch();
-  const { user } = useAuth();
   const [config, setConfig] = useState<JeopardyConfig>({
     theme: "amber",
     timeBase: 30,
@@ -238,7 +231,8 @@ function BuilderJeopardy() {
   const handleSave = (): string | null => {
     const id = savedId ?? newId();
     const data: JeopardyData = { config, rounds, final };
-    saveGame({ kind: "jeopardy", id, data, tags, visibility });
+    const vis = (document.querySelector('[data-visibility]')?.getAttribute('data-visibility') as string) || "private";
+    saveGame({ kind: "jeopardy", id, data, tags, visibility: vis });
     setSavedId(id);
     clearDraft("jeopardy");
     showToast(savedId ? "Изменения сохранены" : "Игра сохранена!");

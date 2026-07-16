@@ -32,10 +32,6 @@ import type {
   PointsMode,
 } from "@/lib/types";
 
-import { useAuth } from "@/hooks/use-auth";
-import type { GameVisibility } from "@/lib/types";
-
-
 export const Route = createFileRoute("/builder/millionaire")({
   validateSearch: (search: Record<string, unknown>) => ({
     id: typeof search.id === "string" ? search.id : undefined,
@@ -71,7 +67,6 @@ function makeQuestion(money: number): MillionaireQuestion {
 
 function BuilderMillionaire() {
   const { id: urlId } = Route.useSearch();
-  const { user } = useAuth();
   const [config, setConfig] = useState<MillionaireConfig>({
     theme: "amber",
     timePerQuestion: 30,
@@ -194,13 +189,11 @@ function BuilderMillionaire() {
     return true;
   };
 
-  
-  const [visibility, setVisibility] = useState<GameVisibility>(user ? "private" : "link");
-
   const handleSave = (): string | null => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility });
+    const vis = (document.querySelector('[data-visibility]')?.getAttribute('data-visibility') as string) || "private";
+    saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility: vis });
     setSavedId(id);
     clearDraft("millionaire");
     showToast(savedId ? "Изменения сохранены" : "Игра сохранена!");
