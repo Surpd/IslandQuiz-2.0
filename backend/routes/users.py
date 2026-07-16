@@ -36,7 +36,8 @@ class UserOut(BaseModel):
     avatar: Optional[str] = None
     bio: Optional[str] = None
     subject: Optional[str] = None
-    created_at: str
+    role: Optional[str] = None  # ← добавить
+    created_at: datetime
 
     class Config:
         from_attributes = True
