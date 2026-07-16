@@ -114,37 +114,48 @@ def normalize_variants(result) -> list:
     return variants
 # ---------- Routes ----------
 
-@router.post("/generate-question", response_model=dict)
-async def generate_question(
-    topic: Optional[str] = None,
-    type: Optional[str] = "choice",
-    currentText: Optional[str] = None,
-    wishes: Optional[str] = None,
-    format: Optional[str] = None,
-):
-    print(f"[AI] generate_question called: topic={topic!r}, type={type!r}, format={format!r}")
+from pydantic import BaseModel
 
-    if currentText and currentText.strip():
+class GenerateQuestionInput(BaseModel):
+    topic: Optional[str] = None
+    type: Optional[str] = "choice"
+    currentText: Optional[str] = None
+    wishes: Optional[str] = None
+    format: Optional[str] = None
+    reroll: Optional[bool] = None
+
+
+class ImproveQuestionInput(BaseModel):
+    currentText: str
+    format: str = "quiz-choice"
+    topic: Optional[str] = None
+    wishes: Optional[str] = None
+    reroll: Optional[bool] = None
+
+
+@router.post("/generate-question", response_model=dict)
+async def generate_question(input: GenerateQuestionInput):
+    print(f"[AI] generate_question called: topic={input.topic!r}, type={input.type!r}")
+
+    if input.currentText and input.currentText.strip():
         prompt = improve_question_prompt(
-            current_text=currentText,
-            format_type=format or type or "quiz-choice",
-            topic=topic,
-            wishes=wishes,
+            current_text=input.currentText,
+            format_type=input.format or input.type or "quiz-choice",
+            topic=input.topic,
+            wishes=input.wishes,
         )
-        print(f"[AI] improve prompt: {prompt[:200]}")
         raw = await call_openai(prompt)
         result = json.loads(raw) if isinstance(raw, str) else raw
         variants = normalize_variants(result)
         return {"variants": variants}
 
     prompt = generate_question_prompt(
-        topic=topic or "общая эрудиция",
-        question_type=type or "choice",
+        topic=input.topic or "общая эрудиция",
+        question_type=input.type or "choice",
         difficulty="mixed",
-        wishes=wishes,
+        wishes=input.wishes,
         count=3,
     )
-    print(f"[AI] generate prompt: {prompt[:200]}")
     raw = await call_openai(prompt)
     result = json.loads(raw) if isinstance(raw, str) else raw
     variants = normalize_variants(result)
@@ -152,22 +163,18 @@ async def generate_question(
 
 
 @router.post("/improve-question", response_model=dict)
-async def improve_question(
-    currentText: str,
-    format: str = "quiz-choice",
-    topic: Optional[str] = None,
-    wishes: Optional[str] = None,
-):
+async def improve_question(input: ImproveQuestionInput):
     prompt = improve_question_prompt(
-        current_text=currentText,
-        format_type=format,
-        topic=topic,
-        wishes=wishes,
+        current_text=input.currentText,
+        format_type=input.format,
+        topic=input.topic,
+        wishes=input.wishes,
     )
     raw = await call_openai(prompt)
     result = json.loads(raw) if isinstance(raw, str) else raw
     variants = normalize_variants(result)
     return {"variants": variants}
+
 
 
 @router.post("/generate-quiz", response_model=dict)
