@@ -297,14 +297,50 @@ function BuilderQuiz() {
           time: config.defaultTime,
         };
       }
-      // matching
+      if (g.type === "matching") {
+        return {
+          id: newId(),
+          type: "matching",
+          q: g.question,
+          image: "",
+          options: [],
+          answer: JSON.stringify(g.pairs ?? [{ left: "", right: "" }]),
+          points: 100,
+          time: config.defaultTime,
+        };
+      }
+      if (g.type === "close") {
+        return {
+          id: newId(),
+          type: "close",
+          q: g.question,
+          image: "",
+          options: [],
+          answer: g.correctAnswer ?? "[]",
+          points: 100,
+          time: config.defaultTime,
+        };
+      }
+      if (g.type === "ordering") {
+        return {
+          id: newId(),
+          type: "ordering",
+          q: g.question,
+          image: "",
+          options: [],
+          answer: g.correctAnswer ?? "[]",
+          points: 100,
+          time: config.defaultTime,
+        };
+      }
+      // fallback
       return {
         id: newId(),
-        type: "matching",
+        type: "choice",
         q: g.question,
         image: "",
-        options: [],
-        answer: JSON.stringify(g.pairs ?? [{ left: "", right: "" }]),
+        options: g.options ?? ["", "", "", ""],
+        answer: g.options?.[typeof g.correct === "number" ? g.correct : 0] ?? "",
         points: 100,
         time: config.defaultTime,
       };
