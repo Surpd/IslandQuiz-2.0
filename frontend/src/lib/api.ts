@@ -351,8 +351,12 @@ export async function listGames(kind?: GameKind): Promise<StoredGame[]> {
 export async function findGame(id: string): Promise<StoredGame | null> {
   try {
     const g = await apiFetch(`/api/games/${id}`);
-    return g ? mapGame(g) : null;
-  } catch {
+    console.log("[findGame] raw:", g);
+    const mapped = g ? mapGame(g) : null;
+    console.log("[findGame] mapped:", mapped);
+    return mapped;
+  } catch (e) {
+    console.error("[findGame] error:", e);
     return null;
   }
 }
