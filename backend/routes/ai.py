@@ -79,6 +79,39 @@ async def call_openai(prompt: str) -> str:
         print(f"[AI] Raw response: {content[:300]}")
         return content
 
+
+def normalize_variants(result) -> list:
+    """Приводит ответ AI к списку вариантов с difficulty и correctAnswer."""
+    variants = []
+    if isinstance(result, dict):
+        if "variants" in result:
+            v = result["variants"]
+            if isinstance(v, dict) and "questions" in v:
+                variants = v["questions"]
+            elif isinstance(v, list):
+                variants = v
+            else:
+                variants = [v]
+        elif "questions" in result:
+            variants = result["questions"]
+        else:
+            variants = [result]
+    elif isinstance(result, list):
+        variants = result
+    else:
+        variants = []
+
+    difficulties = ["easy", "medium", "hard"]
+    for i, v in enumerate(variants):
+        if isinstance(v, dict):
+            if "difficulty" not in v:
+                v["difficulty"] = difficulties[i] if i < len(difficulties) else "medium"
+            if "correctAnswer" not in v and "options" in v and "correct" in v:
+                idx = v["correct"]
+                if isinstance(idx, int) and 0 <= idx < len(v["options"]):
+                    v["correctAnswer"] = v["options"][idx]
+
+    return variants
 # ---------- Routes ----------
 
 @router.post("/generate-question", response_model=dict)
@@ -98,7 +131,9 @@ async def generate_question(
             wishes=wishes,
         )
         raw = await call_openai(prompt)
-        return {"variants": json.loads(raw) if isinstance(raw, str) else raw}
+        result = json.loads(raw) if isinstance(raw, str) else raw
+        variants = normalize_variants(result)
+        return {"variants": variants}
 
     prompt = generate_question_prompt(
         topic=topic or "общая эрудиция",
@@ -108,7 +143,9 @@ async def generate_question(
         count=3,
     )
     raw = await call_openai(prompt)
-    return {"variants": json.loads(raw) if isinstance(raw, str) else raw}
+    result = json.loads(raw) if isinstance(raw, str) else raw
+    variants = normalize_variants(result)
+    return {"variants": variants}
 
 
 @router.post("/improve-question", response_model=dict)
@@ -126,7 +163,8 @@ async def improve_question(
     )
     raw = await call_openai(prompt)
     result = json.loads(raw) if isinstance(raw, str) else raw
-    return {"variants": result.get("variants", [result]) if isinstance(result, dict) else result}
+    variants = normalize_variants(result)
+    return {"variants": variants}
 
 
 @router.post("/generate-quiz", response_model=dict)
