@@ -22,6 +22,7 @@ import { AIGenerateQuizButton } from "@/components/ai-generate-quiz";
 import { CharCounter } from "@/components/char-counter";
 import { TagInput } from "@/components/tag-input";
 import { SortableQuestionList } from "@/components/sortable-question-list";
+import { SortableQuestionCards } from "@/components/sortable-question-cards";
 
 import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
@@ -565,16 +566,23 @@ function BuilderQuiz() {
 
 
       <div ref={listRef} className="space-y-4">
-        {questions.map((q, idx) => (
-          <QuestionCard
-            key={q.id}
-            index={idx}
-            question={q}
-            topic={config.title}
-            onPatch={(p) => patchQuestion(q.id, p)}
-            onRemove={() => removeQuestion(q.id)}
-          />
-        ))}
+        <SortableQuestionCards
+          items={questions}
+          onReorder={(newOrder) => {
+            const reordered = newOrder.map(i => questions[i]);
+            setQuestions(reordered);
+          }}
+          renderItem={(q, idx) => (
+            <QuestionCard
+              key={q.id}
+              index={idx}
+              question={q}
+              topic={config.title}
+              onPatch={(p) => patchQuestion(q.id, p)}
+              onRemove={() => removeQuestion(q.id)}
+            />
+          )}
+        />
       </div>
 
       <div className="flex flex-wrap justify-center gap-2 py-4">
