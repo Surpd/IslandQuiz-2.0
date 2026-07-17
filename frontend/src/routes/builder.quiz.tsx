@@ -21,6 +21,7 @@ import { AIHelperButton } from "@/components/ai-helper";
 import { AIGenerateQuizButton } from "@/components/ai-generate-quiz";
 import { CharCounter } from "@/components/char-counter";
 import { TagInput } from "@/components/tag-input";
+import { SortableQuestionList } from "@/components/sortable-question-list";
 
 import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
@@ -224,32 +225,23 @@ function BuilderQuiz() {
     }
   };
 
+  
   const sidebar = (
     <div className="space-y-1">
       <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Вопросы
       </p>
-      {questions.map((q, i) => {
-        const Icon = TYPE_META[q.type].icon;
-        return (
-          <button
-            key={q.id}
-            type="button"
-            onClick={() =>
-              document.getElementById(`q-${q.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
-            }
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs transition-colors hover:bg-surface-muted"
-          >
-            <span className="grid h-6 w-6 place-items-center rounded-md bg-surface-muted font-mono text-[10px] font-bold">
-              {i + 1}
-            </span>
-            <Icon className={`h-3.5 w-3.5 ${TYPE_META[q.type].tone}`} />
-            <span className="truncate text-muted-foreground">
-              {q.q.slice(0, 20) || TYPE_META[q.type].label}
-            </span>
-          </button>
-        );
-      })}
+      <SortableQuestionList
+        questions={questions}
+        typeMeta={TYPE_META}
+        onReorder={(newOrder) => {
+          const reordered = newOrder.map(i => questions[i]);
+          setQuestions(reordered);
+        }}
+        onSelect={(index) => {
+          document.getElementById(`q-${questions[index].id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }}
+      />
       <div className="my-2 border-t border-border" />
       <div className="grid grid-cols-2 gap-1">
         {(Object.keys(TYPE_META) as QuizQuestionType[]).map((t) => (
@@ -265,6 +257,7 @@ function BuilderQuiz() {
       </div>
     </div>
   );
+
 
   const applyGeneratedQuiz = (result: { title: string; questions: import("@/lib/api").GeneratedQuizQuestion[] }) => {
     const next: QuizQuestion[] = result.questions.map((g) => {

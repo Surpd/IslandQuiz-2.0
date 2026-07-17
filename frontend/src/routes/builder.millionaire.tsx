@@ -9,6 +9,7 @@ import { FormulaButton } from "@/components/formula-popover";
 import { AIHelperButton } from "@/components/ai-helper";
 import { CharCounter } from "@/components/char-counter";
 import { TagInput } from "@/components/tag-input";
+import { SortableQuestionList } from "@/components/sortable-question-list";
 
 import { LIMITS } from "@/lib/limits";
 import { newId } from "@/lib/storage";  // генерация id
@@ -231,38 +232,38 @@ function BuilderMillionaire() {
     document.getElementById(`mq-${idx}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-  const sidebar = (
-    <div className="space-y-1">
-      <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Лестница
-      </p>
-      {questions.map((q, i) => {
-        const filled = q.q.trim() && q.options.some((o) => o.correct && o.text.trim());
-        return (
-          <button
-            key={i}
-            onClick={() => scrollToQ(i)}
-            className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-surface-muted ${
-              filled ? "text-foreground" : "text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`grid h-6 w-6 place-items-center rounded-md font-mono text-[10px] font-bold ${
-                filled ? "bg-success-soft text-success" : "bg-surface-muted"
-              }`}
-            >
-              {i + 1}
-            </span>
-            <span className="truncate">{q.money.toLocaleString("ru-RU")} ₽</span>
-          </button>
-        );
-      })}
-      <div className="my-2 border-t border-border" />
-      <button onClick={addQuestion} className="btn-ghost w-full justify-center text-xs">
-        <Plus className="h-3.5 w-3.5" /> Вопрос
-      </button>
-    </div>
-  );
+ 
+
+const sidebar = (
+  <div className="space-y-1">
+    <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      Лестница
+    </p>
+    <SortableQuestionList
+      questions={questions.map((q, i) => ({
+        id: `mq-${i}`,
+        type: "millionaire",
+        q: `${q.money.toLocaleString("ru-RU")} ₽ ${q.q}`,
+      }))}
+      typeMeta={{
+        millionaire: {
+          label: "₽",
+          icon: Coins,
+          tone: "text-amber",
+        },
+      }}
+      onReorder={(newOrder) => {
+        const reordered = newOrder.map(i => questions[i]);
+        setQuestions(reordered);
+      }}
+      onSelect={(index) => scrollToQ(index)}
+    />
+    <div className="my-2 border-t border-border" />
+    <button onClick={addQuestion} className="btn-ghost w-full justify-center text-xs">
+      <Plus className="h-3.5 w-3.5" /> Вопрос
+    </button>
+  </div>
+);
 
   const settingsPanel = (
     <div className="space-y-4">
