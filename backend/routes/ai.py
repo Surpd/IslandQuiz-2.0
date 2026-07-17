@@ -5,6 +5,7 @@ from typing import Optional, List
 from fastapi import APIRouter
 from pydantic import BaseModel
 import httpx
+from datetime import datetime, timedelta
 
 from services.ai_prompts import (
     generate_question_prompt,
@@ -105,6 +106,33 @@ def clean_json(raw: str) -> str:
             lines = lines[:-1]
         cleaned = "\n".join(lines)
     return cleaned.strip()
+
+# ---------- AI Limits ----------
+
+def get_today_ai_count(user_id: str) -> int:
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    res = supabase.table("ai_usage").select("id", count="exact").eq("user_id", user_id).gte("created_at", today).execute()
+    return res.count if hasattr(res, 'count') else len(res.data or [])
+
+def increment_ai_count(user_id: str, request_type: str):
+    supabase.table("ai_usage").insert({
+        "user_id": user_id,
+        "request_type": request_type,
+    }).execute()
+
+def check_ai_limit(user):
+    if not user:
+        return
+    role = user.get("role", "user")
+    if role == "admin":
+        return  # безлимитно
+    plan = user.get("plan", "free")
+    limits = {"free": 10, "premium": 100}
+    daily_limit = limits.get(plan, 10)
+    count = get_today_ai_count(user["id"])
+    if count >= daily_limit:
+        raise HTTPException(status_code=429, detail=f"Лимит AI-запросов исчерпан ({daily_limit}/день). Повысьте тариф до Premium.")
+    increment_ai_count(user["id"], "ai_request")
     
 # ---------- Schemas ----------
 
@@ -146,6 +174,7 @@ class GenerateJeopardyQuestionsInput(BaseModel):
 
 @router.post("/generate-question", response_model=dict)
 async def generate_question(input: GenerateQuestionInput):
+    check_ai_limit(user)
     # Определить тип из format
     qtype = input.type or "choice"
     fmt = input.format or ""
@@ -199,6 +228,7 @@ async def generate_question(input: GenerateQuestionInput):
 
 @router.post("/improve-question", response_model=dict)
 async def improve_question(input: ImproveQuestionInput):
+    check_ai_limit(user)
     prompt = improve_question_prompt(
         current_text=input.currentText,
         format_type=input.format,
@@ -218,6 +248,7 @@ async def improve_question(input: ImproveQuestionInput):
 
 @router.post("/generate-quiz", response_model=dict)
 async def generate_quiz(input: GenerateQuizInput):
+    check_ai_limit(user)
     prompt = generate_quiz_prompt(
         topic=input.topic or "Удивительные открытия",
         count=min(20, max(5, input.count or 10)),
@@ -234,6 +265,7 @@ async def generate_quiz(input: GenerateQuizInput):
 
 @router.post("/generate-jeopardy-categories", response_model=dict)
 async def generate_jeopardy_categories(input: GenerateJeopardyCategoriesInput):
+    check_ai_limit(user)
     prompt = generate_jeopardy_categories_prompt(
         topic=input.topic or "Удивительные явления",
         wishes=input.wishes,
@@ -249,6 +281,7 @@ async def generate_jeopardy_categories(input: GenerateJeopardyCategoriesInput):
 
 @router.post("/generate-jeopardy-questions", response_model=dict)
 async def generate_jeopardy_questions(input: GenerateJeopardyQuestionsInput):
+    check_ai_limit(user)
     prompt = generate_jeopardy_questions_prompt(
         category=input.category,
         empty_slots=input.emptySlots,

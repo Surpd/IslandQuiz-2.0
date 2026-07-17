@@ -369,18 +369,24 @@ function UsersTab() {
           <thead>
             <tr className="bg-primary-soft text-left text-xs font-bold uppercase tracking-wider text-primary">
               <th className="px-4 py-3">ID</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Имя</th>
-              <th className="px-4 py-3">Роль</th><th className="px-4 py-3">Бан</th><th className="px-4 py-3">Дата</th><th className="px-4 py-3">Действия</th>
+              <th className="px-4 py-3">План</th><th className="px-4 py-3">Роль</th><th className="px-4 py-3">Бан</th><th className="px-4 py-3">Дата</th><th className="px-4 py-3">Действия</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u: any) => (
               <tr key={u.id} className="border-t border-border">
                 <td className="px-4 py-3 font-mono text-xs">{u.id}</td><td className="px-4 py-3">{u.email}</td><td className="px-4 py-3 font-semibold">{u.name}</td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${u.plan === "premium" ? "bg-amber-soft text-amber" : "bg-surface-muted text-muted-foreground"}`}>
+                    {u.plan || "free"}
+                  </span>
+                </td>
                 <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${u.role === "admin" ? "bg-amber-soft text-amber" : "bg-surface-muted text-muted-foreground"}`}>{u.role || "user"}</span></td>
                 <td className="px-4 py-3">{u.banned ? "🚫" : "✅"}</td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString("ru-RU")}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
+                    <button onClick={() => action(`/api/admin/users/${u.id}/set-plan?plan=premium`)} className="btn-ghost p-1.5" title="Premium">💎</button>
                     <button onClick={() => action(`/api/admin/users/${u.id}/ban`)} className="btn-ghost p-1.5" title="Бан/разбан"><Ban className="h-3.5 w-3.5" /></button>
                     <button onClick={() => action(`/api/admin/users/${u.id}/make-admin`)} className="btn-ghost p-1.5" title="Сделать админом"><UserCheck className="h-3.5 w-3.5" /></button>
                     <button onClick={() => { if (confirm("Удалить пользователя?")) apiFetch(`/api/admin/users/${u.id}`, { method: "DELETE" }).then(load); }} className="btn-ghost p-1.5 text-danger"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -394,6 +400,7 @@ function UsersTab() {
     </div>
   );
 }
+
 
 // ==================== GAMES ====================
 

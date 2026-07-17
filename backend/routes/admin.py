@@ -259,3 +259,9 @@ def set_limit(key: str, value: str, user=Depends(get_current_user)):
     require_admin(user)
     supabase.table("settings").upsert({"key": key, "value": value}).execute()
     return {"ok": True}
+
+@router.post("/users/{user_id}/set-plan")
+def set_plan(user_id: str, plan: str = "free", user=Depends(get_current_user)):
+    require_admin(user)
+    supabase.table("users").update({"plan": plan}).eq("id", user_id).execute()
+    return {"ok": True}
