@@ -2,6 +2,7 @@
 // «Количество», «Пожелания». После генерации — подтверждение замены всех
 // вопросов. Между генерациями блокировка на 30 секунд.
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Sparkles, Loader2, X, WandSparkles } from "lucide-react";
 import {
   generateQuiz,
@@ -64,7 +65,7 @@ export function AIGenerateQuizButton({ currentTitle, onGenerated, className }: P
         Сгенерировать
 
       </button>
-      {open && (
+      {open && createPortal(
         <div
           className="fixed inset-0 z-[70] grid place-items-center bg-foreground/40 p-4"
           onClick={() => setOpen(false)}
@@ -144,7 +145,8 @@ export function AIGenerateQuizButton({ currentTitle, onGenerated, className }: P
               </p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
