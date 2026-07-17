@@ -4,6 +4,8 @@ def generate_question_prompt(topic: str, question_type: str, difficulty: str, wi
         "bool": "утверждение, на которое нужно ответить Да или Нет. Формат: {\"question\": \"...\", \"correct\": true/false}",
         "text": "открытый вопрос с кратким ответом (одно-два слова). Формат: {\"question\": \"...\", \"correctAnswer\": \"краткий ответ\"}",
         "matching": "три пары для сопоставления. Формат: {\"question\": \"...\", \"pairs\": [{\"left\": \"A\", \"right\": \"1\"}, {\"left\": \"B\", \"right\": \"2\"}, {\"left\": \"C\", \"right\": \"3\"}]}",
+        "close": "текст с пропусками ___ которые надо заполнить. Ответы через | в correctAnswer. Формат: {\"question\": \"Столица Франции — ___, а Германии — ___\", \"correctAnswer\": \"Париж|Берлин\"}",
+        "ordering": "список пунктов для расстановки в правильном порядке. Формат: {\"question\": \"Расставьте по порядку:\", \"options\": [\"Первый\", \"Второй\", \"Третий\"]}",
     }
     type_desc = type_descriptions.get(question_type, type_descriptions["choice"])
 
@@ -19,7 +21,8 @@ def generate_question_prompt(topic: str, question_type: str, difficulty: str, wi
 Для text-вопросов ответ должен быть кратким — одним-двумя словами.
 Для matching — верни пары в поле "pairs".
 Для choice — верни 4 варианта и индекс правильного в "correct".
-
+Для close — используй ___ для пропусков, ответы через | в correctAnswer.
+Для ordering — верни список в правильном порядке в "options".
 Формат ответа — строго JSON-массив без бэктиков:
 [
   {{

@@ -79,15 +79,16 @@ def normalize_variants(result) -> list:
                         v["correctAnswer"] = v["options"][idx]
                 elif "answer" in v:
                     v["correctAnswer"] = v["answer"]
-                elif "correctAnswer" not in v:
+                else:
                     v["correctAnswer"] = ""
 
-            # Добавить pairs для matching
-            if "pairs" not in v and v.get("type") == "matching":
-                if "matching" in v:
-                    v["pairs"] = v["matching"]
-                else:
-                    v["pairs"] = []
+            # Для ordering — убедиться что есть options
+            if "options" not in v:
+                v["options"] = []
+
+            # Для matching — убедиться что есть pairs
+            if "pairs" not in v:
+                v["pairs"] = []
 
     return variants
 
