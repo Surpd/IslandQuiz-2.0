@@ -572,7 +572,7 @@ function BuilderQuiz() {
             const reordered = newOrder.map(i => questions[i]);
             setQuestions(reordered);
           }}
-          renderItem={(q, idx) => (
+          renderItem={(q, idx, dragHandleProps) => (
             <QuestionCard
               key={q.id}
               index={idx}
@@ -580,6 +580,7 @@ function BuilderQuiz() {
               topic={config.title}
               onPatch={(p) => patchQuestion(q.id, p)}
               onRemove={() => removeQuestion(q.id)}
+              dragHandleProps={dragHandleProps}
             />
           )}
         />
@@ -620,7 +621,7 @@ function QuestionCard({
   topic: string;
   onPatch: (p: Partial<QuizQuestion>) => void;
   onRemove: () => void;
-  dragHandleProps?: React.HTMLAttributes<HTMLElement>; 
+  dragHandleProps?: React.HTMLAttributes<HTMLElement>;
 }) {
   const Icon = TYPE_META[question.type].icon;
   const qRef = useRef<HTMLTextAreaElement>(null);
@@ -634,21 +635,17 @@ function QuestionCard({
     <div id={`q-${question.id}`} className="surface-card space-y-4 p-6 scroll-mt-24">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {dragHandleProps && (
+            <button
+              type="button"
+              className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+              aria-label="Перетащить вопрос"
+              {...dragHandleProps}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
           <Icon className={`h-4 w-4 ${TYPE_META[question.type].tone}`} />
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {dragHandleProps && (
-              <button
-                type="button"
-                className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
-                aria-label="Перетащить вопрос"
-                {...dragHandleProps}
-              >
-                <GripVertical className="h-4 w-4" />
-              </button>
-            )}
-            <Icon className={`h-4 w-4 ${TYPE_META[question.type].tone}`} />
-            Вопрос {index + 1} · {TYPE_META[question.type].label}
-          </div>
           Вопрос {index + 1} · {TYPE_META[question.type].label}
         </div>
         <button
@@ -693,7 +690,6 @@ function QuestionCard({
                 patch.answer = JSON.stringify(v.pairs);
               }
               if (question.type === "close" && v.correctAnswer) {
-                // AI даёт готовый список ответов через "|" — иначе один пропуск.
                 const arr = v.correctAnswer.split("|").map((s) => s.trim()).filter(Boolean);
                 patch.answer = JSON.stringify(arr.length ? arr : [v.correctAnswer]);
               }
