@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Coins, Plus, Trash2 } from "lucide-react";
+import { Coins, Plus, Trash2, GripVertical } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
 import { HelpButton } from "@/components/help-modal";
 import { ImageDrop } from "@/lib/image-drop";
@@ -10,6 +10,7 @@ import { AIHelperButton } from "@/components/ai-helper";
 import { CharCounter } from "@/components/char-counter";
 import { TagInput } from "@/components/tag-input";
 import { SortableQuestionList } from "@/components/sortable-question-list";
+import { SortableQuestionCards } from "@/components/sortable-question-cards";
 
 import { LIMITS } from "@/lib/limits";
 import { newId } from "@/lib/storage";  // генерация id
@@ -443,18 +444,30 @@ function BuilderMillionaire() {
       </div>
 
 
-      {questions.map((q, idx) => (
-        <MillionaireQuestionCard
-          key={idx}
-          idx={idx}
-          q={q}
-          topic={config.title ?? ""}
-          onRemove={() => removeQuestion(idx)}
-          onPatch={(patch) => patchQuestion(idx, patch)}
-          onPatchOption={(oi, patch) => patchOption(idx, oi, patch)}
-          onMarkCorrect={(oi) => markCorrect(idx, oi)}
-        />
-      ))}
+      <SortableQuestionCards
+        items={questions.map((q, i) => ({ ...q, id: `mq-${i}` }))}
+        onReorder={(newOrder) => {
+          const reordered = newOrder.map(i => questions[i]);
+          const updated = reordered.map((q, i) => ({
+            ...q,
+            money: moneyForIndex(i, config.moneyScale, config.pointsMode ?? "classic"),
+          }));
+          setQuestions(updated);
+        }}
+        renderItem={(q, idx, dragHandleProps) => (
+          <MillionaireQuestionCard
+            key={`mq-${idx}`}
+            idx={idx}
+            q={q}
+            topic={config.title ?? ""}
+            onRemove={() => removeQuestion(idx)}
+            onPatch={(patch) => patchQuestion(idx, patch)}
+            onPatchOption={(oi, patch) => patchOption(idx, oi, patch)}
+            onMarkCorrect={(oi) => markCorrect(idx, oi)}
+            dragHandleProps={dragHandleProps}
+          />
+        )}
+      />
 
       <button onClick={addQuestion} className="btn-ghost w-full justify-center py-4">
         <Plus className="h-4 w-4" /> Добавить вопрос
@@ -477,6 +490,7 @@ function MillionaireQuestionCard({
   onPatch,
   onPatchOption,
   onMarkCorrect,
+  dragHandleProps,
 }: {
   idx: number;
   q: MillionaireQuestion;
@@ -485,14 +499,27 @@ function MillionaireQuestionCard({
   onPatch: (patch: Partial<MillionaireQuestion>) => void;
   onPatchOption: (oi: number, patch: Partial<{ text: string; correct: boolean }>) => void;
   onMarkCorrect: (oi: number) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLElement>;    
 }) {
   const qRef = useRef<HTMLTextAreaElement>(null);
   const optRefs = useRef<(HTMLInputElement | null)[]>([]);
   return (
     <div id={`mq-${idx}`} className="surface-card space-y-3 p-6 scroll-mt-24">
       <div className="flex items-center justify-between">
-        <div className="rounded-full bg-amber-soft px-4 py-1.5 text-sm font-bold text-amber">
-          Вопрос {idx + 1} · {q.money.toLocaleString("ru-RU")} ₽
+        <div className="flex items-center gap-2">
+          {dragHandleProps && (
+            <button
+              type="button"
+              className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+              aria-label="Перетащить вопрос"
+              {...dragHandleProps}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
+          <div className="rounded-full bg-amber-soft px-4 py-1.5 text-sm font-bold text-amber">
+            Вопрос {idx + 1} · {q.money.toLocaleString("ru-RU")} ₽
+          </div>
         </div>
         <button
           onClick={onRemove}
