@@ -2,11 +2,11 @@ import os
 import json
 from typing import Optional, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 import httpx
 from datetime import datetime, timedelta
-
+from routes.auth import get_current_user
 from services.ai_prompts import (
     generate_question_prompt,
     improve_question_prompt,
