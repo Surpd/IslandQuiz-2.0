@@ -12,7 +12,7 @@ import {
   Blocks,
   ListOrdered,
   ArrowUp,
-  ArrowDown,
+  ArrowDown, GripVertical,
 } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
 import { HelpButton } from "@/components/help-modal";
@@ -613,12 +613,14 @@ function QuestionCard({
   topic,
   onPatch,
   onRemove,
+  dragHandleProps,
 }: {
   index: number;
   question: QuizQuestion;
   topic: string;
   onPatch: (p: Partial<QuizQuestion>) => void;
   onRemove: () => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLElement>; 
 }) {
   const Icon = TYPE_META[question.type].icon;
   const qRef = useRef<HTMLTextAreaElement>(null);
@@ -633,6 +635,20 @@ function QuestionCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           <Icon className={`h-4 w-4 ${TYPE_META[question.type].tone}`} />
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {dragHandleProps && (
+              <button
+                type="button"
+                className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                aria-label="Перетащить вопрос"
+                {...dragHandleProps}
+              >
+                <GripVertical className="h-4 w-4" />
+              </button>
+            )}
+            <Icon className={`h-4 w-4 ${TYPE_META[question.type].tone}`} />
+            Вопрос {index + 1} · {TYPE_META[question.type].label}
+          </div>
           Вопрос {index + 1} · {TYPE_META[question.type].label}
         </div>
         <button

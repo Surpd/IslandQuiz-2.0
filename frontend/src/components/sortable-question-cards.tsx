@@ -16,13 +16,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface SortableQuestionCardsProps {
   items: Array<{ id: string }>;
   onReorder: (newOrder: number[]) => void;
-  renderItem: (item: any, index: number) => ReactNode;
+  renderItem: (item: any, index: number, dragHandleProps: any) => ReactNode;
 }
 
 export function SortableQuestionCards({ items, onReorder, renderItem }: SortableQuestionCardsProps) {
@@ -44,10 +42,10 @@ export function SortableQuestionCards({ items, onReorder, renderItem }: Sortable
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((q) => q.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-col gap-4">
+        <div className="space-y-4">
           {items.map((item, index) => (
-            <SortableCard key={item.id} id={item.id} index={index}>
-              {renderItem(item, index)}
+            <SortableCard key={item.id} id={item.id}>
+              {(dragHandleProps) => renderItem(item, index, dragHandleProps)}
             </SortableCard>
           ))}
         </div>
@@ -56,7 +54,7 @@ export function SortableQuestionCards({ items, onReorder, renderItem }: Sortable
   );
 }
 
-function SortableCard({ id, index, children }: { id: string; index: number; children: ReactNode }) {
+function SortableCard({ id, children }: { id: string; children: (dragHandleProps: any) => ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
   const style = {
@@ -68,23 +66,9 @@ function SortableCard({ id, index, children }: { id: string; index: number; chil
     <div
       ref={setNodeRef}
       style={style}
-      className={cn(
-        "relative flex items-start gap-2",
-        isDragging && "z-10 opacity-60",
-      )}
+      className={isDragging ? "z-10 opacity-60" : ""}
     >
-      <button
-        type="button"
-        className="shrink-0 mt-4 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
-        aria-label="Перетащить вопрос"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="h-5 w-5" />
-      </button>
-      <div className="flex-1 min-w-0">
-        {children}
-      </div>
+      {children({ ...attributes, ...listeners })}
     </div>
   );
 }
