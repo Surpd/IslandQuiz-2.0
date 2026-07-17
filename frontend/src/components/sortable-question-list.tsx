@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SortableQuestion {
@@ -36,6 +36,7 @@ interface SortableQuestionListProps {
   typeMeta: Record<string, TypeMeta>;
   onReorder: (newOrder: number[]) => void;
   onSelect?: (index: number) => void;
+  onRemove?: (index: number) => void;
 }
 
 export function SortableQuestionList({
@@ -43,6 +44,7 @@ export function SortableQuestionList({
   typeMeta,
   onReorder,
   onSelect,
+  onRemove,
 }: SortableQuestionListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -70,6 +72,7 @@ export function SortableQuestionList({
               index={index}
               meta={typeMeta[q.type]}
               onSelect={onSelect}
+              onRemove={onRemove}
             />
           ))}
         </ul>
@@ -83,11 +86,13 @@ function SortableItem({
   index,
   meta,
   onSelect,
+  onRemove,
 }: {
   question: SortableQuestion;
   index: number;
   meta?: TypeMeta;
   onSelect?: (index: number) => void;
+  onRemove?: (index: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: question.id,
@@ -139,6 +144,16 @@ function SortableItem({
           {truncated ? "…" : ""}
         </span>
       </button>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRemove(index); }}
+          className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 hover:bg-danger-soft hover:text-danger group-hover:opacity-100"
+          aria-label="Удалить"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
     </li>
   );
 }

@@ -234,36 +234,38 @@ function BuilderMillionaire() {
 
  
 
-const sidebar = (
-  <div className="space-y-1">
-    <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-      Лестница
-    </p>
-    <SortableQuestionList
-      questions={questions.map((q, i) => ({
-        id: `mq-${i}`,
-        type: "millionaire",
-        q: `${q.money.toLocaleString("ru-RU")} ₽ ${q.q}`,
-      }))}
-      typeMeta={{
-        millionaire: {
-          label: "₽",
-          icon: Coins,
-          tone: "text-amber",
-        },
-      }}
-      onReorder={(newOrder) => {
-        const reordered = newOrder.map(i => questions[i]);
-        setQuestions(reordered);
-      }}
-      onSelect={(index) => scrollToQ(index)}
-    />
-    <div className="my-2 border-t border-border" />
-    <button onClick={addQuestion} className="btn-ghost w-full justify-center text-xs">
-      <Plus className="h-3.5 w-3.5" /> Вопрос
-    </button>
-  </div>
-);
+  const sidebar = (
+    <div className="space-y-1">
+      <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Лестница
+      </p>
+      <SortableQuestionList
+        questions={questions.map((q, i) => ({
+          id: `mq-${i}`,
+          type: "millionaire",
+          q: `${q.money.toLocaleString("ru-RU")} ₽ ${q.q || "Без названия"}`,
+        }))}
+        typeMeta={{
+          millionaire: {
+            label: "₽",
+            icon: Coins,
+            tone: "text-amber",
+          },
+        }}
+        onReorder={(newOrder) => {
+          const reordered = newOrder.map(i => questions[i]);
+          setQuestions(reordered);
+        }}
+        onSelect={(index) => scrollToQ(index)}
+        onRemove={(index) => removeQuestion(index)}
+      />
+      <div className="my-2 border-t border-border" />
+      <button onClick={addQuestion} className="btn-ghost w-full justify-center text-xs">
+        <Plus className="h-3.5 w-3.5" /> Вопрос
+      </button>
+    </div>
+  );
+  
 
   const settingsPanel = (
     <div className="space-y-4">

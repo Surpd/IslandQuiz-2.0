@@ -241,6 +241,7 @@ function BuilderQuiz() {
         onSelect={(index) => {
           document.getElementById(`q-${questions[index].id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
         }}
+        onRemove={(index) => removeQuestion(questions[index].id)}
       />
       <div className="my-2 border-t border-border" />
       <div className="grid grid-cols-2 gap-1">
