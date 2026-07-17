@@ -173,7 +173,7 @@ class GenerateJeopardyQuestionsInput(BaseModel):
 # ---------- Routes ----------
 
 @router.post("/generate-question", response_model=dict)
-async def generate_question(input: GenerateQuestionInput):
+async def generate_question(input: GenerateQuestionInput, user=Depends(get_current_user)):
     check_ai_limit(user)
     # Определить тип из format
     qtype = input.type or "choice"
@@ -227,7 +227,7 @@ async def generate_question(input: GenerateQuestionInput):
 
 
 @router.post("/improve-question", response_model=dict)
-async def improve_question(input: ImproveQuestionInput):
+async def improve_question(input: ImproveQuestionInput, user=Depends(get_current_user)):
     check_ai_limit(user)
     prompt = improve_question_prompt(
         current_text=input.currentText,
@@ -247,7 +247,7 @@ async def improve_question(input: ImproveQuestionInput):
 
 
 @router.post("/generate-quiz", response_model=dict)
-async def generate_quiz(input: GenerateQuizInput):
+async def generate_quiz(input: GenerateQuizInput, user=Depends(get_current_user)):
     check_ai_limit(user)
     prompt = generate_quiz_prompt(
         topic=input.topic or "Удивительные открытия",
@@ -264,7 +264,7 @@ async def generate_quiz(input: GenerateQuizInput):
 
 
 @router.post("/generate-jeopardy-categories", response_model=dict)
-async def generate_jeopardy_categories(input: GenerateJeopardyCategoriesInput):
+async def generate_jeopardy_categories(input: GenerateJeopardyCategoriesInput, user=Depends(get_current_user)):
     check_ai_limit(user)
     prompt = generate_jeopardy_categories_prompt(
         topic=input.topic or "Удивительные явления",
@@ -280,7 +280,7 @@ async def generate_jeopardy_categories(input: GenerateJeopardyCategoriesInput):
 
 
 @router.post("/generate-jeopardy-questions", response_model=dict)
-async def generate_jeopardy_questions(input: GenerateJeopardyQuestionsInput):
+async def generate_jeopardy_questions(input: GenerateJeopardyQuestionsInput, user=Depends(get_current_user)):
     check_ai_limit(user)
     prompt = generate_jeopardy_questions_prompt(
         category=input.category,
