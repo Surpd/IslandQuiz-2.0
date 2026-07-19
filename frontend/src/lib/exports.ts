@@ -274,33 +274,54 @@ export function printQuiz(data: QuizData, opts: PrintOptions = {}) {
       } else if (q.type === "matching") {
         try {
           const pairs = JSON.parse(q.answer || "[]") as { left: string; right: string }[];
+          // Перемешать правые части
+          const shuffledRights = [...pairs].sort(() => Math.random() - 0.5);
           answerBlock = `
             <div class="matching-table">
-              ${pairs.map((p, pi) => `
-                <div class="matching-row">
-                  <span class="matching-num">${pi + 1}.</span>
-                  <span class="matching-left">${escape(p.left)}</span>
-                  <span class="matching-line"></span>
-                  <span class="matching-right">${escape(p.right)}</span>
+              <div class="matching-columns">
+                <div class="matching-col">
+                  ${pairs.map((p, pi) => `
+                    <div class="matching-row">
+                      <span class="matching-num">${pi + 1}.</span>
+                      <span class="matching-left">${escape(p.left)}</span>
+                      <span class="matching-line"></span>
+                    </div>
+                  `).join("")}
                 </div>
-              `).join("")}
+                <div class="matching-col matching-variants">
+                  <div class="matching-variants-title">Варианты:</div>
+                  ${shuffledRights.map((p, pi) => `
+                    <div class="matching-variant">${String.fromCharCode(65 + pi)}. ${escape(p.right)}</div>
+                  `).join("")}
+                </div>
+              </div>
             </div>`;
         } catch { answerBlock = ""; }
       } else if (q.type === "ordering") {
         try {
           const items = JSON.parse(q.answer || "[]") as string[];
+          // Перемешать пункты
+          const shuffled = [...items].sort(() => Math.random() - 0.5);
           answerBlock = `
-            <div class="ordering-list">
-              ${items.map((_, oi) => `
-                <div class="ordering-row">
-                  <span class="ordering-num">${oi + 1}.</span>
-                  <span class="ordering-line">${"_".repeat(30)}</span>
-                </div>
-              `).join("")}
+            <div class="ordering-block">
+              <div class="ordering-variants">
+                <strong>Расставьте в правильном порядке:</strong>
+                ${shuffled.map((item, oi) => `
+                  <div class="ordering-variant">${String.fromCharCode(65 + oi)}. ${escape(item)}</div>
+                `).join("")}
+              </div>
+              <div class="ordering-answers">
+                ${items.map((_, oi) => `
+                  <div class="ordering-row">
+                    <span class="ordering-num">${oi + 1}.</span>
+                    <span class="ordering-line">______</span>
+                  </div>
+                `).join("")}
+              </div>
             </div>`;
         } catch { answerBlock = ""; }
       } else if (q.type === "close") {
-        answerBlock = `<div class="text-answer">${escape(q.q.replace(/___/g, "________"))}</div>`;
+        answerBlock = `<div class="close-text">${escape(q.q.replace(/___/g, "________"))}</div>`;
       }
 
       return `
@@ -435,21 +456,24 @@ function printShell(title: string, body: string, withAnswers: boolean) {
       margin: 4px 0; 
       font-size: 11px; 
     }
-    .matching-table { width: 100%; }
+    .matching-columns { display: flex; gap: 24px; }
+    .matching-col { flex: 1; }
+    .matching-variants { border-left: 1px solid #e2e8f0; padding-left: 16px; }
+    .matching-variants-title { font-weight: 700; margin-bottom: 6px; font-size: 11px; }
+    .matching-variant { margin: 4px 0; font-size: 11px; }
     .matching-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
     .matching-num { min-width: 20px; font-weight: 700; }
     .matching-left { flex: 1; font-size: 11px; }
-    .matching-line { flex: 1.5; border-bottom: 1px dashed #ccc; margin: 0 6px; }
-    .matching-right { flex: 1; text-align: right; color: #999; font-style: italic; font-size: 10px; }
+    .matching-line { flex: 1; border-bottom: 1px dashed #ccc; margin: 0 6px; }
+    .ordering-block { display: flex; gap: 16px; }
+    .ordering-variants { flex: 1; }
+    .ordering-variant { margin: 4px 0; font-size: 11px; }
+    .ordering-answers { flex: 1; border-left: 1px solid #e2e8f0; padding-left: 16px; }
     .ordering-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
     .ordering-num { min-width: 20px; font-weight: 700; }
-    .ordering-line { 
-      font-family: 'Courier New', monospace; 
-      letter-spacing: 1px; 
-      color: #aaa; 
-      font-size: 11px; 
-    }
-    .a { 
+    .ordering-line { font-family: 'Courier New', monospace; letter-spacing: 1px; color: #aaa; font-size: 11px; }
+    .close-text { font-size: 12px; line-height: 2; }
+        .a { 
       color: #0d9488; 
       margin-top: 6px; 
       font-size: 10px; 
