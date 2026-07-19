@@ -286,6 +286,7 @@ export interface SaveGameInput<T = AnyGameData> {
 }
 
 export async function saveGame<T = AnyGameData>(input: SaveGameInput<T>) {
+  console.log("[saveGame] input:", input);
   return apiFetch("/api/games/", {
     method: "POST",
     body: JSON.stringify({
@@ -294,7 +295,7 @@ export async function saveGame<T = AnyGameData>(input: SaveGameInput<T>) {
       data: input.data,
       title: input.title,
       tags: input.tags,
-      visibility: input.visibility,  // ← добавить
+      visibility: input.visibility,
     }),
   }) as Promise<{ id: string; play_url: string }>;
 }
