@@ -508,9 +508,12 @@ type RoomConn = {
 
 const roomConns = new Map<string, RoomConn>();
 
+let reconnectAttempts: Record<string, number> = {};
+
 function ensureRoomConn(code: string): RoomConn {
   const existing = roomConns.get(code);
   if (existing && (existing.ws.readyState === WebSocket.OPEN || existing.ws.readyState === WebSocket.CONNECTING)) {
+    reconnectAttempts[code] = 0;
     return existing;
   }
 
@@ -525,7 +528,11 @@ function ensureRoomConn(code: string): RoomConn {
 
   const conn: RoomConn = { ws, handlers, onceWaiters, state: null, openPromise };
 
-  ws.onopen = () => resolveOpen();
+  ws.onopen = () => {
+    reconnectAttempts[code] = 0;
+    resolveOpen();
+  };
+  
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data as string) as {
@@ -542,9 +549,24 @@ function ensureRoomConn(code: string): RoomConn {
       /* ignore malformed */
     }
   };
+  
   ws.onclose = () => {
-    if (roomConns.get(code) === conn) roomConns.delete(code);
+    if (roomConns.get(code) === conn) {
+      roomConns.delete(code);
+      const attempt = reconnectAttempts[code] || 0;
+      const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+      reconnectAttempts[code] = attempt + 1;
+      console.log(`[WS] Room ${code} disconnected. Reconnecting in ${delay}ms (attempt ${attempt + 1})`);
+      setTimeout(() => {
+        const newConn = ensureRoomConn(code);
+        // Перенести хендлеры в новое соединение
+        handlers.forEach(h => newConn.handlers.add(h));
+        if (conn.state) newConn.state = conn.state;
+        roomConns.set(code, newConn);
+      }, delay);
+    }
   };
+  
   ws.onerror = () => resolveOpen();
 
   roomConns.set(code, conn);
