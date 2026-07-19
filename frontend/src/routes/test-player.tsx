@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { PlayerV1 } from "@/components/player-v1";
-import { PlayerV2 } from "@/components/player-v2";
+import { PlayerV2Full } from "@/components/player-v2";
 import { PlayerV3 } from "@/components/player-v3";
 import type { QuizData } from "@/lib/types";
 
 export const Route = createFileRoute("/test-player")({
   component: TestPlayer,
 });
+
+
 
 const mockData: QuizData = {
   config: {
@@ -57,7 +59,7 @@ function TestPlayer() {
         ))}
       </div>
       {variant === 1 && <PlayerV1 data={mockData} />}
-      {variant === 2 && <PlayerV2 data={mockData} />}
+      {variant === 2 && <PlayerV2Full data={mockData} />}
       {variant === 3 && <PlayerV3 data={mockData} />}
     </div>
   );
