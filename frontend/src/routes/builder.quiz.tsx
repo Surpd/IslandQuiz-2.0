@@ -182,7 +182,7 @@ function BuilderQuiz() {
     const id = savedId ?? newId();
     const vis = localStorage.getItem("islandquiz.visibility") || "private";
     console.log("[handleSave] visibility:", vis);
-    saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility: "public" });
+    saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility: vis });
     setSavedId(id);
     clearDraft("quiz");
     showToast(savedId ? "Изменения сохранены" : "Квиз сохранён!");
