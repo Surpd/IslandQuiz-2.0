@@ -263,44 +263,73 @@ export function printQuiz(data: QuizData, opts: PrintOptions = {}) {
               </label>
             `).join("")}
           </div>`;
-      } else if (q.type === "bool") {
+        return `
+          <div class="q">
+            <div class="qn">${i + 1}. ${escape(q.q)}</div>
+            ${answerBlock}
+            ${withAnswers ? `<div class="a"><strong>Ответ:</strong> ${escape(formatQuizAnswer(q))}</div>` : ""}
+          </div>`;
+      }
+      
+      if (q.type === "bool") {
         answerBlock = `
           <div class="choices">
             <label class="choice-row"><span class="choice-circle">○</span> Да</label>
             <label class="choice-row"><span class="choice-circle">○</span> Нет</label>
           </div>`;
-      } else if (q.type === "text") {
+        return `
+          <div class="q">
+            <div class="qn">${i + 1}. ${escape(q.q)}</div>
+            ${answerBlock}
+            ${withAnswers ? `<div class="a"><strong>Ответ:</strong> ${escape(formatQuizAnswer(q))}</div>` : ""}
+          </div>`;
+      }
+      
+      if (q.type === "text") {
         answerBlock = `<div class="text-answer">${"_".repeat(40)}</div>`;
-      } else if (q.type === "matching") {
+        return `
+          <div class="q">
+            <div class="qn">${i + 1}. ${escape(q.q)}</div>
+            ${answerBlock}
+            ${withAnswers ? `<div class="a"><strong>Ответ:</strong> ${escape(formatQuizAnswer(q))}</div>` : ""}
+          </div>`;
+      }
+      
+      if (q.type === "matching") {
         try {
           const pairs = JSON.parse(q.answer || "[]") as { left: string; right: string }[];
-          // Перемешать правые части
           const shuffledRights = [...pairs].sort(() => Math.random() - 0.5);
           answerBlock = `
-            <div class="matching-table">
-              <div class="matching-columns">
-                <div class="matching-col">
-                  ${pairs.map((p, pi) => `
-                    <div class="matching-row">
-                      <span class="matching-num">${pi + 1}.</span>
-                      <span class="matching-left">${escape(p.left)}</span>
-                      <span class="matching-line"></span>
-                    </div>
-                  `).join("")}
-                </div>
-                <div class="matching-col matching-variants">
-                  <div class="matching-variants-title">Варианты:</div>
-                  ${shuffledRights.map((p, pi) => `
-                    <div class="matching-variant">${String.fromCharCode(65 + pi)}. ${escape(p.right)}</div>
-                  `).join("")}
-                </div>
+            <div class="matching-columns">
+              <div class="matching-col">
+                ${pairs.map((p, pi) => `
+                  <div class="matching-row">
+                    <span class="matching-num">${pi + 1}.</span>
+                    <span class="matching-left">${escape(p.left)}</span>
+                    <span class="matching-line"></span>
+                  </div>
+                `).join("")}
+              </div>
+              <div class="matching-col matching-variants">
+                <div class="matching-variants-title">Варианты:</div>
+                ${shuffledRights.map((p, pi) => `
+                  <div class="matching-variant">${String.fromCharCode(65 + pi)}. ${escape(p.right)}</div>
+                `).join("")}
               </div>
             </div>`;
         } catch { answerBlock = ""; }
-      } else if (q.type === "ordering") {
+        return `
+          <div class="q">
+            <div class="qn">${i + 1}. Сопоставьте:</div>
+            <div class="qn-sub">${escape(q.q)}</div>
+            ${answerBlock}
+            ${withAnswers ? `<div class="a"><strong>Ответ:</strong> ${escape(formatQuizAnswer(q))}</div>` : ""}
+          </div>`;
+      }
+      
+      if (q.type === "ordering") {
         try {
           const items = JSON.parse(q.answer || "[]") as string[];
-          // Перемешать пункты
           const shuffled = [...items].sort(() => Math.random() - 0.5);
           answerBlock = `
             <div class="ordering-block">
@@ -320,16 +349,26 @@ export function printQuiz(data: QuizData, opts: PrintOptions = {}) {
               </div>
             </div>`;
         } catch { answerBlock = ""; }
-      } else if (q.type === "close") {
+        return `
+          <div class="q">
+            <div class="qn">${i + 1}. Расставьте по порядку:</div>
+            <div class="qn-sub">${escape(q.q)}</div>
+            ${answerBlock}
+            ${withAnswers ? `<div class="a"><strong>Ответ:</strong> ${escape(formatQuizAnswer(q))}</div>` : ""}
+          </div>`;
+      }
+      
+      if (q.type === "close") {
         answerBlock = `<div class="close-text">${escape(q.q.replace(/___/g, "________"))}</div>`;
+        return `
+          <div class="q">
+            <div class="qn">${i + 1}. Заполните пропуски:</div>
+            ${answerBlock}
+            ${withAnswers ? `<div class="a"><strong>Ответ:</strong> ${escape(formatQuizAnswer(q))}</div>` : ""}
+          </div>`;
       }
 
-      return `
-        <div class="q">
-          <div class="qn">${i + 1}. ${escape(q.q)}</div>
-          ${answerBlock}
-          ${withAnswers ? `<div class="a"><strong>Ответ:</strong> ${escape(formatQuizAnswer(q))}</div>` : ""}
-        </div>`;
+      return "";
     })
     .join("");
 
@@ -445,6 +484,7 @@ function printShell(title: string, body: string, withAnswers: boolean) {
       background: #fafafa; 
     }
     .qn { font-weight: 700; margin-bottom: 6px; font-size: 12px; }
+    .qn-sub { font-size: 11px; color: #666; margin-bottom: 8px; }
     .choices { display: flex; flex-direction: column; gap: 3px; }
     .choice-row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
     .choice-circle { font-size: 14px; color: #0d9488; }
