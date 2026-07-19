@@ -249,20 +249,75 @@ export function printQuiz(data: QuizData, opts: PrintOptions = {}) {
   const win = window.open("", "_blank");
   if (!win) return;
   const withAnswers = opts.withAnswers !== false;
+  
   const rows = data.questions
-    .map(
-      (q, i) => `
-      <div class="q">
-        <div class="qn">${i + 1}. ${escape(q.q)}</div>
-        ${q.options.length ? `<ul>${q.options.map((o) => `<li>${escape(o)}</li>`).join("")}</ul>` : ""}
-        ${withAnswers ? `<div class="a"><strong>Ответ:</strong> ${escape(formatQuizAnswer(q))}</div>` : ""}
-      </div>`,
-    )
+    .map((q, i) => {
+      let answerBlock = "";
+      
+      if (q.type === "choice") {
+        answerBlock = `
+          <div class="choices">
+            ${q.options.map((o, oi) => `
+              <label class="choice-row">
+                <span class="choice-circle">○</span>
+                <span class="choice-letter">${String.fromCharCode(65 + oi)}</span>
+                <span class="choice-text">${escape(o)}</span>
+              </label>
+            `).join("")}
+          </div>`;
+      } else if (q.type === "bool") {
+        answerBlock = `
+          <div class="choices">
+            <label class="choice-row"><span class="choice-circle">○</span> Да</label>
+            <label class="choice-row"><span class="choice-circle">○</span> Нет</label>
+          </div>`;
+      } else if (q.type === "text") {
+        answerBlock = `<div class="text-answer">${"_".repeat(40)}</div>`;
+      } else if (q.type === "matching") {
+        try {
+          const pairs = JSON.parse(q.answer || "[]") as { left: string; right: string }[];
+          answerBlock = `
+            <div class="matching-table">
+              ${pairs.map((p, pi) => `
+                <div class="matching-row">
+                  <span class="matching-num">${pi + 1}.</span>
+                  <span class="matching-left">${escape(p.left)}</span>
+                  <span class="matching-line"></span>
+                  <span class="matching-right">${escape(p.right)}</span>
+                </div>
+              `).join("")}
+            </div>`;
+        } catch { answerBlock = ""; }
+      } else if (q.type === "ordering") {
+        try {
+          const items = JSON.parse(q.answer || "[]") as string[];
+          answerBlock = `
+            <div class="ordering-list">
+              ${items.map((_, oi) => `
+                <div class="ordering-row">
+                  <span class="ordering-num">${oi + 1}.</span>
+                  <span class="ordering-line">${"_".repeat(30)}</span>
+                </div>
+              `).join("")}
+            </div>`;
+        } catch { answerBlock = ""; }
+      } else if (q.type === "close") {
+        answerBlock = `<div class="text-answer">${escape(q.q.replace(/___/g, "________"))}</div>`;
+      }
+
+      return `
+        <div class="q">
+          <div class="qn">${i + 1}. ${escape(q.q)}</div>
+          ${answerBlock}
+          ${withAnswers ? `<div class="a"><strong>Ответ:</strong> ${escape(formatQuizAnswer(q))}</div>` : ""}
+        </div>`;
+    })
     .join("");
-  win.document.write(printShell(data.config.title || "Квиз", rows));
+
+  win.document.write(printShell(data.config.title || "Квиз", rows, withAnswers));
   win.document.close();
   win.focus();
-  setTimeout(() => win.print(), 300);
+  setTimeout(() => win.print(), 400);
 }
 
 export function printJeopardy(data: JeopardyData, opts: PrintOptions = {}) {
@@ -288,7 +343,7 @@ export function printJeopardy(data: JeopardyData, opts: PrintOptions = {}) {
     )
     .join("");
   const finalBlock = `<h2>Финал</h2><p><strong>${escape(data.final.category)}:</strong> ${escape(data.final.q)}</p>${withAnswers ? `<p><em>Ответ: ${escape(data.final.a)}</em></p>` : ""}`;
-  win.document.write(printShell("Своя Игра", body + finalBlock));
+  win.document.write(printShell("Своя Игра", body + finalBlock, withAnswers));
   win.document.close();
   win.focus();
   setTimeout(() => win.print(), 300);
@@ -309,7 +364,7 @@ export function printMillionaire(data: MillionaireData, opts: PrintOptions = {})
     </div>`,
     )
     .join("");
-  win.document.write(printShell("Миллионер", rows));
+  win.document.write(printShell("Миллионер", rows, withAnswers));
   win.document.close();
   win.focus();
   setTimeout(() => win.print(), 300);
@@ -319,18 +374,44 @@ function escape(s: string) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 }
 
-function printShell(title: string, body: string) {
+function printShell(title: string, body: string, withAnswers: boolean) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escape(title)}</title>
   <style>
-    body { font-family: Inter, Arial, sans-serif; color:#0f172a; padding:32px; max-width:900px; margin:0 auto; }
-    h1 { border-bottom: 2px solid #0d9488; padding-bottom: 8px; }
-    h2 { margin-top: 28px; color: #0d9488; }
-    .q { margin: 16px 0; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; break-inside: avoid; }
-    .qn { font-weight: 700; margin-bottom: 8px; }
-    .a { color: #0d9488; margin-top: 8px; font-size: 0.9rem; }
-    table { width:100%; border-collapse: collapse; margin: 12px 0; }
-    th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 0.9rem; }
-    th { background: #f1f5f9; }
-    @media print { body { padding: 0; } }
-  </style></head><body><h1>${escape(title)}</h1>${body}</body></html>`;
+    @page { size: A4; margin: 15mm; }
+    body { font-family: 'PT Sans', Arial, sans-serif; color:#1a1a1a; font-size:13px; line-height:1.6; }
+    .header { text-align:center; margin-bottom:24px; border-bottom:2px solid #0d9488; padding-bottom:12px; }
+    .header h1 { margin:0; font-size:22px; color:#0d9488; }
+    .header .info { margin-top:8px; display:flex; justify-content:center; gap:24px; font-size:13px; }
+    .header .info span { border-bottom:1px solid #ccc; padding:0 16px; min-width:120px; }
+    .q { margin:18px 0; padding:14px 16px; border:1px solid #e2e8f0; border-radius:10px; break-inside:avoid; background:#fafafa; }
+    .qn { font-weight:700; margin-bottom:10px; font-size:14px; }
+    .choices { display:flex; flex-direction:column; gap:6px; }
+    .choice-row { display:flex; align-items:center; gap:8px; font-size:13px; }
+    .choice-circle { font-size:18px; color:#0d9488; }
+    .choice-letter { font-weight:700; min-width:20px; }
+    .text-answer { font-family:'Courier New', monospace; letter-spacing:2px; color:#666; margin:8px 0; font-size:13px; }
+    .matching-table { width:100%; }
+    .matching-row { display:flex; align-items:center; gap:8px; margin:8px 0; }
+    .matching-num { min-width:24px; font-weight:700; }
+    .matching-left { flex:1; }
+    .matching-line { flex:2; border-bottom:1px dashed #ccc; margin:0 8px; }
+    .matching-right { flex:1; text-align:right; color:#666; font-style:italic; }
+    .ordering-row { display:flex; align-items:center; gap:8px; margin:8px 0; }
+    .ordering-num { min-width:24px; font-weight:700; }
+    .ordering-line { font-family:'Courier New', monospace; letter-spacing:2px; color:#aaa; }
+    .a { color:#0d9488; margin-top:10px; font-size:12px; padding:6px 10px; background:#e6fffa; border-radius:6px; }
+    .footer { text-align:center; margin-top:24px; padding-top:12px; border-top:1px solid #e2e8f0; color:#999; font-size:11px; }
+    @media print { body { padding:0; } .a { display:${withAnswers ? "block" : "none"}; } }
+  </style></head><body>
+  <div class="header">
+    <h1>${escape(title)}</h1>
+    <div class="info">
+      <span>Имя: ___________</span>
+      <span>Дата: ___________</span>
+      <span>Класс: ___________</span>
+    </div>
+  </div>
+  ${body}
+  <div class="footer">Создано с помощью IslandQuiz</div>
+  </body></html>`;
 }
