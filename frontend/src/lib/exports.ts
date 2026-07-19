@@ -152,7 +152,6 @@ export async function importQuizXlsx(file: File, defaultTime: number): Promise<Q
     const opts = r.options ? String(r.options).split("|").map((s) => s.trim()) : [];
     let answer = String(r.answer ?? "");
     if (type === "close" || type === "ordering") {
-      // Answer stored as JSON array; accept "a | b | c" or JSON.
       let arr: string[] = [];
       if (answer.trim().startsWith("[")) {
         try {
@@ -239,7 +238,6 @@ export async function importMillionaireXlsx(file: File): Promise<MillionaireQues
 }
 
 /* ---------------- Print / PDF ---------------- */
-
 
 export interface PrintOptions {
   withAnswers?: boolean;
@@ -377,32 +375,105 @@ function escape(s: string) {
 function printShell(title: string, body: string, withAnswers: boolean) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escape(title)}</title>
   <style>
-    @page { size: A4; margin: 15mm; }
-    body { font-family: 'PT Sans', Arial, sans-serif; color:#1a1a1a; font-size:13px; line-height:1.6; }
-    .header { text-align:center; margin-bottom:24px; border-bottom:2px solid #0d9488; padding-bottom:12px; }
-    .header h1 { margin:0; font-size:22px; color:#0d9488; }
-    .header .info { margin-top:8px; display:flex; justify-content:center; gap:24px; font-size:13px; }
-    .header .info span { border-bottom:1px solid #ccc; padding:0 16px; min-width:120px; }
-    .q { margin:18px 0; padding:14px 16px; border:1px solid #e2e8f0; border-radius:10px; break-inside:avoid; background:#fafafa; }
-    .qn { font-weight:700; margin-bottom:10px; font-size:14px; }
-    .choices { display:flex; flex-direction:column; gap:6px; }
-    .choice-row { display:flex; align-items:center; gap:8px; font-size:13px; }
-    .choice-circle { font-size:18px; color:#0d9488; }
-    .choice-letter { font-weight:700; min-width:20px; }
-    .text-answer { font-family:'Courier New', monospace; letter-spacing:2px; color:#666; margin:8px 0; font-size:13px; }
-    .matching-table { width:100%; }
-    .matching-row { display:flex; align-items:center; gap:8px; margin:8px 0; }
-    .matching-num { min-width:24px; font-weight:700; }
-    .matching-left { flex:1; }
-    .matching-line { flex:2; border-bottom:1px dashed #ccc; margin:0 8px; }
-    .matching-right { flex:1; text-align:right; color:#666; font-style:italic; }
-    .ordering-row { display:flex; align-items:center; gap:8px; margin:8px 0; }
-    .ordering-num { min-width:24px; font-weight:700; }
-    .ordering-line { font-family:'Courier New', monospace; letter-spacing:2px; color:#aaa; }
-    .a { color:#0d9488; margin-top:10px; font-size:12px; padding:6px 10px; background:#e6fffa; border-radius:6px; }
-    .footer { text-align:center; margin-top:24px; padding-top:12px; border-top:1px solid #e2e8f0; color:#999; font-size:11px; }
-    @media print { body { padding:0; } .a { display:${withAnswers ? "block" : "none"}; } }
+    @page { size: A4; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body { 
+      font-family: 'PT Sans', Arial, sans-serif; 
+      color: #1a1a1a; 
+      font-size: 11px; 
+      line-height: 1.4; 
+      max-width: 190mm; 
+      margin: 0 auto; 
+      padding: 0;
+    }
+    .no-print { text-align: right; margin-bottom: 8px; }
+    .btn-print { 
+      padding: 8px 16px; 
+      background: #0d9488; 
+      color: white; 
+      border: none; 
+      border-radius: 6px; 
+      cursor: pointer; 
+      font-size: 13px; 
+    }
+    .header { 
+      text-align: center; 
+      margin-bottom: 12px; 
+      border-bottom: 2px solid #0d9488; 
+      padding-bottom: 8px; 
+    }
+    .header h1 { margin: 0; font-size: 18px; color: #0d9488; }
+    .header .info { 
+      margin-top: 6px; 
+      display: flex; 
+      justify-content: center; 
+      gap: 16px; 
+      font-size: 11px; 
+    }
+    .header .info span { 
+      border-bottom: 1px solid #ccc; 
+      padding: 0 12px; 
+      min-width: 100px; 
+    }
+    .q { 
+      margin: 8px 0; 
+      padding: 8px 12px; 
+      border: 1px solid #e2e8f0; 
+      border-radius: 6px; 
+      break-inside: avoid; 
+      background: #fafafa; 
+    }
+    .qn { font-weight: 700; margin-bottom: 6px; font-size: 12px; }
+    .choices { display: flex; flex-direction: column; gap: 3px; }
+    .choice-row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+    .choice-circle { font-size: 14px; color: #0d9488; }
+    .choice-letter { font-weight: 700; min-width: 18px; }
+    .text-answer { 
+      font-family: 'Courier New', monospace; 
+      letter-spacing: 1px; 
+      color: #666; 
+      margin: 4px 0; 
+      font-size: 11px; 
+    }
+    .matching-table { width: 100%; }
+    .matching-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+    .matching-num { min-width: 20px; font-weight: 700; }
+    .matching-left { flex: 1; font-size: 11px; }
+    .matching-line { flex: 1.5; border-bottom: 1px dashed #ccc; margin: 0 6px; }
+    .matching-right { flex: 1; text-align: right; color: #999; font-style: italic; font-size: 10px; }
+    .ordering-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+    .ordering-num { min-width: 20px; font-weight: 700; }
+    .ordering-line { 
+      font-family: 'Courier New', monospace; 
+      letter-spacing: 1px; 
+      color: #aaa; 
+      font-size: 11px; 
+    }
+    .a { 
+      color: #0d9488; 
+      margin-top: 6px; 
+      font-size: 10px; 
+      padding: 4px 8px; 
+      background: #e6fffa; 
+      border-radius: 4px; 
+    }
+    .footer { 
+      text-align: center; 
+      margin-top: 16px; 
+      padding-top: 8px; 
+      border-top: 1px solid #e2e8f0; 
+      color: #999; 
+      font-size: 9px; 
+    }
+    @media print { 
+      body { padding: 0; } 
+      .no-print { display: none; } 
+      .a { display: ${withAnswers ? "block" : "none"}; } 
+    }
   </style></head><body>
+  <div class="no-print">
+    <button class="btn-print" onclick="window.print()">🖨 Печатать / Сохранить PDF</button>
+  </div>
   <div class="header">
     <h1>${escape(title)}</h1>
     <div class="info">
