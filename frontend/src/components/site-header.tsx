@@ -21,6 +21,7 @@ const logoNavItems = [
   { to: "/builder/millionaire" as const, label: "Миллионер" },
   { to: "/library" as const, label: "Библиотека" },
   { to: "/join" as const, label: "Присоединиться" },
+  { to: "/faq" as const, label: "FAQ" },
 ];
 
 export function LogoMenu() {

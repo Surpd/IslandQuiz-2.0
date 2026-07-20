@@ -34,7 +34,6 @@ function FeedbackPage() {
       });
       setSent(true);
     } catch {
-      // всё равно показываем успех
       setSent(true);
     }
     setLoading(false);
@@ -44,13 +43,13 @@ function FeedbackPage() {
     return (
       <div className="min-h-screen bg-surface">
         <SiteHeader />
-        <Link
+        <main className="mx-auto max-w-md px-6 py-20 text-center">
+          <Link
             to="/faq"
             className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-            >
+          >
             ← Назад к FAQ
-        </Link>
-        <div className="mx-auto max-w-md px-6 py-20 text-center">
+          </Link>
           <CheckCircle className="mx-auto mb-4 h-12 w-12 text-success" />
           <h1 className="font-display text-2xl font-bold">Спасибо!</h1>
           <p className="mt-2 text-muted-foreground">
@@ -59,7 +58,7 @@ function FeedbackPage() {
           <Link to="/faq" className="btn-accent mt-6 inline-flex">
             Вернуться к FAQ
           </Link>
-        </div>
+        </main>
       </div>
     );
   }
@@ -68,6 +67,12 @@ function FeedbackPage() {
     <div className="min-h-screen bg-surface">
       <SiteHeader />
       <main className="mx-auto max-w-lg px-6 py-12">
+        <Link
+          to="/faq"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          ← Назад к FAQ
+        </Link>
         <h1 className="font-display text-3xl font-black">Обратная связь</h1>
         <p className="mt-2 text-muted-foreground">
           Нашли баг? Есть идея? Напишите нам — мы читаем всё.

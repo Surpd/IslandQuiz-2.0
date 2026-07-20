@@ -92,6 +92,8 @@ function Home() {
             <Link to="/join" className="text-sm font-medium text-muted-foreground hover:text-primary">
               Присоединиться
             </Link>
+            <Link to="/faq" className="text-sm font-medium text-muted-foreground hover:text-primary">FAQ
+            </Link>
           </nav>
           <div className="flex items-center gap-3">
             {user ? (
