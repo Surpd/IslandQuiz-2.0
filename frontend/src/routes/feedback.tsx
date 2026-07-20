@@ -44,6 +44,12 @@ function FeedbackPage() {
     return (
       <div className="min-h-screen bg-surface">
         <SiteHeader />
+        <Link
+            to="/faq"
+            className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+            ← Назад к FAQ
+        </Link>
         <div className="mx-auto max-w-md px-6 py-20 text-center">
           <CheckCircle className="mx-auto mb-4 h-12 w-12 text-success" />
           <h1 className="font-display text-2xl font-bold">Спасибо!</h1>
