@@ -145,6 +145,7 @@ def set_show_answers(game_id: str, show_answers: bool = False, user=Depends(get_
 def rate_game(game_id: str, rating: int = 1, user=Depends(get_current_user)):
     rating = max(1, min(5, rating))
 
+    # Upsert rating
     res = supabase.table("ratings").select("*").eq("game_id", game_id).eq("user_id", user["id"]).execute()
     if res.data:
         supabase.table("ratings").update({"value": rating}).eq("game_id", game_id).eq("user_id", user["id"]).execute()
@@ -154,10 +155,6 @@ def rate_game(game_id: str, rating: int = 1, user=Depends(get_current_user)):
             "user_id": user["id"],
             "value": rating,
         }).execute()
-
-    all_ratings = supabase.table("ratings").select("*").eq("game_id", game_id).execute()
-    ratings_data = {str(r["user_id"]): r["value"] for r in (all_ratings.data or [])}
-    supabase.table("games").update({"ratings_data": ratings_data}).eq("id", game_id).execute()
 
     return {"ok": True}
 
