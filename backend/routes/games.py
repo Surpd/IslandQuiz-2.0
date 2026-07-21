@@ -84,7 +84,7 @@ def get_game(game_id: str):
     # Подсчитать рейтинг из таблицы ratings
     ratings_res = supabase.table("ratings").select("*").eq("game_id", game_id).execute()
     if ratings_res.data:
-        game["ratings_data"] = {str(r["user_id"]): r["value"] for r in ratings_res.data}
+        game["ratings"] = {str(r["user_id"]): r["value"] for r in ratings_res.data}
 
     return GameOut(**{**game, "data": data})
 
