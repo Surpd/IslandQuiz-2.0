@@ -87,6 +87,19 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return res.data[0]
 
+def get_current_user_optional(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+    except JWTError:
+        return None
+
+    res = supabase.table("users").select("*").eq("id", user_id).execute()
+    if not res.data:
+        return None
+    return res.data[0]
 
 @router.post("/register", response_model=AuthResponse)
 def register(input: RegisterInput):

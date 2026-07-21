@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from database import supabase
-from routes.auth import get_current_user
+from routes.auth import get_current_user_optional
 
 router = APIRouter(prefix="/api", tags=["results"])
 
@@ -166,7 +166,7 @@ def get_quiz_results(gameId: str):
 
 
 @router.post("/quiz/{gameId}/results", response_model=dict)
-def submit_quiz_result(gameId: str, payload: QuizResultInput, current_user=Depends(get_current_user)):
+def submit_quiz_result(gameId: str, payload: QuizResultInput, current_user=Depends(get_current_user_optional)):
     result_id = str(uuid.uuid4())[:8]
     supabase.table("quiz_results").insert({
         "id": result_id, "game_id": gameId,
@@ -233,7 +233,7 @@ def get_millionaire_results(gameId: str):
 
 
 @router.post("/millionaire/{gameId}/results", response_model=dict)
-def submit_millionaire_result(gameId: str, payload: MillionaireResultInput, current_user=Depends(get_current_user)):
+def submit_millionaire_result(gameId: str, payload: MillionaireResultInput, current_user=Depends(get_current_user_optional)):
     result_id = str(uuid.uuid4())[:8]
     supabase.table("millionaire_results").insert({
         "id": result_id, "game_id": gameId,
@@ -259,12 +259,12 @@ def get_online_results(gameId: str):
     ]
 
 
-@router.post("/quiz/{gameId}/online-results", response_model=dict)
-def submit_online_result(gameId: str, payload: OnlineQuizResultInput):
-    result_id = str(uuid.uuid4())[:8]
-    supabase.table("online_quiz_results").insert({
-        "id": result_id, "game_id": gameId, "room_code": payload.roomCode,
-        "played_at": datetime.utcnow().isoformat(), "duration_sec": payload.durationSec,
-        "players": [p.model_dump() for p in payload.players],
-    }).execute()
-    return {"ok": True, "id": result_id}
+    @router.post("/quiz/{gameId}/online-results", response_model=dict)
+    def submit_online_result(gameId: str, payload: OnlineQuizResultInput):
+        result_id = str(uuid.uuid4())[:8]
+        supabase.table("online_quiz_results").insert({
+            "id": result_id, "game_id": gameId, "room_code": payload.roomCode,
+            "played_at": datetime.utcnow().isoformat(), "duration_sec": payload.durationSec,
+            "players": [p.model_dump() for p in payload.players],
+        }).execute()
+        return {"ok": True, "id": result_id}
