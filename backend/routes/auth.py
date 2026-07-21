@@ -88,6 +88,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     return res.data[0]
 
 def get_current_user_optional(token: str = Depends(oauth2_scheme)):
+    if token is None:
+        return None
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
