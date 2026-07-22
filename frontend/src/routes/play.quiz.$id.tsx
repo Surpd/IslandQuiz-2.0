@@ -203,8 +203,9 @@ function PlayQuiz() {
     setPhase("done");
   };
   const goTo = (newIdx: number) => {
+    const answered = answers.find(a => a.qId === questions[order[newIdx]]?.id);
     setCurrent("");
-    setFeedback(null);
+    setFeedback(answered ? (answered.correct ? "correct" : "wrong") : null);
     setIdx(newIdx);
   };
 
