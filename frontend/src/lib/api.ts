@@ -1160,12 +1160,8 @@ export const __apiVersion = "2.0.0-rest-ws";
 
 export async function listPlayedGameIdsForUser(userId: string): Promise<Set<string>> {
   try {
-    const games = await listGames();
-    const out = new Set<string>();
-    for (const g of games) {
-      if (g.ownerId === userId) out.add(g.id);
-    }
-    return out;
+    const list = await apiFetch(`/api/played-games/${userId}`);
+    return new Set(Array.isArray(list) ? list : []);
   } catch {
     return new Set();
   }

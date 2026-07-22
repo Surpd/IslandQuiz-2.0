@@ -268,3 +268,34 @@ def get_online_results(gameId: str):
             "players": [p.model_dump() for p in payload.players],
         }).execute()
         return {"ok": True, "id": result_id}
+
+
+@router.get("/played-games/{user_id}")
+def get_played_game_ids(user_id: str):
+    game_ids = set()
+    
+    # Quiz results
+    quiz = supabase.table("quiz_results").select("game_id").eq("user_id", user_id).execute()
+    for r in (quiz.data or []):
+        game_ids.add(r["game_id"])
+    
+    # Online quiz results
+    online = supabase.table("online_quiz_results").select("game_id, players").execute()
+    for r in (online.data or []):
+        players = r.get("players") or []
+        if any(p.get("userId") == user_id or p.get("user_id") == user_id for p in players):
+            game_ids.add(r["game_id"])
+    
+    # Millionaire results
+    millionaire = supabase.table("millionaire_results").select("game_id").eq("user_id", user_id).execute()
+    for r in (millionaire.data or []):
+        game_ids.add(r["game_id"])
+    
+    # Jeopardy results
+    jeopardy = supabase.table("jeopardy_results").select("game_id, teams").execute()
+    for r in (jeopardy.data or []):
+        teams = r.get("teams") or []
+        if any(t.get("id") == user_id for t in teams):
+            game_ids.add(r["game_id"])
+    
+    return list(game_ids)
