@@ -31,10 +31,15 @@ function ResetPasswordPage() {
     if (v) return setErr(v);
     if (pwd !== pwd2) return setErr("Пароли не совпадают");
     setBusy(true);
-    const r = await resetPassword(token, pwd);
-    setBusy(false);
-    if (r.ok) setDone(true);
-    else setErr("Не удалось изменить пароль");
+    try {
+      const r = await resetPassword(token, pwd);
+      if (r.ok) setDone(true);
+      else setErr("Не удалось изменить пароль");
+    } catch {
+      setErr("Не удалось соединиться с сервером");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

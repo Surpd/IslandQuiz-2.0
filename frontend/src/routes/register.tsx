@@ -25,17 +25,19 @@ function RegisterPage() {
     !busy && name && email && password && password2 && !pwdError && !mismatch;
 
   const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr(null);
-    const v = validatePassword(password);
-    if (v) return setErr(v);
-    if (password !== password2) return setErr("Пароли не совпадают");
-    setBusy(true);
-    const r = await register(name, email, password);
-    setBusy(false);
-    if (!r.ok) setErr(r.error ?? "Не удалось зарегистрироваться");
+  e.preventDefault();
+  setBusy(true);
+  setErr(null);
+  try {
+    const r = await register(name, email, password);  
+    if (!r.ok) setErr(r.error ?? "Не удалось войти");
     else nav({ to: "/library" });
-  };
+  } catch {
+    setErr("Не удалось соединиться с сервером");
+  } finally {
+    setBusy(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-surface">
