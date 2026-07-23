@@ -434,7 +434,12 @@ function Home() {
             </div>
             <span className="font-display text-sm font-bold">IslandQuiz</span>
           </div>
-          <p className="text-xs text-muted-foreground">© 2026 IslandQuiz. Сделано для своих.</p>
+          <div className="flex items-center gap-6 text-xs text-muted-foreground">
+            <Link to="/faq" className="hover:text-foreground">FAQ</Link>
+            <Link to="/support" className="hover:text-foreground">Поддержать</Link>
+            <Link to="/privacy" className="hover:text-foreground">Конфиденциальность</Link>
+          </div>
+          <p className="text-xs text-muted-foreground">© 2026 IslandQuiz</p>
         </div>
       </footer>
     </div>
