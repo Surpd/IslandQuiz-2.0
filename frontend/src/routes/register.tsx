@@ -16,28 +16,29 @@ function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const pwdError = password ? validatePassword(password) : null;
   const mismatch = password2.length > 0 && password !== password2;
   const canSubmit =
-    !busy && name && email && password && password2 && !pwdError && !mismatch;
+    !busy && name && email && password && password2 && !pwdError && !mismatch && agreed;
 
   const onSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setBusy(true);
-  setErr(null);
-  try {
-    const r = await register(name, email, password);  
-    if (!r.ok) setErr(r.error ?? "Не удалось войти");
-    else nav({ to: "/library" });
-  } catch {
-    setErr("Не удалось соединиться с сервером");
-  } finally {
-    setBusy(false);
-  }
-};
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await register(name, email, password);
+      if (!r.ok) setErr(r.error ?? "Не удалось зарегистрироваться");
+      else nav({ to: "/library" });
+    } catch {
+      setErr("Не удалось соединиться с сервером");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-surface">
@@ -98,6 +99,21 @@ function RegisterPage() {
                 Пароли не совпадают
               </span>
             )}
+          </label>
+          <label className="flex items-start gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              Я принимаю условия{" "}
+              <Link to="/privacy" className="text-primary hover:underline" target="_blank">
+                Политики конфиденциальности
+              </Link>{" "}
+              и даю согласие на обработку персональных данных
+            </span>
           </label>
           {err && (
             <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>
