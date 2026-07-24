@@ -23,7 +23,7 @@ import { CharCounter } from "@/components/char-counter";
 import { TagInput } from "@/components/tag-input";
 import { SortableQuestionList } from "@/components/sortable-question-list";
 import { SortableQuestionCards } from "@/components/sortable-question-cards";
-
+import { Upload } from "lucide-react";
 import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
 import { ThemeSelect } from "@/components/theme-select";

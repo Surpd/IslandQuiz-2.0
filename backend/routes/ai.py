@@ -1,8 +1,11 @@
 import os
 import json
 from typing import Optional, List
+import pdfplumber
+from docx import Document
+import io
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File, Form
 from pydantic import BaseModel
 import httpx
 from datetime import datetime, timedelta
@@ -13,6 +16,7 @@ from services.ai_prompts import (
     generate_quiz_prompt,
     generate_jeopardy_categories_prompt,
     generate_jeopardy_questions_prompt,
+    generate_from_file_prompt
 )
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -294,3 +298,53 @@ async def generate_jeopardy_questions(input: GenerateJeopardyQuestionsInput, use
         return json.loads(clean_json(raw)) if isinstance(raw, str) else raw
     except json.JSONDecodeError:
         return {"error": "Invalid JSON", "raw": raw[:500]}
+
+
+@router.post("/generate-from-file")
+async def generate_from_file(
+    file: UploadFile = File(...),
+    count: int = Form(10),
+    wishes: str = Form(""),
+):
+    text = ""
+    filename = file.filename.lower() if file.filename else ""
+    
+    try:
+        content = await file.read()
+        
+        if filename.endswith(".pdf"):
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
+                text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        
+        elif filename.endswith(".docx"):
+            doc = Document(io.BytesIO(content))
+            text = "\n".join(p.text for p in doc.paragraphs)
+        
+        elif filename.endswith((".txt", ".md")):
+            text = content.decode("utf-8")
+        
+        else:
+            return {"error": "Неподдерживаемый формат. PDF, DOCX, TXT, MD."}
+    
+    except Exception as e:
+        return {"error": f"Ошибка чтения файла: {str(e)}"}
+    
+    if not text.strip():
+        return {"error": "Не удалось извлечь текст."}
+    
+    text = text[:5000]
+    
+    prompt = generate_quiz_prompt(
+        topic=text,
+        count=count,
+        wishes=wishes,
+    )
+    
+    raw = await call_openai(prompt)
+    if not raw or not raw.strip():
+        return {"error": "AI не ответил"}
+    
+    try:
+        return json.loads(clean_json(raw)) if isinstance(raw, str) else raw
+    except json.JSONDecodeError:
+        return {"error": "Ошибка парсинга", "raw": raw[:500]}
