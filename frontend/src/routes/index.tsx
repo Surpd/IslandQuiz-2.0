@@ -67,7 +67,7 @@ const features = [
     desc: "Экспорт готовых игр в .xlsx и импорт вопросов из CSV-шаблона.",
   },
   { icon: Printer, title: "Печать и PDF", desc: "Раздаточный материал в один клик через встроенную печать браузера." },
-  { icon: Sigma, title: "LaTeX-формулы", desc: "Пишите \\(x^2\\) прямо в вопросе — рендерится через KaTeX." },
+  { icon: Sigma, title: "LaTeX-формулы", desc: "Пишите \\(\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\\) прямо в вопросе — рендерится через KaTeX." },
 ];
 
 function Home() {
@@ -399,6 +399,20 @@ function Home() {
                 );
               })}
             </div>
+          </div>
+        </section>
+
+        {/* Support block */}
+        <section className="bg-surface py-16 sm:py-20">
+          <div className="mx-auto max-w-3xl px-6 text-center">
+            <h2 className="font-display text-3xl font-black md:text-4xl">Поддержите проект</h2>
+            <p className="mt-4 text-muted-foreground">
+              IslandQuiz создаётся и развивается одним человеком. Если платформа вам полезна — поддержите её развитие.
+              Это поможет добавлять новые функции и поддерживать серверы.
+            </p>
+            <Link to="/support" className="btn-accent mt-6 inline-flex">
+              ❤️ Поддержать
+            </Link>
           </div>
         </section>
 
