@@ -305,6 +305,17 @@ async def generate_from_file(
     count: int = Form(10),
     wishes: str = Form(""),
 ):
+     # Проверка размера файла (10 МБ макс)
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        return {"error": "Файл слишком большой. Максимальный размер: 10 МБ."}
+    
+    # Проверка типа файла
+    filename = file.filename.lower() if file.filename else ""
+    allowed_extensions = (".pdf", ".docx", ".txt", ".md")
+    if not filename.endswith(allowed_extensions):
+        return {"error": f"Неподдерживаемый формат. Поддерживаются: {', '.join(allowed_extensions)}."}
+    
     text = ""
     filename = file.filename.lower() if file.filename else ""
     

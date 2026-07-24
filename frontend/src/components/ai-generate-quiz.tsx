@@ -9,6 +9,8 @@ import {
 } from "@/lib/api";
 
 const COOLDOWN_MS = 30_000;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 МБ
+const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
 
 interface Props {
   currentTitle: string;
@@ -29,6 +31,20 @@ export function AIGenerateQuizButton({ currentTitle, onGenerated, className }: P
 
   const cooldownLeft = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
   const onCooldown = cooldownLeft > 0;
+
+  const handleFile = (f: File) => {
+    if (f.size > MAX_FILE_SIZE) {
+      setError("Файл слишком большой. Максимальный размер: 10 МБ.");
+      return;
+    }
+    const ext = "." + f.name.split(".").pop()?.toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      setError("Неподдерживаемый формат. PDF, DOCX, TXT, MD.");
+      return;
+    }
+    setFile(f);
+    setError(null);
+  };
 
   const run = async () => {
     if (onCooldown) return;
@@ -131,14 +147,14 @@ export function AIGenerateQuizButton({ currentTitle, onGenerated, className }: P
                   e.preventDefault();
                   setDragOver(false);
                   const f = e.dataTransfer.files?.[0];
-                  if (f) setFile(f);
+                  if (f) handleFile(f);
                 }}
               >
                 {file ? (
                   <div className="flex items-center justify-center gap-2 text-sm">
-                    <FileText className="h-5 w-5 text-primary" />
-                    <span className="font-semibold">{file.name}</span>
-                    <button onClick={() => setFile(null)} className="text-muted-foreground hover:text-danger">✕</button>
+                    <FileText className="h-5 w-5 text-primary shrink-0" />
+                    <span className="font-semibold break-all">{file.name}</span>
+                    <button onClick={() => setFile(null)} className="text-muted-foreground hover:text-danger shrink-0">✕</button>
                   </div>
                 ) : (
                   <>
@@ -153,11 +169,11 @@ export function AIGenerateQuizButton({ currentTitle, onGenerated, className }: P
                         className="hidden"
                         onChange={(e) => {
                           const f = e.target.files?.[0];
-                          if (f) setFile(f);
+                          if (f) handleFile(f);
                         }}
                       />
                     </label>
-                    <p className="mt-1 text-xs text-muted-foreground">PDF, DOCX, TXT, MD</p>
+                    <p className="mt-1 text-xs text-muted-foreground">PDF, DOCX, TXT, MD (до 10 МБ)</p>
                   </>
                 )}
               </div>
