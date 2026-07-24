@@ -305,37 +305,29 @@ async def generate_from_file(
     count: int = Form(10),
     wishes: str = Form(""),
 ):
-     # Проверка размера файла (10 МБ макс)
     content = await file.read()
+    
+    # Проверка размера
     if len(content) > 10 * 1024 * 1024:
         return {"error": "Файл слишком большой. Максимальный размер: 10 МБ."}
     
-    # Проверка типа файла
+    # Проверка типа
     filename = file.filename.lower() if file.filename else ""
     allowed_extensions = (".pdf", ".docx", ".txt", ".md")
     if not filename.endswith(allowed_extensions):
         return {"error": f"Неподдерживаемый формат. Поддерживаются: {', '.join(allowed_extensions)}."}
     
+    # Парсинг (content уже прочитан)
     text = ""
-    filename = file.filename.lower() if file.filename else ""
-    
     try:
-        content = await file.read()
-        
         if filename.endswith(".pdf"):
             with pdfplumber.open(io.BytesIO(content)) as pdf:
                 text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-        
         elif filename.endswith(".docx"):
             doc = Document(io.BytesIO(content))
             text = "\n".join(p.text for p in doc.paragraphs)
-        
         elif filename.endswith((".txt", ".md")):
             text = content.decode("utf-8")
-        
-        else:
-            return {"error": "Неподдерживаемый формат. PDF, DOCX, TXT, MD."}
-    
     except Exception as e:
         return {"error": f"Ошибка чтения файла: {str(e)}"}
     
@@ -344,13 +336,9 @@ async def generate_from_file(
     
     text = text[:5000]
     
-    prompt = generate_quiz_prompt(
-        topic=text,
-        count=count,
-        wishes=wishes,
-    )
-    
+    prompt = generate_quiz_prompt(topic=text, count=count, wishes=wishes)
     raw = await call_openai(prompt)
+    
     if not raw or not raw.strip():
         return {"error": "AI не ответил"}
     
