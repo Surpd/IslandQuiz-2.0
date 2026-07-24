@@ -98,8 +98,9 @@ def list_games(kind: Optional[str] = None):
 
     return [
         GameOut(**{**g, "data": g.get("data") or {}})
-        for g in (res.data or [])
-        if g.get("data") and g["data"].get("config")
+        for g in (res.data or []):
+            if g.get("data") and g["data"].get("config"):
+            g["ratings"] = g.pop("ratings_data", None)
     ]
 
 
