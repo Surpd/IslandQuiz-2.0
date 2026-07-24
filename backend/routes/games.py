@@ -96,13 +96,12 @@ def list_games(kind: Optional[str] = None):
         query = query.eq("kind", kind)
     res = query.execute()
 
-    return [
-        GameOut(**{**g, "data": g.get("data") or {}})
-        for g in (res.data or []):
-            if g.get("data") and g["data"].get("config"):
+    result = []
+    for g in (res.data or []):
+        if g.get("data") and g["data"].get("config"):
             g["ratings"] = g.pop("ratings_data", None)
-    ]
-
+            result.append(GameOut(**{**g, "data": g.get("data") or {}}))
+    return result
 
 @router.delete("/{game_id}")
 def delete_game(game_id: str, user=Depends(get_current_user)):
