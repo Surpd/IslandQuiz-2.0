@@ -16,8 +16,7 @@ from services.ai_prompts import (
     generate_quiz_prompt,
     generate_jeopardy_categories_prompt,
     generate_jeopardy_questions_prompt,
-    generate_from_file_prompt
-)
+    )
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
