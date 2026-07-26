@@ -1,4 +1,5 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import cssInjectedByJsPlugin from "vite-plugin-css-injected-by-js";
 
 export default defineConfig({
   tanstackStart: {
@@ -8,6 +9,9 @@ export default defineConfig({
     },
   },
   vite: {
+    plugins: [
+      cssInjectedByJsPlugin(), // <-- Добавили инлайнинг CSS
+    ],
     build: {
       // Разбиваем тяжелые библиотеки на мелкие чанки, чтобы VPN не подавился
       rollupOptions: {
