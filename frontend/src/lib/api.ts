@@ -35,8 +35,8 @@ export type {
 export type { JeopardyResult } from "./jeopardy-results";
 
 // ---------- HTTP helper ----------
-const BASE_URL = "https://api.islandquiz.ru";
-const WS_BASE = "wss://api.islandquiz.ru";
+const BASE_URL = "https://api.islandquiz.online";
+const WS_BASE = "wss://api.islandquiz.online";
 const TOKEN_KEY = "islandquiz.token";
 
 export async function apiFetch(path: string, options?: RequestInit): Promise<any> {
