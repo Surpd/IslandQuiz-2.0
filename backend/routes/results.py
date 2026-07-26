@@ -132,7 +132,6 @@ class OnlineQuizPlayer(BaseModel):
 
 class OnlineQuizResultInput(BaseModel):
     roomCode: str
-    gameId: str
     durationSec: int
     players: List[OnlineQuizPlayer]
 
@@ -147,7 +146,6 @@ class OnlineQuizResultOut(BaseModel):
 
     class Config:
         from_attributes = True
-
 
 # ---------- Quiz Results ----------
 
@@ -259,15 +257,15 @@ def get_online_results(gameId: str):
     ]
 
 
-    @router.post("/quiz/{gameId}/online-results", response_model=dict)
-    def submit_online_result(gameId: str, payload: OnlineQuizResultInput):
-        result_id = str(uuid.uuid4())[:8]
-        supabase.table("online_quiz_results").insert({
-            "id": result_id, "game_id": gameId, "room_code": payload.roomCode,
-            "played_at": datetime.utcnow().isoformat(), "duration_sec": payload.durationSec,
-            "players": [p.model_dump() for p in payload.players],
-        }).execute()
-        return {"ok": True, "id": result_id}
+@router.post("/quiz/{gameId}/online-results", response_model=dict)
+def submit_online_result(gameId: str, payload: OnlineQuizResultInput):
+    result_id = str(uuid.uuid4())[:8]
+    supabase.table("online_quiz_results").insert({
+        "id": result_id, "game_id": gameId, "room_code": payload.roomCode,
+        "played_at": datetime.utcnow().isoformat(), "duration_sec": payload.durationSec,
+        "players": [p.model_dump() for p in payload.players],
+    }).execute()
+    return {"ok": True, "id": result_id}
 
 
 @router.get("/played-games/{user_id}")
