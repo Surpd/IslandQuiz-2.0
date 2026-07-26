@@ -15,6 +15,8 @@ app = FastAPI(title="IslandQuiz API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://islandquiz.online",
+        "https://www.islandquiz.online",
         "https://islandquiz.ru",
         "https://www.islandquiz.ru",
         "http://localhost:5173",
