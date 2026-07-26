@@ -9,89 +9,39 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TestPlayerRouteImport } from './routes/test-player'
-import { Route as SupportRouteImport } from './routes/support'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as LibraryRouteImport } from './routes/library'
-import { Route as JoinRouteImport } from './routes/join'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as FeedbackRouteImport } from './routes/feedback'
-import { Route as FaqRouteImport } from './routes/faq'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ProfileIndexRouteImport } from './routes/profile.index'
-import { Route as RoomCodeRouteImport } from './routes/room.$code'
-import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
-import { Route as GameIdRouteImport } from './routes/game.$id'
-import { Route as BuilderQuizRouteImport } from './routes/builder.quiz'
-import { Route as BuilderMillionaireRouteImport } from './routes/builder.millionaire'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as FaqRouteImport } from './routes/faq'
+import { Route as FeedbackRouteImport } from './routes/feedback'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as JoinRouteImport } from './routes/join'
+import { Route as LibraryRouteImport } from './routes/library'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SupportRouteImport } from './routes/support'
+import { Route as TestPlayerRouteImport } from './routes/test-player'
 import { Route as BuilderJeopardyRouteImport } from './routes/builder.jeopardy'
-import { Route as RoomCodeIndexRouteImport } from './routes/room.$code.index'
-import { Route as RoomCodePlayRouteImport } from './routes/room.$code.play'
-import { Route as RoomCodeAnswersRouteImport } from './routes/room.$code.answers'
-import { Route as QuizGameIdResultsRouteImport } from './routes/quiz.$gameId.results'
-import { Route as PlayQuizIdRouteImport } from './routes/play.quiz.$id'
-import { Route as PlayMillionaireIdRouteImport } from './routes/play.millionaire.$id'
-import { Route as PlayJeopardyIdRouteImport } from './routes/play.jeopardy.$id'
-import { Route as MillionaireGameIdResultsRouteImport } from './routes/millionaire.$gameId.results'
+import { Route as BuilderMillionaireRouteImport } from './routes/builder.millionaire'
+import { Route as BuilderQuizRouteImport } from './routes/builder.quiz'
+import { Route as GameIdRouteImport } from './routes/game.$id'
+import { Route as ProfileIndexRouteImport } from './routes/profile.index'
+import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
+import { Route as RoomCodeRouteImport } from './routes/room.$code'
 import { Route as JeopardyGameIdResultsRouteImport } from './routes/jeopardy.$gameId.results'
+import { Route as MillionaireGameIdResultsRouteImport } from './routes/millionaire.$gameId.results'
+import { Route as PlayJeopardyIdRouteImport } from './routes/play.jeopardy.$id'
+import { Route as PlayMillionaireIdRouteImport } from './routes/play.millionaire.$id'
+import { Route as PlayQuizIdRouteImport } from './routes/play.quiz.$id'
+import { Route as QuizGameIdResultsRouteImport } from './routes/quiz.$gameId.results'
+import { Route as RoomCodeIndexRouteImport } from './routes/room.$code.index'
+import { Route as RoomCodeAnswersRouteImport } from './routes/room.$code.answers'
+import { Route as RoomCodePlayRouteImport } from './routes/room.$code.play'
 
-const TestPlayerRoute = TestPlayerRouteImport.update({
-  id: '/test-player',
-  path: '/test-player',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SupportRoute = SupportRouteImport.update({
-  id: '/support',
-  path: '/support',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LibraryRoute = LibraryRouteImport.update({
-  id: '/library',
-  path: '/library',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const JoinRoute = JoinRouteImport.update({
-  id: '/join',
-  path: '/join',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FeedbackRoute = FeedbackRouteImport.update({
-  id: '/feedback',
-  path: '/feedback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FaqRoute = FaqRouteImport.update({
-  id: '/faq',
-  path: '/faq',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -99,39 +49,59 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProfileIndexRoute = ProfileIndexRouteImport.update({
-  id: '/profile/',
-  path: '/profile/',
+const FeedbackRoute = FeedbackRouteImport.update({
+  id: '/feedback',
+  path: '/feedback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RoomCodeRoute = RoomCodeRouteImport.update({
-  id: '/room/$code',
-  path: '/room/$code',
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
-  id: '/profile/$userId',
-  path: '/profile/$userId',
+const JoinRoute = JoinRouteImport.update({
+  id: '/join',
+  path: '/join',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GameIdRoute = GameIdRouteImport.update({
-  id: '/game/$id',
-  path: '/game/$id',
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BuilderQuizRoute = BuilderQuizRouteImport.update({
-  id: '/builder/quiz',
-  path: '/builder/quiz',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BuilderMillionaireRoute = BuilderMillionaireRouteImport.update({
-  id: '/builder/millionaire',
-  path: '/builder/millionaire',
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestPlayerRoute = TestPlayerRouteImport.update({
+  id: '/test-player',
+  path: '/test-player',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BuilderJeopardyRoute = BuilderJeopardyRouteImport.update({
@@ -139,39 +109,39 @@ const BuilderJeopardyRoute = BuilderJeopardyRouteImport.update({
   path: '/builder/jeopardy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RoomCodeIndexRoute = RoomCodeIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => RoomCodeRoute,
-} as any)
-const RoomCodePlayRoute = RoomCodePlayRouteImport.update({
-  id: '/play',
-  path: '/play',
-  getParentRoute: () => RoomCodeRoute,
-} as any)
-const RoomCodeAnswersRoute = RoomCodeAnswersRouteImport.update({
-  id: '/answers',
-  path: '/answers',
-  getParentRoute: () => RoomCodeRoute,
-} as any)
-const QuizGameIdResultsRoute = QuizGameIdResultsRouteImport.update({
-  id: '/quiz/$gameId/results',
-  path: '/quiz/$gameId/results',
+const BuilderMillionaireRoute = BuilderMillionaireRouteImport.update({
+  id: '/builder/millionaire',
+  path: '/builder/millionaire',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlayQuizIdRoute = PlayQuizIdRouteImport.update({
-  id: '/play/quiz/$id',
-  path: '/play/quiz/$id',
+const BuilderQuizRoute = BuilderQuizRouteImport.update({
+  id: '/builder/quiz',
+  path: '/builder/quiz',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlayMillionaireIdRoute = PlayMillionaireIdRouteImport.update({
-  id: '/play/millionaire/$id',
-  path: '/play/millionaire/$id',
+const GameIdRoute = GameIdRouteImport.update({
+  id: '/game/$id',
+  path: '/game/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlayJeopardyIdRoute = PlayJeopardyIdRouteImport.update({
-  id: '/play/jeopardy/$id',
-  path: '/play/jeopardy/$id',
+const ProfileIndexRoute = ProfileIndexRouteImport.update({
+  id: '/profile/',
+  path: '/profile/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
+  id: '/profile/$userId',
+  path: '/profile/$userId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomCodeRoute = RoomCodeRouteImport.update({
+  id: '/room/$code',
+  path: '/room/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JeopardyGameIdResultsRoute = JeopardyGameIdResultsRouteImport.update({
+  id: '/jeopardy/$gameId/results',
+  path: '/jeopardy/$gameId/results',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MillionaireGameIdResultsRoute =
@@ -180,10 +150,40 @@ const MillionaireGameIdResultsRoute =
     path: '/millionaire/$gameId/results',
     getParentRoute: () => rootRouteImport,
   } as any)
-const JeopardyGameIdResultsRoute = JeopardyGameIdResultsRouteImport.update({
-  id: '/jeopardy/$gameId/results',
-  path: '/jeopardy/$gameId/results',
+const PlayJeopardyIdRoute = PlayJeopardyIdRouteImport.update({
+  id: '/play/jeopardy/$id',
+  path: '/play/jeopardy/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PlayMillionaireIdRoute = PlayMillionaireIdRouteImport.update({
+  id: '/play/millionaire/$id',
+  path: '/play/millionaire/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayQuizIdRoute = PlayQuizIdRouteImport.update({
+  id: '/play/quiz/$id',
+  path: '/play/quiz/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuizGameIdResultsRoute = QuizGameIdResultsRouteImport.update({
+  id: '/quiz/$gameId/results',
+  path: '/quiz/$gameId/results',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomCodeIndexRoute = RoomCodeIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => RoomCodeRoute,
+} as any)
+const RoomCodeAnswersRoute = RoomCodeAnswersRouteImport.update({
+  id: '/answers',
+  path: '/answers',
+  getParentRoute: () => RoomCodeRoute,
+} as any)
+const RoomCodePlayRoute = RoomCodePlayRouteImport.update({
+  id: '/play',
+  path: '/play',
+  getParentRoute: () => RoomCodeRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -405,81 +405,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/test-player': {
-      id: '/test-player'
-      path: '/test-player'
-      fullPath: '/test-player'
-      preLoaderRoute: typeof TestPlayerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/support': {
-      id: '/support'
-      path: '/support'
-      fullPath: '/support'
-      preLoaderRoute: typeof SupportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/library': {
-      id: '/library'
-      path: '/library'
-      fullPath: '/library'
-      preLoaderRoute: typeof LibraryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/join': {
-      id: '/join'
-      path: '/join'
-      fullPath: '/join'
-      preLoaderRoute: typeof JoinRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/feedback': {
-      id: '/feedback'
-      path: '/feedback'
-      fullPath: '/feedback'
-      preLoaderRoute: typeof FeedbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/faq': {
-      id: '/faq'
-      path: '/faq'
-      fullPath: '/faq'
-      preLoaderRoute: typeof FaqRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -489,53 +419,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/profile/': {
-      id: '/profile/'
-      path: '/profile'
-      fullPath: '/profile/'
-      preLoaderRoute: typeof ProfileIndexRouteImport
+    '/feedback': {
+      id: '/feedback'
+      path: '/feedback'
+      fullPath: '/feedback'
+      preLoaderRoute: typeof FeedbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/room/$code': {
-      id: '/room/$code'
-      path: '/room/$code'
-      fullPath: '/room/$code'
-      preLoaderRoute: typeof RoomCodeRouteImport
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/profile/$userId': {
-      id: '/profile/$userId'
-      path: '/profile/$userId'
-      fullPath: '/profile/$userId'
-      preLoaderRoute: typeof ProfileUserIdRouteImport
+    '/join': {
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/game/$id': {
-      id: '/game/$id'
-      path: '/game/$id'
-      fullPath: '/game/$id'
-      preLoaderRoute: typeof GameIdRouteImport
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/builder/quiz': {
-      id: '/builder/quiz'
-      path: '/builder/quiz'
-      fullPath: '/builder/quiz'
-      preLoaderRoute: typeof BuilderQuizRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/builder/millionaire': {
-      id: '/builder/millionaire'
-      path: '/builder/millionaire'
-      fullPath: '/builder/millionaire'
-      preLoaderRoute: typeof BuilderMillionaireRouteImport
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/test-player': {
+      id: '/test-player'
+      path: '/test-player'
+      fullPath: '/test-player'
+      preLoaderRoute: typeof TestPlayerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/builder/jeopardy': {
@@ -545,53 +503,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BuilderJeopardyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/room/$code/': {
-      id: '/room/$code/'
-      path: '/'
-      fullPath: '/room/$code/'
-      preLoaderRoute: typeof RoomCodeIndexRouteImport
-      parentRoute: typeof RoomCodeRoute
-    }
-    '/room/$code/play': {
-      id: '/room/$code/play'
-      path: '/play'
-      fullPath: '/room/$code/play'
-      preLoaderRoute: typeof RoomCodePlayRouteImport
-      parentRoute: typeof RoomCodeRoute
-    }
-    '/room/$code/answers': {
-      id: '/room/$code/answers'
-      path: '/answers'
-      fullPath: '/room/$code/answers'
-      preLoaderRoute: typeof RoomCodeAnswersRouteImport
-      parentRoute: typeof RoomCodeRoute
-    }
-    '/quiz/$gameId/results': {
-      id: '/quiz/$gameId/results'
-      path: '/quiz/$gameId/results'
-      fullPath: '/quiz/$gameId/results'
-      preLoaderRoute: typeof QuizGameIdResultsRouteImport
+    '/builder/millionaire': {
+      id: '/builder/millionaire'
+      path: '/builder/millionaire'
+      fullPath: '/builder/millionaire'
+      preLoaderRoute: typeof BuilderMillionaireRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/play/quiz/$id': {
-      id: '/play/quiz/$id'
-      path: '/play/quiz/$id'
-      fullPath: '/play/quiz/$id'
-      preLoaderRoute: typeof PlayQuizIdRouteImport
+    '/builder/quiz': {
+      id: '/builder/quiz'
+      path: '/builder/quiz'
+      fullPath: '/builder/quiz'
+      preLoaderRoute: typeof BuilderQuizRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/play/millionaire/$id': {
-      id: '/play/millionaire/$id'
-      path: '/play/millionaire/$id'
-      fullPath: '/play/millionaire/$id'
-      preLoaderRoute: typeof PlayMillionaireIdRouteImport
+    '/game/$id': {
+      id: '/game/$id'
+      path: '/game/$id'
+      fullPath: '/game/$id'
+      preLoaderRoute: typeof GameIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/play/jeopardy/$id': {
-      id: '/play/jeopardy/$id'
-      path: '/play/jeopardy/$id'
-      fullPath: '/play/jeopardy/$id'
-      preLoaderRoute: typeof PlayJeopardyIdRouteImport
+    '/profile/': {
+      id: '/profile/'
+      path: '/profile'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof ProfileIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile/$userId': {
+      id: '/profile/$userId'
+      path: '/profile/$userId'
+      fullPath: '/profile/$userId'
+      preLoaderRoute: typeof ProfileUserIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/room/$code': {
+      id: '/room/$code'
+      path: '/room/$code'
+      fullPath: '/room/$code'
+      preLoaderRoute: typeof RoomCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jeopardy/$gameId/results': {
+      id: '/jeopardy/$gameId/results'
+      path: '/jeopardy/$gameId/results'
+      fullPath: '/jeopardy/$gameId/results'
+      preLoaderRoute: typeof JeopardyGameIdResultsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/millionaire/$gameId/results': {
@@ -601,12 +559,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MillionaireGameIdResultsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/jeopardy/$gameId/results': {
-      id: '/jeopardy/$gameId/results'
-      path: '/jeopardy/$gameId/results'
-      fullPath: '/jeopardy/$gameId/results'
-      preLoaderRoute: typeof JeopardyGameIdResultsRouteImport
+    '/play/jeopardy/$id': {
+      id: '/play/jeopardy/$id'
+      path: '/play/jeopardy/$id'
+      fullPath: '/play/jeopardy/$id'
+      preLoaderRoute: typeof PlayJeopardyIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/play/millionaire/$id': {
+      id: '/play/millionaire/$id'
+      path: '/play/millionaire/$id'
+      fullPath: '/play/millionaire/$id'
+      preLoaderRoute: typeof PlayMillionaireIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/play/quiz/$id': {
+      id: '/play/quiz/$id'
+      path: '/play/quiz/$id'
+      fullPath: '/play/quiz/$id'
+      preLoaderRoute: typeof PlayQuizIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz/$gameId/results': {
+      id: '/quiz/$gameId/results'
+      path: '/quiz/$gameId/results'
+      fullPath: '/quiz/$gameId/results'
+      preLoaderRoute: typeof QuizGameIdResultsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/room/$code/': {
+      id: '/room/$code/'
+      path: '/'
+      fullPath: '/room/$code/'
+      preLoaderRoute: typeof RoomCodeIndexRouteImport
+      parentRoute: typeof RoomCodeRoute
+    }
+    '/room/$code/answers': {
+      id: '/room/$code/answers'
+      path: '/answers'
+      fullPath: '/room/$code/answers'
+      preLoaderRoute: typeof RoomCodeAnswersRouteImport
+      parentRoute: typeof RoomCodeRoute
+    }
+    '/room/$code/play': {
+      id: '/room/$code/play'
+      path: '/play'
+      fullPath: '/room/$code/play'
+      preLoaderRoute: typeof RoomCodePlayRouteImport
+      parentRoute: typeof RoomCodeRoute
     }
   }
 }
