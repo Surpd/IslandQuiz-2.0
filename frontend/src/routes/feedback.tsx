@@ -141,6 +141,16 @@ function FeedbackPage() {
           >
             <Send className="h-4 w-4" /> {loading ? "Отправляем..." : "Отправить"}
           </button>
+          
+          {/* Добавленный блок с политикой и альтернативным контактом */}
+          <div className="mt-2 text-center text-xs text-muted-foreground">
+            Отправляя сообщение, вы соглашаетесь с{" "}
+            <Link to="/privacy" className="underline hover:text-foreground">
+              Политикой конфиденциальности
+            </Link>.
+            <br />
+            Или напишите нам напрямую: <a href="mailto:support@islandquiz.online" className="underline hover:text-foreground">support@islandquiz.online</a>
+          </div>
         </form>
       </main>
     </div>
