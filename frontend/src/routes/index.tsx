@@ -403,7 +403,7 @@ function Home() {
         </section>
 
         {/* Support block */}
-        <section className="bg-surface py-16 sm:py-20">
+       {/* <section className="bg-surface py-16 sm:py-20">
           <div className="mx-auto max-w-3xl px-6 text-center">
             <h2 className="font-display text-3xl font-black md:text-4xl">Поддержите проект</h2>
             <p className="mt-4 text-muted-foreground">
@@ -414,7 +414,7 @@ function Home() {
               ❤️ Поддержать
             </Link>
           </div>
-        </section>
+        </section> */}
 
         {/* CTA */}
         <section className="py-16">
