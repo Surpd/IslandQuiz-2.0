@@ -198,7 +198,8 @@ def reset_password(token: str = Form(...), password: str = Form(...)):
         return {"error": "Недействительная ссылка"}
     
     record = reset.data[0]
-    if datetime.fromisoformat(record["expires_at"]) < datetime.utcnow():
+    from datetime import timezone
+    if datetime.fromisoformat(record["expires_at"]) < datetime.now(timezone.utc):
         return {"error": "Срок действия ссылки истёк"}
     
     hashed = pwd_context.hash(password)
