@@ -88,7 +88,7 @@ function PrivacyPage() {
 
         <section className="mt-6">
           <h2 className="font-display text-lg font-bold mb-2">11. Контакты</h2>
-          <p>По всем вопросам: <a href="mailto:mitya971108@gmail.com" className="text-primary hover:underline">mitya971108@gmail.com</a></p>
+          <p>По всем вопросам: <a href="mailto:support@islandquiz.online" className="text-primary hover:underline">support@islandquiz.online</a></p>
         </section>
       </main>
     </div>
