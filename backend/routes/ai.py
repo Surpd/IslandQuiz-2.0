@@ -5,7 +5,7 @@ import pdfplumber
 from docx import Document
 import io
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Depends, UploadFile, File, Form, Request, HTTPException
 from pydantic import BaseModel
 import httpx
 from datetime import datetime, timedelta
@@ -17,6 +17,8 @@ from services.ai_prompts import (
     generate_jeopardy_categories_prompt,
     generate_jeopardy_questions_prompt,
     )
+from main import limiter
+from database import supabase
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
@@ -75,7 +77,6 @@ def normalize_variants(result) -> list:
             if "difficulty" not in v:
                 v["difficulty"] = difficulties[i] if i < len(difficulties) else "medium"
             
-            # Добавить correctAnswer для всех типов
             if "correctAnswer" not in v:
                 if "options" in v and "correct" in v:
                     idx = v["correct"]
@@ -86,11 +87,9 @@ def normalize_variants(result) -> list:
                 else:
                     v["correctAnswer"] = ""
 
-            # Для ordering — убедиться что есть options
             if "options" not in v:
                 v["options"] = []
 
-            # Для matching — убедиться что есть pairs
             if "pairs" not in v:
                 v["pairs"] = []
 
@@ -101,10 +100,8 @@ def clean_json(raw: str) -> str:
     cleaned = raw.strip()
     if cleaned.startswith("```"):
         lines = cleaned.split("\n")
-        # Убрать первую строку (```json или ```)
         if lines[0].startswith("```"):
             lines = lines[1:]
-        # Убрать последнюю строку (```)
         if lines and lines[-1].startswith("```"):
             lines = lines[:-1]
         cleaned = "\n".join(lines)
@@ -128,7 +125,7 @@ def check_ai_limit(user):
         return
     role = user.get("role", "user")
     if role == "admin":
-        return  # безлимитно
+        return
     plan = user.get("plan", "free")
     limits = {"free": 10, "premium": 100}
     daily_limit = limits.get(plan, 10)
@@ -176,9 +173,9 @@ class GenerateJeopardyQuestionsInput(BaseModel):
 # ---------- Routes ----------
 
 @router.post("/generate-question", response_model=dict)
-async def generate_question(input: GenerateQuestionInput, user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def generate_question(request: Request, input: GenerateQuestionInput, user=Depends(get_current_user)):
     check_ai_limit(user)
-    # Определить тип из format
     qtype = input.type or "choice"
     fmt = input.format or ""
     if fmt == "quiz-matching":
@@ -192,8 +189,6 @@ async def generate_question(input: GenerateQuestionInput, user=Depends(get_curre
     elif fmt == "quiz-text":
         qtype = "text"
     
-    print(f"[AI] generate_question called: topic={input.topic!r}, type={qtype!r}")
-
     if input.currentText and input.currentText.strip():
         prompt = improve_question_prompt(
             current_text=input.currentText,
@@ -230,7 +225,8 @@ async def generate_question(input: GenerateQuestionInput, user=Depends(get_curre
 
 
 @router.post("/improve-question", response_model=dict)
-async def improve_question(input: ImproveQuestionInput, user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def improve_question(request: Request, input: ImproveQuestionInput, user=Depends(get_current_user)):
     check_ai_limit(user)
     prompt = improve_question_prompt(
         current_text=input.currentText,
@@ -250,7 +246,8 @@ async def improve_question(input: ImproveQuestionInput, user=Depends(get_current
 
 
 @router.post("/generate-quiz", response_model=dict)
-async def generate_quiz(input: GenerateQuizInput, user=Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def generate_quiz(request: Request, input: GenerateQuizInput, user=Depends(get_current_user)):
     check_ai_limit(user)
     prompt = generate_quiz_prompt(
         topic=input.topic or "Удивительные открытия",
@@ -267,7 +264,8 @@ async def generate_quiz(input: GenerateQuizInput, user=Depends(get_current_user)
 
 
 @router.post("/generate-jeopardy-categories", response_model=dict)
-async def generate_jeopardy_categories(input: GenerateJeopardyCategoriesInput, user=Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def generate_jeopardy_categories(request: Request, input: GenerateJeopardyCategoriesInput, user=Depends(get_current_user)):
     check_ai_limit(user)
     prompt = generate_jeopardy_categories_prompt(
         topic=input.topic or "Удивительные явления",
@@ -283,7 +281,8 @@ async def generate_jeopardy_categories(input: GenerateJeopardyCategoriesInput, u
 
 
 @router.post("/generate-jeopardy-questions", response_model=dict)
-async def generate_jeopardy_questions(input: GenerateJeopardyQuestionsInput, user=Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def generate_jeopardy_questions(request: Request, input: GenerateJeopardyQuestionsInput, user=Depends(get_current_user)):
     check_ai_limit(user)
     prompt = generate_jeopardy_questions_prompt(
         category=input.category,
@@ -300,24 +299,23 @@ async def generate_jeopardy_questions(input: GenerateJeopardyQuestionsInput, use
 
 
 @router.post("/generate-from-file")
+@limiter.limit("5/minute")
 async def generate_from_file(
+    request: Request,
     file: UploadFile = File(...),
     count: int = Form(10),
     wishes: str = Form(""),
 ):
     content = await file.read()
     
-    # Проверка размера
     if len(content) > 10 * 1024 * 1024:
         return {"error": "Файл слишком большой. Максимальный размер: 10 МБ."}
     
-    # Проверка типа
     filename = file.filename.lower() if file.filename else ""
     allowed_extensions = (".pdf", ".docx", ".txt", ".md")
     if not filename.endswith(allowed_extensions):
         return {"error": f"Неподдерживаемый формат. Поддерживаются: {', '.join(allowed_extensions)}."}
     
-    # Парсинг (content уже прочитан)
     text = ""
     try:
         if filename.endswith(".pdf"):

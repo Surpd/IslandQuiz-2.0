@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError as JWTError
@@ -10,6 +10,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 
 from database import supabase
+from main import limiter
 
 import os
 
@@ -41,7 +42,7 @@ class UserOut(BaseModel):
     avatar: Optional[str] = None
     bio: Optional[str] = None
     subject: Optional[str] = None
-    role: Optional[str] = None  # ← добавить
+    role: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -104,8 +105,10 @@ def get_current_user_optional(token: str = Depends(oauth2_scheme)):
         return None
     return res.data[0]
 
+
 @router.post("/register", response_model=AuthResponse)
-def register(input: RegisterInput):
+@limiter.limit("3/minute")
+def register(request: Request, input: RegisterInput):
     res = supabase.table("users").select("id").eq("email", input.email).execute()
     if res.data:
         return {"ok": False, "error": "Пользователь с таким email уже существует"}
@@ -125,7 +128,8 @@ def register(input: RegisterInput):
 
 
 @router.post("/login", response_model=AuthResponse)
-def login(input: LoginInput):
+@limiter.limit("5/minute")
+def login(request: Request, input: LoginInput):
     res = supabase.table("users").select("*").eq("email", input.email).execute()
     if not res.data or not verify_password(input.password, res.data[0]["password_hash"]):
         return {"ok": False, "error": "Неверный email или пароль"}
@@ -171,7 +175,8 @@ def update_me(
 
 
 @router.post("/forgot-password")
-def forgot_password(email: str = Form(...)):
+@limiter.limit("3/minute")
+def forgot_password(request: Request, email: str = Form(...)):
     user = supabase.table("users").select("*").eq("email", email).execute()
     if not user.data:
         return {"ok": True}
@@ -192,7 +197,8 @@ def forgot_password(email: str = Form(...)):
 
 
 @router.post("/reset-password")
-def reset_password(token: str = Form(...), password: str = Form(...)):
+@limiter.limit("5/minute")
+def reset_password(request: Request, token: str = Form(...), password: str = Form(...)):
     reset = supabase.table("password_resets").select("*").eq("token", token).execute()
     if not reset.data:
         return {"error": "Недействительная ссылка"}
