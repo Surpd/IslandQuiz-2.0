@@ -17,7 +17,7 @@ from services.ai_prompts import (
     generate_jeopardy_categories_prompt,
     generate_jeopardy_questions_prompt,
     )
-from main import limiter
+from limiter import limiter   # вместо from main import limiter
 from database import supabase
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])

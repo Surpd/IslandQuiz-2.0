@@ -10,7 +10,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 
 from database import supabase
-from main import limiter
+from limiter import limiter   # вместо from main import limiter
 
 import os
 

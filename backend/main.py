@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from limiter import limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import _rate_limit_exceeded_handler
 
@@ -15,7 +14,7 @@ from routes.rooms import router as rooms_router
 from routes.admin import router as admin_router
 from routes.feedback import router as feedback_router
 
-limiter = Limiter(key_func=get_remote_address)
+
 
 app = FastAPI(title="IslandQuiz API", version="1.0.0")
 app.state.limiter = limiter
