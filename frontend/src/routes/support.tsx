@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
-import { Heart, Send, Coffee } from "lucide-react";
+import { Heart, Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/support")({
   head: () => ({ meta: [{ title: "Поддержать — IslandQuiz" }] }),
@@ -19,29 +19,19 @@ function SupportPage() {
         </p>
 
         <div className="mt-8 grid gap-4">
+          {/* CloudTips / Чаевые */}
           <a
-            href="https://boosty.to/Surprisedi"
+            href="https://pay.cloudtips.ru/p/ТВОЙ_ИДЕНТИФИКАТОР"
             target="_blank"
             rel="noopener noreferrer"
             className="surface-card flex items-center gap-4 p-5 text-left hover:border-primary transition-colors"
           >
-            <Coffee className="h-8 w-8 text-amber" />
+            <Wallet className="h-8 w-8 text-emerald-500 shrink-0" />
             <div>
-              <div className="font-bold">Boosty</div>
-              <div className="text-sm text-muted-foreground">Подписка или разовый донат. Карта, СБП.</div>
-            </div>
-          </a>
-
-          <a
-            href="https://t.me/Surprisedi"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="surface-card flex items-center gap-4 p-5 text-left hover:border-primary transition-colors"
-          >
-            <Send className="h-8 w-8 text-primary" />
-            <div>
-              <div className="font-bold">Telegram</div>
-              <div className="text-sm text-muted-foreground">Напишите мне лично — скину реквизиты.</div>
+              <div className="font-bold">Разовый донат (СБП / Карта)</div>
+              <div className="text-sm text-muted-foreground">
+                Быстрый перевод через CloudTips в пару кликов без регистрации.
+              </div>
             </div>
           </a>
         </div>
