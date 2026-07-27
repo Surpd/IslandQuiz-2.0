@@ -21,7 +21,7 @@ function SupportPage() {
         <div className="mt-8 grid gap-4">
           {/* CloudTips / Чаевые */}
           <a
-            href="https://pay.cloudtips.ru/p/74d09bbb"
+            href=""
             target="_blank"
             rel="noopener noreferrer"
             className="surface-card flex items-center gap-4 p-5 text-left hover:border-primary transition-colors"
