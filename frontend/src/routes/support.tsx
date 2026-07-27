@@ -19,7 +19,7 @@ function SupportPage() {
         </p>
 
         <div className="mt-8 grid gap-4">
-          {/* CloudTips / Чаевые */}
+          {/* ВРЕМЕННО ОТКЛЮЧЕНО ДЛЯ ПРОВЕРКИ ЯНДЕКСА
           <a
             href="https://pay.cloudtips.ru/p/74d09bbb"
             target="_blank"
@@ -34,6 +34,7 @@ function SupportPage() {
               </div>
             </div>
           </a>
+          */}
         </div>
 
         <p className="mt-8 text-sm text-muted-foreground">
