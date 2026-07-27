@@ -342,10 +342,19 @@ export async function loadGame<T = AnyGameData>(kind: GameKind, id: string) {
   }
 }
 
-export async function listGames(kind?: GameKind): Promise<StoredGame[]> {
-  const path = kind ? `/api/games/?kind=${encodeURIComponent(kind)}` : `/api/games/`;
-  const list = await apiFetch(path);
-  return Array.isArray(list) ? list.map((g: any) => mapGame(g)) : [];
+export async function listGames(kind?: GameKind, limit = 20, offset = 0): Promise<{ games: StoredGame[]; total: number; limit: number; offset: number }> {
+  const params = new URLSearchParams();
+  if (kind) params.set("kind", kind);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  const path = `/api/games/?${params.toString()}`;
+  const data = await apiFetch(path);
+  return {
+    games: Array.isArray(data.games) ? data.games.map((g: any) => mapGame(g)) : [],
+    total: data.total ?? 0,
+    limit: data.limit ?? limit,
+    offset: data.offset ?? offset,
+  };
 }
 
 export async function findGame(id: string): Promise<StoredGame | null> {
@@ -1203,7 +1212,7 @@ export async function getUserProfile(userId: string): Promise<PublicProfile | nu
     if (!data) return null;
     return {
       user: mapUser(data.user),
-      games: Array.isArray(data.games) ? data.games.map((g: any) => mapGame(g)) : [],
+      games: Array.isArray(data.games?.games) ? data.games.games.map((g: any) => mapGame(g)) : Array.isArray(data.games) ? data.games.map((g: any) => mapGame(g)) : [],
       stats: data.stats ?? { gamesCount: 0, avgRating: 0, totalRatings: 0 },
     };
   } catch {
@@ -1211,11 +1220,19 @@ export async function getUserProfile(userId: string): Promise<PublicProfile | nu
   }
 }
 
-export async function getUserGames(userId: string): Promise<StoredGame[]> {
+export async function getUserGames(userId: string, limit = 20, offset = 0): Promise<{ games: StoredGame[]; total: number; limit: number; offset: number }> {
   try {
-    const list = await apiFetch(`/api/users/${userId}/games`);
-    return Array.isArray(list) ? list.map((g: any) => mapGame(g)) : [];
+    const params = new URLSearchParams();
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    const data = await apiFetch(`/api/users/${userId}/games?${params.toString()}`);
+    return {
+      games: Array.isArray(data.games) ? data.games.map((g: any) => mapGame(g)) : [],
+      total: data.total ?? 0,
+      limit: data.limit ?? limit,
+      offset: data.offset ?? offset,
+    };
   } catch {
-    return [];
+    return { games: [], total: 0, limit, offset };
   }
 }

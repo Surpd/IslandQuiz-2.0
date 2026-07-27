@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from datetime import datetime
 from database import supabase
@@ -36,7 +36,7 @@ class UserOut(BaseModel):
     avatar: Optional[str] = None
     bio: Optional[str] = None
     subject: Optional[str] = None
-    role: Optional[str] = None  # ← добавить
+    role: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -117,16 +117,30 @@ def get_user_profile(user_id: str, current_user=Depends(get_current_user)):
     }
 
 
-@router.get("/{user_id}/games", response_model=List[GameOut])
-def get_user_games(user_id: str, current_user=Depends(get_current_user)):
-    res = supabase.table("games").select("*").eq("owner_id", user_id).execute()
+@router.get("/{user_id}/games", response_model=dict)
+def get_user_games(
+    user_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user=Depends(get_current_user),
+):
+    query = supabase.table("games").select("*", count="exact").eq("owner_id", user_id).order("updated_at", desc=True)
+    query = query.range(offset, offset + limit - 1)
+    res = query.execute()
+    
+    total = res.count if hasattr(res, 'count') else len(res.data or [])
     all_games = res.data or []
 
     is_me = current_user and current_user["id"] == user_id
     visible = all_games if is_me else [g for g in all_games if g.get("visibility") == "public"]
 
-    return [
-        GameOut(**{**g, "data": g.get("data") or {}})
-        for g in visible
-        if g.get("data") and g["data"].get("config")
-    ]
+    return {
+        "games": [
+            GameOut(**{**g, "data": g.get("data") or {}})
+            for g in visible
+            if g.get("data") and g["data"].get("config")
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }

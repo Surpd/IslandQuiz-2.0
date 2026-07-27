@@ -96,8 +96,8 @@ function LibraryPage() {
   const reload = () => {
     try { cleanupInvalidGames(); } catch { /* ignore */ }
     listGames()
-      .then((g) => {
-        const clean = g.filter((x) => {
+      .then((data) => {
+        const clean = data.games.filter((x) => {
           const d = x?.data as { config?: unknown } | undefined;
           return !!x && !!x.kind && !!d && !!d.config;
         });

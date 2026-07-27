@@ -2,7 +2,7 @@ import uuid
 from typing import Optional, List
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from database import supabase
@@ -50,7 +50,7 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
         supabase.table("games").update({
             "data": input.data,
             "tags": input.tags,
-            "visibility": input.visibility,  # ← добавить
+            "visibility": input.visibility,
             "updated_at": datetime.utcnow().isoformat(),
         }).eq("id", game_id).execute()
     else:
@@ -81,7 +81,6 @@ def get_game(game_id: str):
     if game.get("kind") in ("quiz", "millionaire") and not isinstance(data.get("questions"), list):
         data["questions"] = []
 
-    # Подсчитать рейтинг из таблицы ratings
     ratings_res = supabase.table("ratings").select("*").eq("game_id", game_id).execute()
     if ratings_res.data:
         game["ratings"] = {str(r["user_id"]): r["value"] for r in ratings_res.data}
@@ -89,19 +88,34 @@ def get_game(game_id: str):
     return GameOut(**{**game, "data": data})
 
 
-@router.get("/", response_model=List[GameOut])
-def list_games(kind: Optional[str] = None):
-    query = supabase.table("games").select("*").order("updated_at", desc=True)
+@router.get("/", response_model=dict)
+def list_games(
+    kind: Optional[str] = None,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    query = supabase.table("games").select("*", count="exact").order("updated_at", desc=True)
     if kind:
         query = query.eq("kind", kind)
+    
+    query = query.range(offset, offset + limit - 1)
     res = query.execute()
-
+    
+    total = res.count if hasattr(res, 'count') else len(res.data or [])
+    
     result = []
     for g in (res.data or []):
         if g.get("data") and g["data"].get("config"):
             g["ratings"] = g.pop("ratings_data", None)
             result.append(GameOut(**{**g, "data": g.get("data") or {}}))
-    return result
+    
+    return {
+        "games": result,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
 
 @router.delete("/{game_id}")
 def delete_game(game_id: str, user=Depends(get_current_user)):
@@ -150,7 +164,6 @@ def set_show_answers(game_id: str, show_answers: bool = False, user=Depends(get_
 def rate_game(game_id: str, rating: int = 1, user=Depends(get_current_user)):
     rating = max(1, min(5, rating))
 
-    # Upsert rating
     res = supabase.table("ratings").select("*").eq("game_id", game_id).eq("user_id", user["id"]).execute()
     if res.data:
         supabase.table("ratings").update({"value": rating}).eq("game_id", game_id).eq("user_id", user["id"]).execute()

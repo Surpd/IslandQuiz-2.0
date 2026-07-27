@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
 import json
@@ -159,10 +159,16 @@ def ai_test_jeopardy_questions(req: AITestJeopardyQuestionsRequest, user=Depends
 # ==================== USERS ====================
 
 @router.get("/users")
-def list_users(user=Depends(get_current_user)):
+def list_users(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user=Depends(get_current_user),
+):
     require_admin(user)
-    res = supabase.table("users").select("*").order("created_at", desc=True).execute()
-    return res.data or []
+    res = supabase.table("users").select("*", count="exact").order("created_at", desc=True) \
+        .range(offset, offset + limit - 1).execute()
+    total = res.count if hasattr(res, 'count') else len(res.data or [])
+    return {"users": res.data or [], "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/users/{user_id}/ban")
@@ -192,10 +198,16 @@ def delete_user(user_id: str, user=Depends(get_current_user)):
 # ==================== GAMES ====================
 
 @router.get("/games")
-def list_all_games(user=Depends(get_current_user)):
+def list_all_games(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user=Depends(get_current_user),
+):
     require_admin(user)
-    res = supabase.table("games").select("*").order("updated_at", desc=True).limit(100).execute()
-    return res.data or []
+    res = supabase.table("games").select("*", count="exact").order("updated_at", desc=True) \
+        .range(offset, offset + limit - 1).execute()
+    total = res.count if hasattr(res, 'count') else len(res.data or [])
+    return {"games": res.data or [], "total": total, "limit": limit, "offset": offset}
 
 
 @router.delete("/games/{game_id}")
