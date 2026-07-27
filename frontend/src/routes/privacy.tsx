@@ -18,7 +18,7 @@ function PrivacyPage() {
           ← На главную
         </Link>
         <h1 className="font-display text-3xl font-black">Политика конфиденциальности</h1>
-        <p className="mt-1 text-muted-foreground">Дата обновления: 21 июля 2026 г.</p>
+        <p className="mt-1 text-muted-foreground">Дата обновления: 27 июля 2026 г.</p>
 
         <section className="mt-8">
           <h2 className="font-display text-lg font-bold mb-2">1. Общие положения</h2>
@@ -83,12 +83,12 @@ function PrivacyPage() {
 
         <section className="mt-6">
           <h2 className="font-display text-lg font-bold mb-2">10. Изменения политики</h2>
-          <p>Мы оставляем за собой право вносить изменения в настоящую политику. Актуальная версия всегда доступна по адресу https://islandquiz.pages.dev/privacy.</p>
+          <p>Мы оставляем за собой право вносить изменения в настоящую политику. Актуальная версия всегда доступна по адресу https://islandquiz.online/privacy.</p>
         </section>
 
         <section className="mt-6">
           <h2 className="font-display text-lg font-bold mb-2">11. Контакты</h2>
-          <p>По всем вопросам: <a href="mailto:support@islandquiz.ru" className="text-primary hover:underline">support@islandquiz.ru</a></p>
+          <p>По всем вопросам: <a href="mailto:mitya971108@gmail.com" className="text-primary hover:underline">mitya971108@gmail.com</a></p>
         </section>
       </main>
     </div>

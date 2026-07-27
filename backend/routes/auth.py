@@ -168,3 +168,45 @@ def update_me(
 
     res = supabase.table("users").select("*").eq("id", current_user["id"]).execute()
     return UserOut(**res.data[0]) if res.data else None
+
+
+@router.post("/auth/forgot-password")
+def forgot_password(email: str = Form(...)):
+    user = supabase.table("users").select("*").eq("email", email).execute()
+    if not user.data:
+        return {"ok": True}
+    
+    import uuid
+    token = str(uuid.uuid4())
+    from datetime import datetime, timedelta
+    expires = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+    
+    supabase.table("password_resets").insert({
+        "email": email,
+        "token": token,
+        "expires_at": expires
+    }).execute()
+    
+    from services.email import send_reset_email
+    send_reset_email(email, token)
+    
+    return {"ok": True}
+
+
+@router.post("/auth/reset-password")
+def reset_password(token: str = Form(...), password: str = Form(...)):
+    reset = supabase.table("password_resets").select("*").eq("token", token).execute()
+    if not reset.data:
+        return {"error": "Недействительная ссылка"}
+    
+    record = reset.data[0]
+    from datetime import datetime
+    if datetime.fromisoformat(record["expires_at"]) < datetime.utcnow():
+        return {"error": "Срок действия ссылки истёк"}
+    
+    from passlib.hash import bcrypt
+    hashed = bcrypt.hash(password)
+    supabase.table("users").update({"password_hash": hashed}).eq("email", record["email"]).execute()
+    supabase.table("password_resets").delete().eq("token", token).execute()
+    
+    return {"ok": True}
