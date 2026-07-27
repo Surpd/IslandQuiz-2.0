@@ -308,14 +308,28 @@ async def generate_from_file(
 ):
     content = await file.read()
     
+    # Проверка размера
     if len(content) > 10 * 1024 * 1024:
         return {"error": "Файл слишком большой. Максимальный размер: 10 МБ."}
     
+    # Проверка расширения
     filename = file.filename.lower() if file.filename else ""
     allowed_extensions = (".pdf", ".docx", ".txt", ".md")
     if not filename.endswith(allowed_extensions):
         return {"error": f"Неподдерживаемый формат. Поддерживаются: {', '.join(allowed_extensions)}."}
     
+    # Проверка MIME-типа
+    allowed_mime = {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+        "text/markdown",
+        "application/octet-stream",
+    }
+    if file.content_type and file.content_type not in allowed_mime:
+        return {"error": f"Неподдерживаемый тип файла: {file.content_type}. Разрешены: PDF, DOCX, TXT, MD."}
+    
+    # Парсинг
     text = ""
     try:
         if filename.endswith(".pdf"):
@@ -343,4 +357,4 @@ async def generate_from_file(
     try:
         return json.loads(clean_json(raw)) if isinstance(raw, str) else raw
     except json.JSONDecodeError:
-        return {"error": "Ошибка парсинга", "raw": raw[:500]}
+        return {"error": "Ошибка парсинга", "raw": raw[:500]}  
