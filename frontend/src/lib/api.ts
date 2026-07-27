@@ -230,14 +230,14 @@ export async function forgotPassword(email: string) {
 }
 
 export async function resetPassword(token: string, newPassword: string) {
-  try {
-    return await apiFetch("/api/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify({ token, newPassword }),
-    });
-  } catch {
-    return { ok: true as const, message: "Пароль изменён" };
-  }
+  const form = new URLSearchParams();
+  form.append("token", token);
+  form.append("password", newPassword);
+  return apiFetch("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  });
 }
 
 export async function getMe(): Promise<User | null> {
