@@ -220,14 +220,12 @@ export async function logout() {
 }
 
 export async function forgotPassword(email: string) {
-  try {
-    return await apiFetch("/api/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
-  } catch {
-    return { ok: true as const, message: "Инструкция отправлена на email" };
-  }
+  const form = new FormData();
+  form.append("email", email);
+  return apiFetch("/api/auth/forgot-password", {
+    method: "POST",
+    body: form,
+  });
 }
 
 export async function resetPassword(token: string, newPassword: string) {
