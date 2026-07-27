@@ -220,11 +220,12 @@ export async function logout() {
 }
 
 export async function forgotPassword(email: string) {
-  const form = new FormData();
+  const form = new URLSearchParams();
   form.append("email", email);
   return apiFetch("/api/auth/forgot-password", {
     method: "POST",
-    body: form,
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
   });
 }
 
