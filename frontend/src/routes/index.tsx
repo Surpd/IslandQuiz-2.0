@@ -140,7 +140,7 @@ function Home() {
               </p>
               <div className="mt-10 flex flex-wrap gap-3">
                 <Link to="/builder/quiz" className="btn-accent">
-                  Создать игру
+                  Начать бесплатно
                 </Link>
                 <Link
                   to="/library"
@@ -426,7 +426,7 @@ function Home() {
               <p className="relative mt-3 text-white/70">Создайте свой первый квиз за пару минут.</p>
               <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Link to="/builder/quiz" className="btn-accent inline-flex">
-                  Создать игру
+                  Начать бесплатно
                 </Link>
                 <Link
                   to="/register"

@@ -33,7 +33,7 @@ function LoginPage() {
       <main className="mx-auto max-w-md px-6 py-16">
         <h1 className="font-display text-3xl font-black">Вход</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Введите email и пароль. Новый email — создастся автоматически.
+          Если у вас ещё нет аккаунта, зарегистрируйтесь на отдельной странице.
         </p>
         <form onSubmit={onSubmit} className="surface-card mt-6 flex flex-col gap-3 p-6">
           <label className="text-sm font-semibold">
