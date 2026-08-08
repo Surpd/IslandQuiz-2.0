@@ -1,4 +1,3 @@
-````python
 from typing import Optional
 
 
@@ -872,4 +871,3 @@ def generate_jeopardy_questions_prompt(
 
 {_json_rules()}
 """.strip()
-````
