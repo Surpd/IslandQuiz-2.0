@@ -1075,6 +1075,8 @@ export async function adjustJeopardyScore(code: string, playerId: string, delta:
 //                        AI HELPERS (TZ AI v2.0)
 // =========================================================================
 
+export type QuizDifficulty = "easy" | "medium" | "hard" | "mixed";
+
 export interface GeneratedQuestion {
   difficulty: "easy" | "medium" | "hard";
   question: string;
@@ -1086,6 +1088,7 @@ export interface GeneratedQuestion {
 
 export interface GeneratedQuizQuestion {
   type: "choice" | "bool" | "text" | "matching";
+  difficulty?: "easy" | "medium" | "hard";
   question: string;
   options?: string[];
   correct?: number | boolean;
@@ -1125,6 +1128,7 @@ export async function generateQuestion(input: {
   wishes?: string;
   format?: string;
   reroll?: boolean;
+  difficulty?: "easy" | "medium" | "hard";
 }): Promise<{ variants: GeneratedQuestion[] }> {
   return apiFetch("/api/ai/generate-question", {
     method: "POST",
@@ -1135,8 +1139,12 @@ export async function generateQuestion(input: {
 export async function generateQuiz(input: {
   topic?: string;
   count?: number;
+  difficulty?: QuizDifficulty;
   wishes?: string;
-}): Promise<{ title: string; questions: GeneratedQuizQuestion[] }> {
+}): Promise<{
+  title: string;
+  questions: GeneratedQuizQuestion[];
+}> {
   return apiFetch("/api/ai/generate-quiz", {
     method: "POST",
     body: JSON.stringify(input),
