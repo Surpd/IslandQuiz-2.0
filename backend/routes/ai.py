@@ -304,16 +304,7 @@ def normalize_variants(result) -> list:
 
                 variant["correctAnswer"] = ""
 
-        # ----------------------------------------------------
-        # Optional frontend fields
-        # ----------------------------------------------------
-
-        if "options" not in variant:
-            variant["options"] = []
-
-        if "pairs" not in variant:
-            variant["pairs"] = []
-
+      
     return variants
 
 
