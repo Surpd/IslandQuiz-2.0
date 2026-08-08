@@ -108,11 +108,15 @@ function RegisterPage() {
               className="mt-0.5"
             />
             <span>
-              Я принимаю условия{" "}
-              <Link to="/privacy" className="text-primary hover:underline" target="_blank">
-                Политики конфиденциальности
+              Я принимаю{" "}
+              <Link to="/terms" className="text-primary hover:underline" target="_blank">
+                Пользовательское соглашение
               </Link>{" "}
-              и даю согласие на обработку персональных данных
+              и{" "}
+              <Link to="/privacy" className="text-primary hover:underline" target="_blank">
+                Политику конфиденциальности
+              </Link>
+              , даю согласие на обработку персональных данных
             </span>
           </label>
           {err && (

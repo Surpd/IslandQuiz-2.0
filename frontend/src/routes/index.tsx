@@ -452,6 +452,7 @@ function Home() {
             <Link to="/faq" className="hover:text-foreground">FAQ</Link>
             <Link to="/support" className="hover:text-foreground">Поддержать</Link>
             <Link to="/privacy" className="hover:text-foreground">Конфиденциальность</Link>
+            <Link to="/terms" className="hover:text-foreground">Условия использования</Link>
           </div>
           <p className="text-xs text-muted-foreground">© 2026 IslandQuiz</p>
         </div>
