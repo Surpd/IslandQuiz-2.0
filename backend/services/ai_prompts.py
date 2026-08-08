@@ -346,6 +346,7 @@ def improve_question_prompt(
     format_type: str,
     topic: str = "",
     wishes: str = "",
+    difficulty: str = "mixed",
 ) -> str:
     """
     Улучшение существующего вопроса.
