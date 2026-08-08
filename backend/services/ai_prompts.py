@@ -1,4 +1,3 @@
-````python
 def generate_question_prompt(
     topic: str,
     question_type: str,
@@ -622,4 +621,4 @@ def generate_jeopardy_questions_prompt(
 Без ```json.
 Без пояснений.
 """
-````
+
