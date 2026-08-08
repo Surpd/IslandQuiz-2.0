@@ -104,13 +104,16 @@ export function AIGenerateQuizButton({
           formData.append("wishes", wishes.trim());
         }
 
-        const res = await fetch(
-          "https://islandquiz-2-0.onrender.com/api/ai/generate-from-file",
-          {
-            method: "POST",
-            body: formData,
+        // Исправлено: Запрос идет на актуальный домен VPS
+        const token = typeof window !== "undefined" ? localStorage.getItem("islandquiz.token") : null;
+
+        const res = await fetch("https://api.islandquiz.online/api/ai/generate-from-file", {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-        );
+          body: formData,
+        });
 
         const result = await res.json();
 
