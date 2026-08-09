@@ -6,6 +6,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  useLocation,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -128,10 +129,24 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { pathname } = useLocation();
+  const hideFooter = pathname === "/login" || pathname === "/register" || pathname.startsWith("/profile");
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Outlet />
+        {!hideFooter && (
+          <footer className="border-t border-border py-8">
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 text-sm text-muted-foreground">
+              <span>© IslandQuiz</span>
+              <nav className="flex gap-4">
+                <Link to="/privacy" className="hover:text-foreground">Политика конфиденциальности</Link>
+                <Link to="/terms" className="hover:text-foreground">Пользовательское соглашение</Link>
+              </nav>
+            </div>
+          </footer>
+        )}
       </AuthProvider>
     </QueryClientProvider>
   );
