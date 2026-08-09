@@ -41,12 +41,16 @@ function RegisterPage() {
   };
 
   const loginWithTelegram = async () => {
+    const telegramWindow = window.open("about:blank", "_blank");
     try {
       const res = await fetch("https://api.islandquiz.online/api/auth/telegram/start", {
         method: "POST",
       });
       const data = await res.json();
-      if (data.ok) window.location.href = data.url;
+      if (data.ok) {
+        if (telegramWindow) telegramWindow.location.href = data.url;
+        else window.location.href = data.url;
+      }
       else setErr(data.error || "Не удалось войти через Telegram");
     } catch {
       setErr("Ошибка соединения");

@@ -119,9 +119,7 @@ function LoginPage() {
       "/login",
     );
   
-    nav({
-      to: "/library",
-    });
+    window.location.assign("/library");
   }
 
 
@@ -167,6 +165,7 @@ function LoginPage() {
 
   const loginWithTelegram =
     async () => {
+      const telegramWindow = window.open("about:blank", "_blank");
       setTelegramBusy(true);
       setErr(null);
 
@@ -190,9 +189,13 @@ function LoginPage() {
           );
         }
 
-        window.location.href =
-          data.url;
+        if (telegramWindow) {
+          telegramWindow.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
       } catch (error) {
+        telegramWindow?.close();
         setErr(
           error instanceof Error
             ? error.message
