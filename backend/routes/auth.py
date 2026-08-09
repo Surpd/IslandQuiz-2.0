@@ -133,71 +133,72 @@ def get_current_user_optional(token: str = Depends(oauth2_scheme)):
 
 # ---------- Telegram Auth ----------
 
-def verify_telegram_init_data(init_data: str) -> dict:
-    """Проверяет подпись Telegram initData и возвращает распарсенные данные."""
+def verify_telegram_auth(auth_data: dict) -> dict:
+    """Проверяет подпись Telegram Login Widget и возвращает данные пользователя."""
     if not TELEGRAM_BOT_TOKEN:
         raise HTTPException(status_code=500, detail="Telegram не настроен")
     
-    # Парсим init_data
-    params = {}
-    for pair in init_data.split("&"):
-        if "=" in pair:
-            key, value = pair.split("=", 1)
-            params[key] = value
+    # Копируем данные и убираем hash
+    data = dict(auth_data)
+    received_hash = data.pop("hash", "")
     
-    # Проверяем hash
-    received_hash = params.pop("hash", "")
-    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()))
+    # Формируем data-check-string
+    data_check_string = "\n".join(
+        f"{k}={v}" for k, v in sorted(data.items())
+    )
     
+    # Вычисляем секретный ключ
     secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode()).digest()
-    computed_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    computed_hash = hmac.new(
+        secret_key, 
+        data_check_string.encode(), 
+        hashlib.sha256
+    ).hexdigest()
     
     if computed_hash != received_hash:
         raise HTTPException(status_code=403, detail="Недействительная подпись Telegram")
     
     # Проверяем срок действия (не старше 24 часов)
-    auth_date = int(params.get("auth_date", 0))
+    auth_date = int(data.get("auth_date", 0))
     now = int(datetime.now(timezone.utc).timestamp())
     if now - auth_date > 86400:
         raise HTTPException(status_code=403, detail="Данные авторизации устарели")
     
-    # Парсим user данные
-    user_data = params.get("user", "{}")
-    try:
-        user = json.loads(user_data) if isinstance(user_data, str) else user_data
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Неверный формат данных пользователя")
-    
     return {
-        "telegram_id": str(user.get("id", "")),
-        "first_name": user.get("first_name", ""),
-        "last_name": user.get("last_name", ""),
-        "username": user.get("username", ""),
-        "photo_url": user.get("photo_url", ""),
+        "telegram_id": int(data["id"]),
+        "first_name": data.get("first_name", ""),
+        "last_name": data.get("last_name", ""),
+        "username": data.get("username", ""),
+        "photo_url": data.get("photo_url", ""),
     }
 
 
 class TelegramAuthInput(BaseModel):
-    initData: str
+    id: int
+    first_name: Optional[str] = ""
+    last_name: Optional[str] = ""
+    username: Optional[str] = ""
+    photo_url: Optional[str] = ""
+    auth_date: int
+    hash: str
 
 
 @router.post("/telegram", response_model=AuthResponse)
 def telegram_auth(input: TelegramAuthInput):
-    """Вход или регистрация через Telegram initData."""
-    tg_data = verify_telegram_init_data(input.initData)
+    """Вход или регистрация через Telegram Login Widget."""
     
-    if not tg_data["telegram_id"]:
-        return {"ok": False, "error": "Не удалось получить Telegram ID"}
+    # Проверяем подпись (не доверяем данным от фронта!)
+    auth_data = input.model_dump()
+    tg_data = verify_telegram_auth(auth_data)
     
     # Ищем пользователя по telegram_id
     res = supabase.table("users").select("*").eq("telegram_id", tg_data["telegram_id"]).execute()
     
     if res.data:
-        # Пользователь уже существует — обновляем данные
         user = res.data[0]
+        # Обновляем username и имя если изменились
         supabase.table("users").update({
             "telegram_username": tg_data["username"],
-            "name": user.get("name") or f"{tg_data['first_name']} {tg_data['last_name']}".strip(),
             "avatar": user.get("avatar") or tg_data["photo_url"],
         }).eq("id", user["id"]).execute()
     else:
@@ -207,23 +208,22 @@ def telegram_auth(input: TelegramAuthInput):
             "id": user_id,
             "telegram_id": tg_data["telegram_id"],
             "telegram_username": tg_data["username"],
-            "name": f"{tg_data['first_name']} {tg_data['last_name']}".strip(),
+            "name": f"{tg_data['first_name']} {tg_data['last_name']}".strip() or tg_data["username"] or f"User_{tg_data['telegram_id']}",
             "avatar": tg_data["photo_url"],
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         supabase.table("users").insert(user).execute()
     
-    token = create_access_token(user.get("id", user["id"]))
+    token = create_access_token(user["id"])
     return {"ok": True, "user": UserOut(**user), "token": token}
 
 
 @router.post("/link-telegram", response_model=dict)
 def link_telegram(input: TelegramAuthInput, user=Depends(get_current_user)):
     """Привязать Telegram к существующему аккаунту."""
-    tg_data = verify_telegram_init_data(input.initData)
     
-    if not tg_data["telegram_id"]:
-        return {"ok": False, "error": "Не удалось получить Telegram ID"}
+    auth_data = input.model_dump()
+    tg_data = verify_telegram_auth(auth_data)
     
     # Проверяем, не привязан ли этот Telegram к другому пользователю
     existing = supabase.table("users").select("id").eq("telegram_id", tg_data["telegram_id"]).execute()
