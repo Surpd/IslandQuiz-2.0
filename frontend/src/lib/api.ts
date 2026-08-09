@@ -259,14 +259,11 @@ export async function updateProfile(patch: {
   bio?: string;
   subject?: string;
 }): Promise<User | null> {
-  const params = new URLSearchParams();
-  if (patch.name !== undefined) params.set("name", patch.name);
-  if (patch.avatar !== undefined) params.set("avatar", patch.avatar);
-  if (patch.bio !== undefined) params.set("bio", patch.bio);
-  if (patch.subject !== undefined) params.set("subject", patch.subject);
-  const qs = params.toString();
   try {
-    const u = await apiFetch(`/api/users/me${qs ? `?${qs}` : ""}`, { method: "PATCH" });
+    const u = await apiFetch("/api/users/me", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
     return u ? mapUser(u) : null;
   } catch {
     return null;

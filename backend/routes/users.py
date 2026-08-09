@@ -44,6 +44,13 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
+class ProfileUpdateInput(BaseModel):
+    name: Optional[str] = None
+    avatar: Optional[str] = None
+    bio: Optional[str] = None
+    subject: Optional[str] = None
+
+
 class PublicProfile(BaseModel):
     user: UserOut
     games: List[GameOut]
@@ -57,21 +64,18 @@ def get_me(current_user=Depends(get_current_user)):
 
 @router.patch("/me", response_model=Optional[UserOut])
 def update_me(
-    name: Optional[str] = None,
-    avatar: Optional[str] = None,
-    bio: Optional[str] = None,
-    subject: Optional[str] = None,
+    input: ProfileUpdateInput,
     current_user=Depends(get_current_user),
 ):
     updates = {}
-    if name is not None:
-        updates["name"] = name
-    if avatar is not None:
-        updates["avatar"] = avatar
-    if bio is not None:
-        updates["bio"] = bio
-    if subject is not None:
-        updates["subject"] = subject
+    if input.name is not None:
+        updates["name"] = input.name
+    if input.avatar is not None:
+        updates["avatar"] = input.avatar
+    if input.bio is not None:
+        updates["bio"] = input.bio
+    if input.subject is not None:
+        updates["subject"] = input.subject
 
     if updates:
         supabase.table("users").update(updates).eq("id", current_user["id"]).execute()

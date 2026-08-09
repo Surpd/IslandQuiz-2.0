@@ -40,7 +40,7 @@ function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    listGames().then((all) => setMine(all.filter((g) => g.ownerId === user.id)));
+    listGames().then((data) => setMine(data.games.filter((g) => g.ownerId === user.id)));
   }, [user]);
 
   if (!user) {
