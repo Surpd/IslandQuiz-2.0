@@ -1174,9 +1174,9 @@ export async function generateJeopardyQuestions(input: {
 
 export const __apiVersion = "2.0.0-rest-ws";
 
-export async function listPlayedGameIdsForUser(userId: string): Promise<Set<string>> {
+export async function listPlayedGameIdsForUser(): Promise<Set<string>> {
   try {
-    const list = await apiFetch(`/api/played-games/${userId}`);
+    const list = await apiFetch(`/api/played-games/me`);
     return new Set(Array.isArray(list) ? list : []);
   } catch {
     return new Set();

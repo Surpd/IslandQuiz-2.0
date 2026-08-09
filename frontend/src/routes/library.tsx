@@ -29,7 +29,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { RatingStars } from "@/components/rating-stars";
 import { Avatar } from "@/components/avatar";
 import { gameSummary } from "@/components/game-content";
-import { findUserById } from "@/lib/auth";
 import type { GameKind, QuizData, StoredGame } from "@/lib/types";
 
 
@@ -79,7 +78,6 @@ function LibraryPage() {
   const activeTab: TabKey = tab ?? (user ? "my" : "public");
   const [games, setGames] = useState<StoredGame[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [orphanCount, setOrphanCount] = useState(0);
   const [playedIds, setPlayedIds] = useState<Set<string>>(new Set());
   const [playModal, setPlayModal] = useState<{ id: string; kind: GameKind } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -94,7 +92,6 @@ function LibraryPage() {
   };
 
   const reload = () => {
-    try { cleanupInvalidGames(); } catch { /* ignore */ }
     listGames()
       .then((data) => {
         const clean = data.games.filter((x) => {
@@ -105,10 +102,8 @@ function LibraryPage() {
       })
       .catch((e) => setError(e?.message ?? "Не удалось загрузить"));
     if (user) {
-      setOrphanCount(countOrphanGames());
-      listPlayedGameIdsForUser(user.id).then(setPlayedIds);
+      listPlayedGameIdsForUser().then(setPlayedIds);
     } else {
-      setOrphanCount(0);
       setPlayedIds(new Set());
     }
   };
@@ -184,7 +179,7 @@ function LibraryPage() {
               {user ? "Кликните на карточку, чтобы открыть игру." : "Войдите, чтобы видеть свои игры."}
             </p>
           </div>
-          <Link to="/builder/quiz" className="btn-accent">
+          <Link to="/builder/quiz" search={{}} className="btn-accent">
             <Plus className="h-4 w-4" /> Новый квиз
           </Link>
         </div>
@@ -198,16 +193,7 @@ function LibraryPage() {
           </div>
         )}
 
-        {user && orphanCount > 0 && (
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-amber/30 bg-amber-soft px-4 py-3 text-sm">
-            <span>
-              У вас есть <b>{orphanCount}</b> анонимных игр. Привязать к аккаунту?
-            </span>
-            <button onClick={onBind} className="btn-accent ml-auto">
-              Привязать
-            </button>
-          </div>
-        )}
+        
 
         <div className="mb-6 flex flex-wrap gap-2">
           {tabs.map((t) => {
@@ -407,7 +393,7 @@ function GameCard({
         >
           <Avatar
             name={g.ownerName}
-            avatar={findUserById(g.ownerId)?.avatar}
+            avatar={undefined}
             size={18}
           />
           от {g.ownerName}

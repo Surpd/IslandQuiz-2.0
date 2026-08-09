@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import uuid
 
@@ -7,16 +7,20 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError as JWTError
 from passlib.context import CryptContext
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 from database import supabase
-from limiter import limiter   # вместо from main import limiter
+from limiter import limiter
 
 import os
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-SECRET_KEY = os.getenv("JWT_SECRET", "islandquiz-dev-secret-key-change-in-production")
+# ---------- Security ----------
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable is required")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
@@ -24,10 +28,26 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
+# ---------- Validation ----------
 class RegisterInput(BaseModel):
     email: EmailStr
     password: str
     name: str
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if len(v) < 6:
+            raise ValueError("Пароль должен быть не менее 6 символов")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def name_valid(cls, v: str) -> str:
+        v = v.strip()
+        if not v or len(v) > 100:
+            raise ValueError("Имя должно быть от 1 до 100 символов")
+        return v
 
 
 class LoginInput(BaseModel):
@@ -56,6 +76,7 @@ class AuthResponse(BaseModel):
     error: Optional[str] = None
 
 
+# ---------- Helpers ----------
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -65,7 +86,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(user_id: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {"sub": user_id, "exp": expire}
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -89,6 +110,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return res.data[0]
 
+
 def get_current_user_optional(token: str = Depends(oauth2_scheme)):
     if token is None:
         return None
@@ -106,6 +128,7 @@ def get_current_user_optional(token: str = Depends(oauth2_scheme)):
     return res.data[0]
 
 
+# ---------- Routes ----------
 @router.post("/register", response_model=AuthResponse)
 @limiter.limit("3/minute")
 def register(request: Request, input: RegisterInput):
@@ -113,13 +136,13 @@ def register(request: Request, input: RegisterInput):
     if res.data:
         return {"ok": False, "error": "Пользователь с таким email уже существует"}
 
-    user_id = str(uuid.uuid4())[:8]
+    user_id = str(uuid.uuid4())
     user = {
         "id": user_id,
-        "email": input.email,
+        "email": input.email.strip().lower(),
         "password_hash": hash_password(input.password),
-        "name": input.name,
-        "created_at": datetime.utcnow().isoformat(),
+        "name": input.name.strip(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     supabase.table("users").insert(user).execute()
 
@@ -130,7 +153,7 @@ def register(request: Request, input: RegisterInput):
 @router.post("/login", response_model=AuthResponse)
 @limiter.limit("5/minute")
 def login(request: Request, input: LoginInput):
-    res = supabase.table("users").select("*").eq("email", input.email).execute()
+    res = supabase.table("users").select("*").eq("email", input.email.strip().lower()).execute()
     if not res.data or not verify_password(input.password, res.data[0]["password_hash"]):
         return {"ok": False, "error": "Неверный email или пароль"}
 
@@ -159,7 +182,7 @@ def update_me(
 ):
     updates = {}
     if name is not None:
-        updates["name"] = name
+        updates["name"] = name.strip()[:100]
     if avatar is not None:
         updates["avatar"] = avatar
     if bio is not None:
@@ -177,39 +200,42 @@ def update_me(
 @router.post("/forgot-password")
 @limiter.limit("3/minute")
 def forgot_password(request: Request, email: str = Form(...)):
-    user = supabase.table("users").select("*").eq("email", email).execute()
+    user = supabase.table("users").select("*").eq("email", email.strip().lower()).execute()
     if not user.data:
         return {"ok": True}
-    
+
     token = str(uuid.uuid4())
-    expires = (datetime.utcnow() + timedelta(hours=1)).isoformat()
-    
+    expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+
     supabase.table("password_resets").insert({
-        "email": email,
+        "email": email.strip().lower(),
         "token": token,
         "expires_at": expires
     }).execute()
-    
+
     from services.email import send_reset_email
     send_reset_email(email, token)
-    
+
     return {"ok": True}
 
 
 @router.post("/reset-password")
 @limiter.limit("5/minute")
 def reset_password(request: Request, token: str = Form(...), password: str = Form(...)):
+    if len(password) < 6:
+        return {"error": "Пароль должен быть не менее 6 символов"}
+
     reset = supabase.table("password_resets").select("*").eq("token", token).execute()
     if not reset.data:
         return {"error": "Недействительная ссылка"}
-    
+
     record = reset.data[0]
-    from datetime import timezone
     if datetime.fromisoformat(record["expires_at"]) < datetime.now(timezone.utc):
+        supabase.table("password_resets").delete().eq("token", token).execute()
         return {"error": "Срок действия ссылки истёк"}
-    
+
     hashed = pwd_context.hash(password)
     supabase.table("users").update({"password_hash": hashed}).eq("email", record["email"]).execute()
     supabase.table("password_resets").delete().eq("token", token).execute()
-    
+
     return {"ok": True}

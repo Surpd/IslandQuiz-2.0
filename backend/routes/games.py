@@ -1,14 +1,17 @@
 import uuid
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from database import supabase
-from routes.auth import get_current_user
+from routes.auth import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/api/games", tags=["games"])
+
+VALID_KINDS = {"quiz", "jeopardy", "millionaire"}
+VALID_VISIBILITY = {"private", "link", "public"}
 
 
 class GameOut(BaseModel):
@@ -39,19 +42,50 @@ class SaveGameInput(BaseModel):
     tags: Optional[List[str]] = None
     visibility: Optional[str] = "private"
 
+    @field_validator("kind")
+    @classmethod
+    def validate_kind(cls, v: str) -> str:
+        if v not in VALID_KINDS:
+            raise ValueError(f"Недопустимый тип игры: {v}")
+        return v
+
+    @field_validator("visibility")
+    @classmethod
+    def validate_visibility(cls, v: str) -> str:
+        if v not in VALID_VISIBILITY:
+            raise ValueError(f"Недопустимая видимость: {v}")
+        return v
+
+
+def _can_view(game: dict, user: Optional[dict]) -> bool:
+    """Проверяет, может ли пользователь видеть игру."""
+    if not game:
+        return False
+    if user and game.get("owner_id") == user["id"]:
+        return True
+    if game.get("visibility") == "public":
+        return True
+    if game.get("visibility") == "link":
+        return True
+    return False
+
 
 @router.post("/", response_model=dict)
 def save_game(input: SaveGameInput, user=Depends(get_current_user)):
-    game_id = input.id or str(uuid.uuid4())[:8]
+    game_id = input.id or str(uuid.uuid4())
 
     res = supabase.table("games").select("*").eq("id", game_id).execute()
 
     if res.data:
+        existing = res.data[0]
+        if existing.get("owner_id") != user["id"]:
+            raise HTTPException(status_code=403, detail="Нет доступа к редактированию этой игры")
+        
         supabase.table("games").update({
             "data": input.data,
             "tags": input.tags,
             "visibility": input.visibility,
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", game_id).execute()
     else:
         supabase.table("games").insert({
@@ -67,12 +101,16 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
 
 
 @router.get("/{game_id}", response_model=Optional[GameOut])
-def get_game(game_id: str):
+def get_game(game_id: str, user=Depends(get_current_user_optional)):
     res = supabase.table("games").select("*").eq("id", game_id).execute()
     if not res.data:
         return None
 
     game = res.data[0]
+    
+    if not _can_view(game, user):
+        return None
+    
     data = game.get("data") or {}
     if not data.get("config"):
         return None
@@ -93,10 +131,20 @@ def list_games(
     kind: Optional[str] = None,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    user=Depends(get_current_user_optional),
 ):
     query = supabase.table("games").select("*", count="exact").order("updated_at", desc=True)
+    
+    if user:
+        query = query.or_(f"owner_id.eq.{user['id']},visibility.eq.public")
+    else:
+        query = query.eq("visibility", "public")
+    
     if kind:
-        query = query.eq("kind", kind)
+        if kind not in VALID_KINDS:
+            kind = None
+        else:
+            query = query.eq("kind", kind)
     
     query = query.range(offset, offset + limit - 1)
     res = query.execute()
@@ -130,10 +178,14 @@ def delete_game(game_id: str, user=Depends(get_current_user)):
 def fork_game(game_id: str, user=Depends(get_current_user)):
     res = supabase.table("games").select("*").eq("id", game_id).execute()
     if not res.data:
-        return None
+        raise HTTPException(status_code=404, detail="Игра не найдена")
 
     src = res.data[0]
-    new_id = str(uuid.uuid4())[:8]
+    
+    if src.get("visibility") not in ("public", "link") and src.get("owner_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Эту игру нельзя форкнуть")
+    
+    new_id = str(uuid.uuid4())
     supabase.table("games").insert({
         "id": new_id,
         "kind": src["kind"],
@@ -150,6 +202,8 @@ def fork_game(game_id: str, user=Depends(get_current_user)):
 
 @router.patch("/{game_id}/visibility")
 def set_visibility(game_id: str, visibility: str = "private", user=Depends(get_current_user)):
+    if visibility not in VALID_VISIBILITY:
+        raise HTTPException(status_code=400, detail="Недопустимая видимость")
     res = supabase.table("games").update({"visibility": visibility}).eq("id", game_id).eq("owner_id", user["id"]).execute()
     return {"ok": bool(res.data)}
 

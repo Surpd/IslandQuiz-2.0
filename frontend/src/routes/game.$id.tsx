@@ -38,7 +38,7 @@ import type {
   MillionaireData,
   StoredGame,
 } from "@/lib/types";
-import { findUserById } from "@/lib/auth";
+
 
 export const Route = createFileRoute("/game/$id")({
   head: () => ({ meta: [{ title: "Дашборд игры — IslandQuiz" }] }),
@@ -243,9 +243,9 @@ function GameDashboard() {
                 className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline"
               >
                 <Avatar
-                  name={game.ownerName}
-                  avatar={findUserById(game.ownerId)?.avatar}
-                  size={22}
+                    name={game.ownerName}
+                    avatar={undefined}
+                    size={22}
                 />
                 {game.ownerName}
               </Link>

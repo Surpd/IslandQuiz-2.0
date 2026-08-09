@@ -9,9 +9,8 @@ import {
   forkGame as apiForkGame,
   setGameVisibility as apiSetGameVisibility,
   rateGame as apiRateGame,
+  type User,
 } from "@/lib/api";
-
-import type { User } from "@/lib/auth";
 
 interface AuthValue {
   user: User | null;
@@ -64,10 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async updateProfile(patch) {
         const u = await apiUpdateProfile(patch);
         if (u) {
-          // Set new reference to force re-render even if fields shallow-equal.
           setUser({ ...u });
         } else {
-          // Fallback: refetch from storage.
           refresh();
         }
       },
@@ -81,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await apiRateGame(gameId, rating);
       },
       refresh,
-
     }),
     [user, isLoading, refresh],
   );
