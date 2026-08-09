@@ -271,6 +271,12 @@ def telegram_bot_login(
     if res.data:
         user = res.data[0]
 
+        if token_data["user_id"] and str(user["id"]) != str(token_data["user_id"]):
+            raise HTTPException(
+                status_code=409,
+                detail="Этот Telegram уже привязан к другому аккаунту",
+            )
+
         # Обновляем username/name при необходимости.
         updates = {}
 

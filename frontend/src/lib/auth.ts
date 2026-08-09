@@ -3,12 +3,13 @@
 
 export interface User {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
   avatar?: string;
   bio?: string;
   subject?: string;
-  role?: string; 
+  role?: string;
+  telegramId?: string;
   createdAt: number;
 }
 

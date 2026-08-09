@@ -77,7 +77,8 @@ function mapUser(u: any): User {
     avatar: u.avatar ?? undefined,
     bio: u.bio ?? undefined,
     subject: u.subject ?? undefined,
-    role: u.role ?? undefined,  // ← добавить
+    role: u.role ?? undefined,
+    telegramId: u.telegram_id ?? undefined,
     createdAt: toMs(u.created_at ?? u.createdAt),
   };
 }
@@ -270,6 +271,26 @@ export async function updateProfile(patch: {
   } catch {
     return null;
   }
+}
+
+export async function linkEmailPassword(email: string, password: string) {
+  return apiFetch("/api/auth/link-email", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function startTelegramLink() {
+  return apiFetch("/api/auth/telegram/start", { method: "POST" });
+}
+
+export async function deleteAccount() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  await apiFetch("/api/users/me", {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 // ---------- Games ----------

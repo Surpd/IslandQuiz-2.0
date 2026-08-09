@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { Avatar, AVATAR_COLORS } from "@/components/avatar";
 import { useAuth } from "@/hooks/use-auth";
-import { listGames } from "@/lib/api";
+import { deleteAccount, linkEmailPassword, listGames, startTelegramLink } from "@/lib/api";
 import type { StoredGame } from "@/lib/types";
 import { Upload, Trash2 } from "lucide-react";
 
@@ -21,6 +21,9 @@ function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [mine, setMine] = useState<StoredGame[]>([]);
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountBusy, setAccountBusy] = useState(false);
 
 
   useEffect(() => {
@@ -69,11 +72,39 @@ function ProfilePage() {
           <Avatar name={user.name} avatar={user.avatar} size={64} />
           <div>
             <h1 className="font-display text-3xl font-black">{user.name}</h1>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
+            <p className="text-sm text-muted-foreground">{user.email ?? "Telegram-аккаунт"}</p>
           </div>
         </div>
 
         <AvatarPicker />
+
+        <div className="surface-card mb-6 p-6">
+          <h2 className="font-display text-lg font-bold">Способы входа</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Добавьте запасной способ входа в аккаунт.</p>
+          {!user.email && (
+            <div className="mt-4 flex flex-col gap-3">
+              <input className="input-base" type="email" placeholder="Email" value={accountEmail} onChange={(e) => setAccountEmail(e.target.value)} />
+              <input className="input-base" type="password" placeholder="Пароль" value={accountPassword} onChange={(e) => setAccountPassword(e.target.value)} />
+              <button className="btn-accent" disabled={accountBusy || !accountEmail || accountPassword.length < 6} onClick={async () => {
+                setAccountBusy(true);
+                try {
+                  await linkEmailPassword(accountEmail, accountPassword);
+                  window.location.reload();
+                } finally {
+                  setAccountBusy(false);
+                }
+              }}>Добавить email и пароль</button>
+            </div>
+          )}
+          {!user.telegramId && (
+            <button className="btn-ghost mt-4" onClick={async () => {
+              const result = await startTelegramLink();
+              if (result.url) window.location.href = result.url;
+            }}>Привязать Telegram</button>
+          )}
+          {user.email && <p className="mt-3 text-sm text-success">Email подключён</p>}
+          {user.telegramId && <p className="mt-1 text-sm text-success">Telegram подключён</p>}
+        </div>
 
 
         <div className="surface-card mb-6 flex flex-col gap-3 p-6">
@@ -142,6 +173,17 @@ function ProfilePage() {
           <Link to="/library" className="btn-ghost mt-4 inline-flex">
             Открыть библиотеку
           </Link>
+        </div>
+
+        <div className="surface-card mt-6 border border-danger/30 p-6">
+          <h2 className="font-display text-lg font-bold text-danger">Удаление аккаунта</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Удалятся аккаунт и созданные игры.</p>
+          <button className="btn-ghost mt-4 text-danger hover:bg-danger-soft" onClick={async () => {
+            if (!window.confirm("Удалить аккаунт и все созданные игры?")) return;
+            await deleteAccount();
+            await logout();
+            nav({ to: "/" });
+          }}>Удалить аккаунт</button>
         </div>
       </main>
     </div>

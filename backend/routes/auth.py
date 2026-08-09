@@ -73,6 +73,11 @@ class LoginInput(BaseModel):
     password: str
 
 
+class LinkEmailInput(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class UserOut(BaseModel):
     id: str
 
@@ -184,6 +189,26 @@ def get_current_user(
         )
 
     return user
+
+
+@router.post("/link-email", response_model=AuthResponse)
+def link_email(
+    input: LinkEmailInput,
+    current_user=Depends(get_current_user),
+):
+    existing = (
+        supabase.table("users").select("id").eq("email", str(input.email).lower()).execute()
+    )
+    if existing.data and existing.data[0]["id"] != current_user["id"]:
+        raise HTTPException(status_code=409, detail="Этот email уже используется")
+
+    res = (
+        supabase.table("users")
+        .update({"email": str(input.email).lower(), "password_hash": hash_password(input.password)})
+        .eq("id", current_user["id"])
+        .execute()
+    )
+    return {"ok": True, "user": UserOut(**res.data[0]) if res.data else None}
 
 
 def get_current_user_optional(

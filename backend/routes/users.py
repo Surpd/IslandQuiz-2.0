@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel
 from datetime import datetime
 from database import supabase
@@ -77,6 +77,16 @@ def update_me(
 
     res = supabase.table("users").select("*").eq("id", current_user["id"]).execute()
     return UserOut(**res.data[0]) if res.data else None
+
+
+@router.delete("/me", status_code=204)
+def delete_me(
+    response: Response,
+    current_user=Depends(get_current_user),
+):
+    supabase.table("games").delete().eq("owner_id", current_user["id"]).execute()
+    supabase.table("users").delete().eq("id", current_user["id"]).execute()
+    response.status_code = 204
 
 
 @router.get("/{user_id}", response_model=Optional[PublicProfile])
