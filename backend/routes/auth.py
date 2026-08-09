@@ -163,7 +163,7 @@ def verify_telegram_auth(auth_data: dict) -> dict:
     auth_date = int(data.get("auth_date", 0))
     now = int(datetime.now(timezone.utc).timestamp())
     if auth_date > now or now - auth_date > 86400:
-    raise HTTPException(status_code=403, detail="Данные авторизации устарели или некорректны")
+        raise HTTPException(status_code=403, detail="Данные авторизации устарели или некорректны")
     
     return {
         "telegram_id": int(data["id"]),
