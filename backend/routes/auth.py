@@ -1,3 +1,7 @@
+import os
+import json
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import uuid
@@ -11,10 +15,6 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 from database import supabase
 from limiter import limiter
-import os
-import json
-import hashlib
-import hmac
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
