@@ -1,7 +1,5 @@
 import os
-import json
-import hashlib
-import hmac
+
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import uuid
@@ -15,8 +13,6 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 from database import supabase
 from limiter import limiter
-
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -132,127 +128,7 @@ def get_current_user_optional(token: str = Depends(oauth2_scheme)):
         return None
     return res.data[0]
 
-# ---------- Telegram Auth ----------
 
-def verify_telegram_auth(auth_data: dict) -> dict:
-    """Проверяет подпись Telegram Login Widget и возвращает данные пользователя."""
-    if not TELEGRAM_BOT_TOKEN:
-        raise HTTPException(status_code=500, detail="Telegram не настроен")
-    
-    # Копируем данные и убираем hash
-    data = dict(auth_data)
-    received_hash = data.pop("hash", "")
-    
-    # Формируем data-check-string
-    data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(data.items())
-    )
-    
-    # Вычисляем секретный ключ
-    secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode()).digest()
-    computed_hash = hmac.new(
-        secret_key, 
-        data_check_string.encode(), 
-        hashlib.sha256
-    ).hexdigest()
-    
-    if computed_hash != received_hash:
-        raise HTTPException(status_code=403, detail="Недействительная подпись Telegram")
-    
-    # Проверяем срок действия (не старше 24 часов)
-    auth_date = int(data.get("auth_date", 0))
-    now = int(datetime.now(timezone.utc).timestamp())
-    if auth_date > now or now - auth_date > 86400:
-        raise HTTPException(status_code=403, detail="Данные авторизации устарели или некорректны")
-    
-    return {
-        "telegram_id": int(data["id"]),
-        "first_name": data.get("first_name", ""),
-        "last_name": data.get("last_name", ""),
-        "username": data.get("username", ""),
-        "photo_url": data.get("photo_url", ""),
-    }
-
-
-class TelegramAuthInput(BaseModel):
-    id: int
-    first_name: Optional[str] = ""
-    last_name: Optional[str] = ""
-    username: Optional[str] = ""
-    photo_url: Optional[str] = ""
-    auth_date: int
-    hash: str
-
-
-@router.post("/telegram", response_model=AuthResponse)
-def telegram_auth(input: TelegramAuthInput):
-    """Вход или автоматическая регистрация через Telegram."""
-
-    auth_data = input.model_dump()
-    tg_data = verify_telegram_auth(auth_data)
-    telegram_id = tg_data["telegram_id"]
-
-    # Ищем существующий аккаунт по Telegram
-    res = supabase.table("users").select("*").eq("telegram_id", telegram_id).execute()
-
-    if res.data:
-        # Telegram уже привязан — входим в существующий аккаунт
-        user = res.data[0]
-        updates = {"telegram_username": tg_data["username"]}
-        if not user.get("avatar") and tg_data["photo_url"]:
-            updates["avatar"] = tg_data["photo_url"]
-
-        supabase.table("users").update(updates).eq("id", user["id"]).execute()
-        user.update(updates)
-    else:
-        # Создаём нового пользователя IslandQuiz
-        user_id = str(uuid.uuid4())
-        name = f"{tg_data['first_name']} {tg_data['last_name']}".strip() or tg_data["username"] or f"User_{telegram_id}"
-
-        user = {
-            "id": user_id,
-            "telegram_id": telegram_id,
-            "telegram_username": tg_data["username"],
-            "name": name,
-            "avatar": tg_data["photo_url"],
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        supabase.table("users").insert(user).execute()
-
-    token = create_access_token(user["id"])
-    return {"ok": True, "user": UserOut(**user), "token": token}
-
-@router.post("/link-telegram", response_model=dict)
-def link_telegram(input: TelegramAuthInput, user=Depends(get_current_user)):
-    """Привязать Telegram к текущему аккаунту."""
-    auth_data = input.model_dump()
-    tg_data = verify_telegram_auth(auth_data)
-    telegram_id = tg_data["telegram_id"]
-
-    existing = supabase.table("users").select("id").eq("telegram_id", telegram_id).execute()
-    if existing.data and existing.data[0]["id"] != user["id"]:
-        return {"ok": False, "error": "Этот Telegram уже привязан к другому аккаунту"}
-
-    supabase.table("users").update({
-        "telegram_id": telegram_id,
-        "telegram_username": tg_data["username"],
-        "avatar": user.get("avatar") or tg_data["photo_url"],
-    }).eq("id", user["id"]).execute()
-
-    return {"ok": True, "telegram_username": tg_data["username"]}
-
-
-@router.post("/unlink-telegram", response_model=dict)
-def unlink_telegram(user=Depends(get_current_user)):
-    """Отвязать Telegram от аккаунта."""
-    supabase.table("users").update({
-        "telegram_id": None,
-        "telegram_username": None,
-    }).eq("id", user["id"]).execute()
-    
-    return {"ok": True}
-
-# ---------- Routes ----------
 @router.post("/register", response_model=AuthResponse)
 @limiter.limit("3/minute")
 def register(request: Request, input: RegisterInput):
@@ -272,7 +148,6 @@ def register(request: Request, input: RegisterInput):
 
     token = create_access_token(user_id)
     return {"ok": True, "user": UserOut(**user), "token": token}
-
 
 @router.post("/login", response_model=AuthResponse)
 @limiter.limit("5/minute")
