@@ -1,3 +1,4 @@
+import base64
 import os
 import uuid
 import hashlib
@@ -46,6 +47,17 @@ if not TELEGRAM_AUTH_SECRET:
 LOGIN_TOKEN_EXPIRE_MINUTES = 5
 
 
+def _base36(value: int) -> str:
+    chars = "0123456789abcdefghijklmnopqrstuvwxyz"
+    result = "0"
+    if value:
+        result = ""
+        while value:
+            value, remainder = divmod(value, 36)
+            result = chars[remainder] + result
+    return result.zfill(7)
+
+
 # ============================================================
 # Stateless Telegram login token
 # ============================================================
@@ -73,21 +85,24 @@ def create_telegram_login_token(
         ).timestamp()
     )
 
-    nonce = secrets.token_urlsafe(24)
+    expires_part = _base36(expires)
+    nonce = secrets.token_urlsafe(8)
+    user_part = "0"
+    if user_id:
+        user_part = "1" + base64.urlsafe_b64encode(
+            uuid.UUID(str(user_id)).bytes
+        ).decode().rstrip("=")
 
-    user_part = str(user_id) if user_id else ""
-
-    payload = (
-        f"{user_part}:{expires}:{nonce}"
-    )
+    payload = f"{user_part}{expires_part}{nonce}"
 
     signature = hmac.new(
         TELEGRAM_AUTH_SECRET.encode("utf-8"),
         payload.encode("utf-8"),
         hashlib.sha256,
-    ).hexdigest()
+    ).digest()[:12]
+    signature_part = base64.urlsafe_b64encode(signature).decode().rstrip("=")
 
-    return f"{payload}:{signature}"
+    return f"{payload}{signature_part}"
 
 
 def verify_telegram_login_token(
@@ -99,37 +114,37 @@ def verify_telegram_login_token(
     БД для проверки не нужна.
     """
 
-    parts = token.split(":")
-
-    if len(parts) != 4:
+    if len(token) not in (35, 57) or token[0] not in ("0", "1"):
         raise HTTPException(
             status_code=400,
             detail="Неверный токен Telegram",
         )
 
-    user_id, expires_raw, nonce, signature = parts
+    user_len = 1 if token[0] == "0" else 23
+    payload = token[:-16]
+    user_part = token[:user_len]
+    expires_part = token[user_len:user_len + 7]
+    nonce = token[user_len + 7:-16]
+    signature = token[-16:]
 
     try:
-        expires = int(expires_raw)
+        expires = int(expires_part, 36)
     except ValueError:
         raise HTTPException(
             status_code=400,
             detail="Неверный срок действия токена",
         )
 
-    payload = (
-        f"{user_id}:{expires}:{nonce}"
-    )
-
     expected = hmac.new(
         TELEGRAM_AUTH_SECRET.encode("utf-8"),
         payload.encode("utf-8"),
         hashlib.sha256,
-    ).hexdigest()
+    ).digest()[:12]
+    expected_part = base64.urlsafe_b64encode(expected).decode().rstrip("=")
 
     if not hmac.compare_digest(
         signature,
-        expected,
+        expected_part,
     ):
         raise HTTPException(
             status_code=403,
@@ -145,7 +160,11 @@ def verify_telegram_login_token(
         )
 
     return {
-        "user_id": user_id or None,
+        "user_id": (
+            str(uuid.UUID(bytes=base64.urlsafe_b64decode(user_part[1:] + "=" * (-len(user_part[1:]) % 4))))
+            if user_part[0] == "1"
+            else None
+        ),
         "expires": expires,
         "nonce": nonce,
     }
