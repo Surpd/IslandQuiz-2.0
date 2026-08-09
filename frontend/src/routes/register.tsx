@@ -74,7 +74,7 @@ function RegisterPage() {
           <button
             type="button"
             onClick={loginWithTelegram}
-            disabled={!agreed || busy}
+            disabled={busy}
             className="btn-ghost w-full flex items-center justify-center gap-2 py-3 border border-border rounded-xl hover:bg-surface-muted transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-[#2AABEE]">

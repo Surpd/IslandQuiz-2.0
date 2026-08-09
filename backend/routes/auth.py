@@ -83,6 +83,7 @@ class UserOut(BaseModel):
 
     # Telegram-пользователь может не иметь email
     email: Optional[str] = None
+    telegram_id: Optional[str] = None
 
     name: str
     avatar: Optional[str] = None

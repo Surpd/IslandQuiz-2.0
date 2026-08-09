@@ -32,6 +32,7 @@ class GameOut(BaseModel):
 class UserOut(BaseModel):
     id: str
     email: Optional[str] = None
+    telegram_id: Optional[str] = None
     name: str
     avatar: Optional[str] = None
     bio: Optional[str] = None

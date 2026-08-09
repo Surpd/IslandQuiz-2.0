@@ -89,9 +89,14 @@ def create_telegram_login_token(
     nonce = secrets.token_urlsafe(8)
     user_part = "0"
     if user_id:
-        user_part = "1" + base64.urlsafe_b64encode(
-            uuid.UUID(str(user_id)).bytes
-        ).decode().rstrip("=")
+        try:
+            user_part = "1" + base64.urlsafe_b64encode(
+                uuid.UUID(str(user_id)).bytes
+            ).decode().rstrip("=")
+        except ValueError:
+            user_part = "2" + base64.urlsafe_b64encode(
+                str(user_id).encode()
+            ).decode().rstrip("=")
 
     payload = f"{user_part}{expires_part}{nonce}"
 
@@ -114,14 +119,14 @@ def verify_telegram_login_token(
     БД для проверки не нужна.
     """
 
-    if len(token) not in (35, 57) or token[0] not in ("0", "1"):
+    if len(token) < 35 or len(token) > 64 or token[0] not in ("0", "1", "2"):
         raise HTTPException(
             status_code=400,
             detail="Неверный токен Telegram",
         )
 
-    user_len = 1 if token[0] == "0" else 23
     payload = token[:-16]
+    user_len = 1 if token[0] == "0" else len(payload) - 18
     user_part = token[:user_len]
     expires_part = token[user_len:user_len + 7]
     nonce = token[user_len + 7:-16]
@@ -163,7 +168,11 @@ def verify_telegram_login_token(
         "user_id": (
             str(uuid.UUID(bytes=base64.urlsafe_b64decode(user_part[1:] + "=" * (-len(user_part[1:]) % 4))))
             if user_part[0] == "1"
-            else None
+            else (
+                base64.urlsafe_b64decode(user_part[1:] + "=" * (-len(user_part[1:]) % 4)).decode()
+                if user_part[0] == "2"
+                else None
+            )
         ),
         "expires": expires,
         "nonce": nonce,
