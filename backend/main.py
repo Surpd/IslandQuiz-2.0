@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from limiter import limiter
@@ -17,6 +19,7 @@ from routes.telegram_auth import router as telegram_auth_router
 
 
 app = FastAPI(title="IslandQuiz API", version="1.0.0")
+bot_task: asyncio.Task | None = None
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -44,8 +47,18 @@ app.include_router(admin_router)
 app.include_router(feedback_router)
 app.include_router(telegram_auth_router)
 @app.on_event("startup")
-def startup():
+async def startup():
+    global bot_task
     init_db()
+    from bot import main as bot_main
+
+    bot_task = asyncio.create_task(bot_main())
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    if bot_task:
+        bot_task.cancel()
 
 @app.get("/")
 def root():
