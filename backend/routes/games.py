@@ -154,7 +154,7 @@ def list_games(
     result = []
     for g in (res.data or []):
         if g.get("data") and g["data"].get("config"):
-            g["ratings"] = g.pop("ratings_data", None)
+            g["ratings"] = None  # ratings_data больше не используется
             result.append(GameOut(**{**g, "data": g.get("data") or {}}))
     
     return {
@@ -233,8 +233,6 @@ def rate_game(game_id: str, rating: int = 1, user=Depends(get_current_user)):
 
 @router.patch("/{game_id}/play-count")
 def increment_play_count(game_id: str):
-    res = supabase.table("games").select("play_count").eq("id", game_id).execute()
-    if res.data:
-        count = (res.data[0].get("play_count") or 0) + 1
-        supabase.table("games").update({"play_count": count}).eq("id", game_id).execute()
+    # Атомарный инкремент через SQL
+    supabase.rpc("increment_play_count", {"game_id": game_id}).execute()
     return {"ok": True}
