@@ -11,12 +11,13 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 from database import supabase
 from limiter import limiter
+import os
 import json
 import hashlib
 import hmac
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-import os
+
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
