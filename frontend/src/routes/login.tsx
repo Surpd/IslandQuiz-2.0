@@ -48,7 +48,7 @@ function LoginPage() {
         })
         .catch(() => setErr("Ошибка соединения"));
     } else {
-      window.open("https://t.me/islandquiz_bot", "_blank");
+      window.open("https://t.me/IsalndQuizbot", "_blank");
     }
   };
 
