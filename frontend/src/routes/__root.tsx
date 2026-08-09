@@ -137,13 +137,19 @@ function RootComponent() {
       <AuthProvider>
         <Outlet />
         {!hideFooter && (
-          <footer className="border-t border-border py-8">
-            <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 text-sm text-muted-foreground">
-              <span>© IslandQuiz</span>
-              <nav className="flex gap-4">
-                <Link to="/privacy" className="hover:text-foreground">Политика конфиденциальности</Link>
-                <Link to="/terms" className="hover:text-foreground">Пользовательское соглашение</Link>
+          <footer className="border-t border-border py-10">
+            <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 md:flex-row">
+              <div className="flex items-center gap-2">
+                <div className="grid h-6 w-6 place-items-center rounded bg-foreground text-white">
+                  <span className="text-[9px] font-black">IQ</span>
+                </div>
+                <span className="font-display text-sm font-bold">IslandQuiz</span>
+              </div>
+              <nav className="flex items-center gap-6 text-xs text-muted-foreground">
+                <Link to="/privacy" className="hover:text-foreground">Конфиденциальность</Link>
+                <Link to="/terms" className="hover:text-foreground">Условия использования</Link>
               </nav>
+              <p className="text-xs text-muted-foreground">© 2026 IslandQuiz</p>
             </div>
           </footer>
         )}

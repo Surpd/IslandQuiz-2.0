@@ -70,6 +70,23 @@ def _can_view(game: dict, user: Optional[dict]) -> bool:
     return False
 
 
+def _attach_play_counts(games: list[dict]) -> list[dict]:
+    game_ids = [g["id"] for g in games if g.get("id")]
+    if not game_ids:
+        return games
+
+    counts = {game_id: 0 for game_id in game_ids}
+    for table in ("quiz_results", "millionaire_results", "jeopardy_results", "online_quiz_results"):
+        rows = supabase.table(table).select("game_id").in_("game_id", game_ids).execute().data or []
+        for row in rows:
+            if row.get("game_id") in counts:
+                counts[row["game_id"]] += 1
+
+    for game in games:
+        game["play_count"] = counts.get(game.get("id"), 0)
+    return games
+
+
 @router.post("/", response_model=dict)
 def save_game(input: SaveGameInput, user=Depends(get_current_user)):
     game_id = input.id or str(uuid.uuid4())
@@ -123,6 +140,7 @@ def get_game(game_id: str, user=Depends(get_current_user_optional)):
     if ratings_res.data:
         game["ratings"] = {str(r["user_id"]): r["value"] for r in ratings_res.data}
 
+    game = _attach_play_counts([game])[0]
     return GameOut(**{**game, "data": data})
 
 
@@ -165,7 +183,8 @@ def list_games(
             ratings_map[gid][str(r["user_id"])] = r["value"]
     
     result = []
-    for g in (res.data or []):
+    visible_games = _attach_play_counts(res.data or [])
+    for g in visible_games:
         if g.get("data") and g["data"].get("config"):
             g["ratings"] = ratings_map.get(g["id"], None)
             result.append(GameOut(**{**g, "data": g.get("data") or {}}))

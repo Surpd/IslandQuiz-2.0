@@ -92,7 +92,7 @@ function LibraryPage() {
   };
 
   const reload = () => {
-    listGames()
+    listGames(undefined, 100, 0)
       .then((data) => {
         const clean = data.games.filter((x) => {
           const d = x?.data as { config?: unknown } | undefined;
@@ -417,6 +417,9 @@ function GameCard({
         <p className="text-xs text-muted-foreground">
           {new Date(g.updatedAt).toLocaleDateString("ru-RU")}
         </p>
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Количество прохождений">
+          <Play className="h-3 w-3" /> {g.playCount ?? 0}
+        </span>
         {tab === "public" && user && (
           <button
             onClick={doFork}
