@@ -21,6 +21,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SupportRouteImport } from './routes/support'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TestPlayerRouteImport } from './routes/test-player'
 import { Route as BuilderJeopardyRouteImport } from './routes/builder.jeopardy'
 import { Route as BuilderMillionaireRouteImport } from './routes/builder.millionaire'
@@ -97,6 +98,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const SupportRoute = SupportRouteImport.update({
   id: '/support',
   path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TestPlayerRoute = TestPlayerRouteImport.update({
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/support': typeof SupportRoute
+  '/terms': typeof TermsRoute
   '/test-player': typeof TestPlayerRoute
   '/builder/jeopardy': typeof BuilderJeopardyRoute
   '/builder/millionaire': typeof BuilderMillionaireRoute
@@ -230,6 +237,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/support': typeof SupportRoute
+  '/terms': typeof TermsRoute
   '/test-player': typeof TestPlayerRoute
   '/builder/jeopardy': typeof BuilderJeopardyRoute
   '/builder/millionaire': typeof BuilderMillionaireRoute
@@ -261,6 +269,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/support': typeof SupportRoute
+  '/terms': typeof TermsRoute
   '/test-player': typeof TestPlayerRoute
   '/builder/jeopardy': typeof BuilderJeopardyRoute
   '/builder/millionaire': typeof BuilderMillionaireRoute
@@ -294,6 +303,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/support'
+    | '/terms'
     | '/test-player'
     | '/builder/jeopardy'
     | '/builder/millionaire'
@@ -325,6 +335,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/support'
+    | '/terms'
     | '/test-player'
     | '/builder/jeopardy'
     | '/builder/millionaire'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/support'
+    | '/terms'
     | '/test-player'
     | '/builder/jeopardy'
     | '/builder/millionaire'
@@ -387,6 +399,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SupportRoute: typeof SupportRoute
+  TermsRoute: typeof TermsRoute
   TestPlayerRoute: typeof TestPlayerRoute
   BuilderJeopardyRoute: typeof BuilderJeopardyRoute
   BuilderMillionaireRoute: typeof BuilderMillionaireRoute
@@ -487,6 +500,13 @@ declare module '@tanstack/react-router' {
       path: '/support'
       fullPath: '/support'
       preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/test-player': {
@@ -640,6 +660,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SupportRoute: SupportRoute,
+  TermsRoute: TermsRoute,
   TestPlayerRoute: TestPlayerRoute,
   BuilderJeopardyRoute: BuilderJeopardyRoute,
   BuilderMillionaireRoute: BuilderMillionaireRoute,

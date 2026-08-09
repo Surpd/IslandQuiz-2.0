@@ -184,11 +184,7 @@ async def login_confirm(callback: CallbackQuery):
         # islandquiz.online/api/auth/telegram/complete
         # ----------------------------------------------------
 
-        login_url = (
-            "https://api.islandquiz.online"
-            "/api/auth/telegram/complete"
-            f"?token={access_token}"
-        )
+        login_url = data["login_url"]
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
