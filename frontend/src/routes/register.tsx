@@ -41,15 +41,17 @@ function RegisterPage() {
   };
 
   const loginWithTelegram = async () => {
-    const telegramWindow = window.open("about:blank", "_blank");
     try {
-      const res = await fetch("https://api.islandquiz.online/api/auth/telegram/start", {
+      if (!agreed) {
+        setErr("Сначала подтвердите согласие с политикой данных");
+        return;
+      }
+      const res = await fetch("https://api.islandquiz.online/api/auth/telegram/start?mode=register", {
         method: "POST",
       });
       const data = await res.json();
       if (data.ok) {
-        if (telegramWindow) telegramWindow.location.href = data.url;
-        else window.location.href = data.url;
+        window.location.href = data.url;
       }
       else setErr(data.error || "Не удалось войти через Telegram");
     } catch {
@@ -72,6 +74,7 @@ function RegisterPage() {
           <button
             type="button"
             onClick={loginWithTelegram}
+            disabled={!agreed || busy}
             className="btn-ghost w-full flex items-center justify-center gap-2 py-3 border border-border rounded-xl hover:bg-surface-muted transition-colors"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-[#2AABEE]">

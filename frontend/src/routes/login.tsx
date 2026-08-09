@@ -165,7 +165,6 @@ function LoginPage() {
 
   const loginWithTelegram =
     async () => {
-      const telegramWindow = window.open("about:blank", "_blank");
       setTelegramBusy(true);
       setErr(null);
 
@@ -189,13 +188,8 @@ function LoginPage() {
           );
         }
 
-        if (telegramWindow) {
-          telegramWindow.location.href = data.url;
-        } else {
-          window.location.href = data.url;
-        }
+        window.location.href = data.url;
       } catch (error) {
-        telegramWindow?.close();
         setErr(
           error instanceof Error
             ? error.message

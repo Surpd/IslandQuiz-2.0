@@ -176,6 +176,7 @@ def verify_telegram_login_token(
 
 class TelegramBotLoginInput(BaseModel):
     token: str
+    confirm: bool = False
 
     telegram_id: int
 
@@ -192,6 +193,7 @@ class TelegramBotLoginInput(BaseModel):
 
 @router.post("/telegram/start")
 def start_telegram_login(
+    mode: str = "login",
     user=Depends(get_current_user_optional),
 ):
     """
@@ -210,9 +212,10 @@ def start_telegram_login(
         user["id"] if user else None
     )
 
+    start_prefix = "register_" if mode == "register" else "login_"
     bot_url = (
         f"https://t.me/{TELEGRAM_BOT_USERNAME}"
-        f"?start=login_{quote(token, safe='')}"
+        f"?start={start_prefix}{quote(token, safe='')}"
     )
 
     return {
@@ -258,6 +261,12 @@ def telegram_bot_login(
         .eq("telegram_id", telegram_id)
         .execute()
     )
+
+    if not res.data and not token_data["user_id"] and not input.confirm:
+        return {
+            "ok": False,
+            "needs_confirmation": True,
+        }
 
     if res.data:
         user = res.data[0]

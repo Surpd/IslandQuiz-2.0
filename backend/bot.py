@@ -66,7 +66,8 @@ async def start_handler(message: Message):
 
     payload = args[1]
 
-    if not payload.startswith("login_"):
+    is_register = payload.startswith("register_")
+    if not payload.startswith(("login_", "register_")):
 
         await message.answer(
             "❌ Неизвестная команда."
@@ -74,7 +75,35 @@ async def start_handler(message: Message):
 
         return
 
-    token = payload[len("login_"):]
+    prefix_len = len("register_") if is_register else len("login_")
+    token = payload[prefix_len:]
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.post(
+            f"{API_URL}/api/auth/telegram/bot-login",
+            json={
+                "token": token,
+                "confirm": is_register,
+                "telegram_id": message.from_user.id,
+                "telegram_username": message.from_user.username,
+                "first_name": message.from_user.first_name or "",
+                "last_name": message.from_user.last_name or "",
+            },
+        )
+
+    data = response.json()
+    if response.status_code == 200 and data.get("ok") and data.get("login_url"):
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🌐 Открыть IslandQuiz", url=data["login_url"])]
+            ]
+        )
+        await message.answer("✅ Вход выполнен!", reply_markup=keyboard)
+        return
+
+    if not data.get("needs_confirmation"):
+        await message.answer(f"❌ {data.get('detail', 'Не удалось выполнить вход.')}")
+        return
 
     # callback_data Telegram ограничивает 64 байтами.
     # Новый stateless token достаточно короткий.
@@ -136,6 +165,7 @@ async def login_confirm(callback: CallbackQuery):
                 f"{API_URL}/api/auth/telegram/bot-login",
                 json={
                     "token": token,
+                    "confirm": True,
                     "telegram_id": tg_user.id,
                     "telegram_username": tg_user.username,
                     "first_name": tg_user.first_name or "",
