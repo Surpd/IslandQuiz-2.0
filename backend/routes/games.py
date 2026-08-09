@@ -151,10 +151,23 @@ def list_games(
     
     total = res.count if hasattr(res, 'count') else len(res.data or [])
     
+    # Получаем все game_id из результата
+    game_ids = [g["id"] for g in (res.data or []) if g.get("data") and g["data"].get("config")]
+    
+    # Загружаем рейтинги для всех игр одним запросом
+    ratings_map = {}
+    if game_ids:
+        ratings_res = supabase.table("ratings").select("*").in_("game_id", game_ids).execute()
+        for r in (ratings_res.data or []):
+            gid = r["game_id"]
+            if gid not in ratings_map:
+                ratings_map[gid] = {}
+            ratings_map[gid][str(r["user_id"])] = r["value"]
+    
     result = []
     for g in (res.data or []):
         if g.get("data") and g["data"].get("config"):
-            g["ratings"] = None  # ratings_data больше не используется
+            g["ratings"] = ratings_map.get(g["id"], None)
             result.append(GameOut(**{**g, "data": g.get("data") or {}}))
     
     return {
