@@ -31,7 +31,7 @@ class GameOut(BaseModel):
 
 class UserOut(BaseModel):
     id: str
-    email: str
+    email: Optional[str] = None
     name: str
     avatar: Optional[str] = None
     bio: Optional[str] = None
