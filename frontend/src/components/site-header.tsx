@@ -100,13 +100,25 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
           <Link to="/library" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
             Библиотека
           </Link>
-          <Link to="/builder/quiz" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+          <Link
+            to="/builder/quiz"
+            search={{ id: undefined }}
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
             Квиз
           </Link>
-          <Link to="/builder/jeopardy" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+          <Link
+            to="/builder/jeopardy"
+            search={{ id: undefined }}
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
             Своя игра
           </Link>
-          <Link to="/builder/millionaire" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+          <Link
+            to="/builder/millionaire"
+            search={{ id: undefined }}
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
             Миллионер
           </Link>
           <Link to="/join" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">

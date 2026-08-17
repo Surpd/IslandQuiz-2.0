@@ -179,7 +179,7 @@ function LibraryPage() {
               {user ? "Кликните на карточку, чтобы открыть игру." : "Войдите, чтобы видеть свои игры."}
             </p>
           </div>
-          <Link to="/builder/quiz" search={{}} className="btn-accent">
+          <Link to="/builder/quiz" search={{ id: undefined }} className="btn-accent">
             <Plus className="h-4 w-4" /> Новый квиз
           </Link>
         </div>
@@ -340,6 +340,7 @@ function GameCard({
   const Icon = KIND_ICON[g.kind] ?? FileText;
   const VisIcon = g.visibility === "public" ? Globe : g.visibility === "link" ? Link2 : Lock;
   const isMine = user && g.ownerId === user.id;
+  const ownerId = g.ownerId;
 
   const doFork = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -381,13 +382,13 @@ function GameCard({
       {g.forkedOwnerName && (
         <p className="text-xs text-muted-foreground">на основе игры от {g.forkedOwnerName}</p>
       )}
-      {!isMine && g.ownerName && g.ownerId && (
+      {!isMine && g.ownerName && ownerId && (
         <button
           type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            nav({ to: "/profile/$userId", params: { userId: g.ownerId } });
+            nav({ to: "/profile/$userId", params: { userId: ownerId } });
           }}
           className="inline-flex items-center gap-1.5 self-start text-xs text-muted-foreground hover:text-primary hover:underline"
         >

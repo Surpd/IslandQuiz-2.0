@@ -392,12 +392,31 @@ function GameDashboard() {
                     Вся статистика, ответы и таблицы лидеров.
                   </p>
                 </div>
-                <Link
-                  to={`/${game.kind}/${game.id}/results`}
-                  className="btn-accent inline-flex items-center gap-2"
-                >
-                  <Trophy className="h-4 w-4" /> Открыть результаты
-                </Link>
+                {game.kind === "quiz" ? (
+                  <Link
+                    to="/quiz/$gameId/results"
+                    params={{ gameId: game.id }}
+                    className="btn-accent inline-flex items-center gap-2"
+                  >
+                    <Trophy className="h-4 w-4" /> Открыть результаты
+                  </Link>
+                ) : game.kind === "jeopardy" ? (
+                  <Link
+                    to="/jeopardy/$gameId/results"
+                    params={{ gameId: game.id }}
+                    className="btn-accent inline-flex items-center gap-2"
+                  >
+                    <Trophy className="h-4 w-4" /> Открыть результаты
+                  </Link>
+                ) : (
+                  <Link
+                    to="/millionaire/$gameId/results"
+                    params={{ gameId: game.id }}
+                    className="btn-accent inline-flex items-center gap-2"
+                  >
+                    <Trophy className="h-4 w-4" /> Открыть результаты
+                  </Link>
+                )}
               </div>
             </div>
 

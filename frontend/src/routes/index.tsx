@@ -139,7 +139,7 @@ function Home() {
                 объединяют участников, а библиотека и шаринг помогают делиться играми с другими пользователями.
               </p>
               <div className="mt-10 flex flex-wrap gap-3">
-                <Link to="/builder/quiz" className="btn-accent">
+                <Link to="/builder/quiz" search={{ id: undefined }} className="btn-accent">
                   Начать бесплатно
                 </Link>
                 <Link
@@ -369,7 +369,11 @@ function Home() {
                   Введите тему — получите готовые вопросы, улучшайте формулировки, генерируйте целые квизы и категории
                   для «Своей игры". Экономьте время на подготовку.
                 </p>
-                <Link to="/builder/quiz" className="btn-accent mt-6 inline-flex">
+                <Link
+                  to="/builder/quiz"
+                  search={{ id: undefined }}
+                  className="btn-accent mt-6 inline-flex"
+                >
                   Создать с AI <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
@@ -425,7 +429,11 @@ function Home() {
               <h2 className="relative font-display text-3xl font-black md:text-4xl">Готовы попробовать?</h2>
               <p className="relative mt-3 text-white/70">Создайте свой первый квиз за пару минут.</p>
               <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
-                <Link to="/builder/quiz" className="btn-accent inline-flex">
+                <Link
+                  to="/builder/quiz"
+                  search={{ id: undefined }}
+                  className="btn-accent inline-flex"
+                >
                   Начать бесплатно
                 </Link>
                 <Link

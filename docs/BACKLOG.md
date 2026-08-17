@@ -1,0 +1,361 @@
+# IslandQuiz — практический backlog развития и стабилизации
+
+Статус: рабочий backlog по аудиту на 2026-08-18.
+
+Цель: снизить риски безопасности и потери данных, восстановить согласованность frontend/backend-контрактов, сделать deployment и проверку изменений воспроизводимыми, затем развивать продукт.
+
+Источник: фактическое описание в `docs/ARCHITECTURE.md`, `docs/AI.md`, `docs/DEPLOYMENT.md`, `docs/DECISIONS.md`, legacy-документация и проверка текущего TypeScript baseline. Supabase production schema, RLS/RPC и VPS configuration в репозитории не подтверждены; такие пункты помечены как требующие проверки или решения владельца.
+
+Формат сложности: S — до 1 дня, M — несколько дней, L — до 1–2 недель, XL — крупная межслойная работа. Оценка предварительная.
+
+## 🔴 Critical
+
+### C1. Сделать Telegram login token одноразовым
+
+- **Проблема/цель:** HMAC-токен живёт 5 минут, `nonce` подписывается, но не хранится и не помечается использованным. Один и тот же токен можно повторно отправить в `bot-login`/`complete` до истечения срока.
+- **Почему важно:** replay может повторно завершить вход или привязку Telegram и привести к захвату login flow.
+- **Затрагивает:** `backend/routes/telegram_auth.py`, `backend/bot.py`, frontend Telegram login flow, таблицу/механизм хранения использованных nonce.
+- **Зависимости:** выбор server-side storage и атомарной операции consume; проверка production schema Supabase; тесты повторной отправки и параллельных запросов.
+- **Сложность:** L.
+- **Самостоятельность:** нет — нужен выбор владельца, где хранить nonce и как долго; после решения реализация локальна.
+
+### C2. Ввести server-side authorization для WebSocket-комнат
+
+- **Проблема/цель:** WebSocket принимает соединение и действия, а `hostId`, `playerId`, score delta и переходы состояния в значительной степени приходят от клиента. Для host/player нет полноценной проверки прав на каждую команду.
+- **Почему важно:** посторонний клиент может вмешаться в игру, изменить очки, kick/start/finish комнату или раскрыть состояние.
+- **Затрагивает:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, host/player room views, reconnect logic, протокол actions/state.
+- **Зависимости:** схема идентичности участника, способ передачи JWT в WebSocket, матрица прав host/player, тесты протокола; отдельно — решение о persistence комнат.
+- **Сложность:** XL.
+- **Самостоятельность:** частично; технический фикс возможен после решения владельца о модели идентификации гостевого player и допустимых anonymous-сценариях.
+
+### C3. Перенести расчёт результата на доверенную сторону
+
+- **Проблема/цель:** одиночный player считает ответы и score на frontend; room actions и result payload также передают `correct`, `delta`, `score` и историю от клиента. Нужен независимый пересчёт по game snapshot и правилам конкретного формата.
+- **Почему важно:** иначе пользователь может отправить завышенный результат, а сохранённая статистика и leaderboard не являются доказательством прохождения.
+- **Затрагивает:** players всех трёх форматов, `backend/routes/results.py`, `backend/routes/rooms.py`, `games.data`, `frontend/src/lib/api.ts`, таблицы результатов и online rooms.
+- **Зависимости:** решение о канонических правилах scoring, версии game snapshot, допустимом ручном score adjustment для host и формате детальных ответов.
+- **Сложность:** XL.
+- **Самостоятельность:** нет — сначала владелец должен утвердить источник истины и правила пересчёта; затем потребуется синхронная backend/frontend работа.
+
+### C4. Закрыть базовые риски JWT-аутентификации
+
+- **Проблема/цель:** JWT stateless хранится в `localStorage`, logout удаляет его только на клиенте, server-side revocation не предусмотрен. Требуется формально проверить `exp`, secret rotation, инвалидирование banned/deleted пользователей и поведение refresh/повторного входа.
+- **Почему важно:** украденный токен продолжает действовать, а изменение статуса пользователя не обязательно немедленно прекращает доступ.
+- **Затрагивает:** `backend/routes/auth.py`, `frontend/src/lib/auth.ts`, `frontend/src/hooks/use-auth.tsx`, Bearer middleware/helpers, users schema.
+- **Зависимости:** политика срока жизни, refresh/revocation и хранения токена; проверка bcrypt/JWT алгоритмов и production secrets.
+- **Сложность:** L.
+- **Самостоятельность:** нет — политика revocation, сроков и допустимого способа хранения требует решения владельца.
+
+### C5. Провести аварийную проверку Supabase schema, RLS и ограничений целостности
+
+- **Проблема/цель:** фактическая production schema не хранится в репозитории; роуты напрямую используют таблицы и поля, а legacy `models.py` им не соответствует. Нужно сверить таблицы, типы, nullable, unique/foreign keys, индексы, RLS и существующие RPC.
+- **Почему важно:** несоответствие может приводить к потере записей, частично успешным операциям, утечке данных или поломке после deployment.
+- **Затрагивает:** `backend/database.py`, все routers, `games.data`, users/results/AI/settings/log tables, Supabase policies и RPC.
+- **Зависимости:** read-only доступ к production Supabase и выгрузка схемы; инвентаризация реальных RLS/RPC; решение о том, какие constraints и migrations допустимы.
+- **Сложность:** L.
+- **Самостоятельность:** нет — нужен доступ владельца к production и подтверждение границ допустимых изменений БД.
+
+## 🟠 High
+
+### H1. Устранить текущий TypeScript baseline
+
+- **Статус реализации:** `DONE`. Исходные 9 TypeScript-ошибок устранены; текущие URL и API-контракты не изменены. Полный frontend lint baseline (pre-existing Prettier/CRLF и прочие quality issues) не исправлялся в рамках H1.
+- **Проблема/цель:** `npx tsc --noEmit` завершается ошибкой; зафиксировано 9 ошибок в `site-header.tsx`, `index.tsx`, `auth.ts`, `game.$id.tsx`, `library.tsx` — обязательные search params, nullable values и неописанные dynamic result routes.
+- **Почему важно:** типовой check не защищает от регрессий и блокирует предсказуемый build/CI.
+- **Затрагивает:** `frontend/src/components/site-header.tsx`, `frontend/src/routes/index.tsx`, `frontend/src/lib/auth.ts`, `frontend/src/routes/game.$id.tsx`, `frontend/src/routes/library.tsx`, TanStack Router route tree.
+- **Зависимости:** согласовать канонические route search params и result URLs; после исправлений повторить lint, typecheck и build.
+- **Сложность:** M.
+- **Самостоятельность:** да, после подтверждения требуемого UX маршрутов.
+
+### H2. Синхронизировать Admin API и frontend contract
+
+- **Проблема/цель:** admin backend содержит users/games/stats/logs/limits и AI test endpoints, но frontend contract и фактические запросы/ответы нужно привести к одному набору путей, методов, payload и response shapes.
+- **Почему важно:** админские операции могут выглядеть доступными в UI, но не работать или работать с неправильными данными; это затрудняет управление пользователями, играми и AI.
+- **Затрагивает:** `backend/routes/admin.py`, `frontend/src/routes/admin.tsx`, `frontend/src/lib/api.ts`, admin types и pagination/AI lab UI.
+- **Зависимости:** таблица endpoint contract, решение о необходимом объёме admin-функций, затем интеграционные tests.
+- **Сложность:** L.
+- **Самостоятельность:** частично; нужен владелец для подтверждения списка админских операций и ожидаемых ответов.
+
+### H3. Исключить потерю visibility при редактировании игры
+
+- **Проблема/цель:** visibility живёт одновременно в builder state и legacy `localStorage`; при edit/save есть риск заменить существующее значение default-значением (`private`/`link`) или отправить устаревшее значение.
+- **Почему важно:** публичная игра может внезапно стать приватной, либо приватный контент — открытым по ссылке.
+- **Затрагивает:** `frontend/src/components/builder-actions.tsx`, `frontend/src/lib/api.ts`, `backend/routes/games.py`, edit flows всех builders и `games.visibility`.
+- **Зависимости:** зафиксировать семантику visibility для create/edit/unauthenticated draft; добавить regression tests для всех значений `private/link/public`.
+- **Сложность:** M.
+- **Самостоятельность:** нет — нужна явная политика владельца для visibility при редактировании и anonymous save.
+
+### H4. Не терять комнаты при restart и не допустить split-brain между workers
+
+- **Проблема/цель:** `rooms` и `connections` хранятся в памяти одного процесса; комнаты исчезают при restart и не синхронизируются между workers.
+- **Почему важно:** production restart или масштабирование может оборвать активную игру и привести к разным состояниям у участников.
+- **Затрагивает:** `backend/routes/rooms.py`, deployment/systemd/Uvicorn, host/player views, reconnect logic, online results.
+- **Зависимости:** решение о single-worker ограничении или внешнем room store/pub-sub; versioning и TTL состояния комнаты.
+- **Сложность:** XL.
+- **Самостоятельность:** нет — архитектурный выбор должен принять владелец.
+
+### H5. Зафиксировать безопасную topology для Telegram polling
+
+- **Проблема/цель:** Telegram bot запускается task внутри FastAPI startup; несколько backend instances могут одновременно выполнять polling.
+- **Почему важно:** Telegram polling конфликтует между экземплярами, а login flow становится нестабильным или теряет события.
+- **Затрагивает:** `backend/main.py`, `backend/bot.py`, `telegram_auth.py`, systemd/Uvicorn deployment.
+- **Зависимости:** подтверждение числа workers/instances и решение: отдельный bot service, single worker или другой механизм доставки.
+- **Сложность:** M/L.
+- **Самостоятельность:** нет — требуется решение владельца и подтверждение VPS topology.
+
+### H6. Сделать production deployment повторяемым и проверяемым
+
+- **Проблема/цель:** deployment выполняется вручную по SSH/Git/systemd; имя unit, checkout path, branch, env loading, frontend publish и smoke-check не зафиксированы.
+- **Почему важно:** ручная процедура повышает риск деплоя не того commit, запуска без secrets, простоя или незамеченной поломки.
+- **Затрагивает:** VPS, Cloudflare Pages, systemd/Uvicorn, Git workflow, `docs/DEPLOYMENT.md`, health endpoint и frontend/API URLs.
+- **Зависимости:** решение владельца о release strategy и доступ к VPS; после этого — deploy checklist/script, rollback и smoke tests без секретов.
+- **Сложность:** L.
+- **Самостоятельность:** нет — exact infrastructure details и допустимый способ автоматизации должен подтвердить владелец.
+
+### H7. Добавить автоматические проверки критических API и room flows
+
+- **Проблема/цель:** в репозитории нет backend test suite; отсутствуют системные проверки auth, Telegram replay, permissions, results, visibility, AI contracts и WebSocket state transitions.
+- **Почему важно:** изменения в связанных frontend/backend слоях легко ломают security и сохранение данных незаметно.
+- **Затрагивает:** `backend/routes/*`, `backend/services/*`, `frontend/src/lib/api.ts`, room clients и Supabase test doubles/fixtures.
+- **Зависимости:** C1–C5 и H2–H3 для утверждённых контрактов; выбор test DB/mocks и CI environment.
+- **Сложность:** XL.
+- **Самостоятельность:** частично; инфраструктура тестов может быть подготовлена самостоятельно, но ожидаемые security/scoring правила требует утвердить владелец.
+
+### H8. Согласовать фактический AI contract и документацию
+
+- **Проблема/цель:** старый `md/AI_LOGIC.md` описывает один объект `question/options/correct`, а фактический API возвращает `{variants: [...]}` и поддерживает improve/file flows; frontend mapping и backend validator должны быть единым контрактом.
+- **Почему важно:** рассинхронизация ломает AI buttons, builders и дальнейшее изменение prompt/validator.
+- **Затрагивает:** `backend/routes/ai.py`, `backend/services/ai_prompts.py`, `backend/services/ai_validator.py`, `frontend/src/lib/api.ts`, AI components/builders, `docs/AI.md`, legacy `md/AI_LOGIC.md`.
+- **Зависимости:** выбрать canonical JSON schema, error format и compatibility policy; затем добавить contract tests для Quiz и Jeopardy.
+- **Сложность:** L.
+- **Самостоятельность:** частично; техническое описание можно обновить самостоятельно, но canonical contract должен подтвердить владелец.
+
+### H9. Ввести единый контроль доступа к результатам и online results
+
+- **Проблема/цель:** доступ к результатам реализован отдельными endpoint-ветками и разными payload; нужно проверить owner/admin/public/link semantics, userId filters и доступ к online player data.
+- **Почему важно:** результаты могут раскрывать персональные данные или быть недоступны законному владельцу; разрозненная authorization логика создаёт обходы.
+- **Затрагивает:** `backend/routes/results.py`, `backend/routes/games.py`, frontend results/dashboard/profile routes, `quiz_results`, `jeopardy_results`, `millionaire_results`, `online_quiz_results`.
+- **Зависимости:** visibility policy, user identity policy и production schema/RLS audit; tests на owner/non-owner/admin/anonymous.
+- **Сложность:** L.
+- **Самостоятельность:** нет — нужны правила владельца для публичности результатов и персональных данных.
+
+### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation
+
+- **Проблема/цель:** действия room могут передавать произвольные значения `delta`, timestamps, IDs, индексы и phase-related fields; нет единой schema validation и понятных ошибок для invalid state.
+- **Почему важно:** даже после базовой авторизации malformed/replayed actions могут ломать состояние или вызывать исключения.
+- **Затрагивает:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, Quiz/Jeopardy room components, reconnect/cache.
+- **Зависимости:** C2–C3, формальная state machine и лимиты размера/частоты сообщений.
+- **Сложность:** L.
+- **Самостоятельность:** да после утверждения room protocol; изменения должны идти синхронно в обеих сторонах.
+
+## 🟡 Medium
+
+### M1. Убрать двусмысленность вокруг legacy `backend/models.py`
+
+- **Проблема/цель:** SQLAlchemy-модели описывают старый persistence layer и не используются текущими Supabase routers.
+- **Почему важно:** разработчик может принять legacy schema за источник истины и внести несовместимое изменение или попытаться запустить несуществующую SQLite-архитектуру.
+- **Затрагивает:** `backend/models.py`, `backend/requirements.txt`, `docs/ARCHITECTURE.md`, README и onboarding.
+- **Зависимости:** проверить импорты/entry points и решить, удалить файл, архивировать его или явно пометить deprecated.
+- **Сложность:** S.
+- **Самостоятельность:** нет — способ удаления/архивирования должен подтвердить владелец.
+
+### M2. Развести legacy localStorage и каноническое состояние
+
+- **Проблема/цель:** drafts/ID/visibility и auth token используют localStorage; legacy `src/lib/storage.ts` сосуществует с backend persistence и может давать stale values.
+- **Почему важно:** возможны потеря draft, конфликт между вкладками/пользователями и неправильная visibility; удалять legacy код изолированно нельзя.
+- **Затрагивает:** `frontend/src/hooks/use-draft.ts`, `frontend/src/lib/storage.ts`, `frontend/src/lib/auth.ts`, builders, `builder-actions.tsx`, backend save flows.
+- **Зависимости:** политика миграции draft, TTL/очистки, multi-tab conflict и решение по storage JWT из C4.
+- **Сложность:** L.
+- **Самостоятельность:** нет — нужен владелец для правил совместимости и удаления legacy поведения.
+
+### M3. Создать единый typed API/contract source of truth
+
+- **Проблема/цель:** контракты REST/WebSocket частично вручную отражены в `api.ts`, backend models и документации; это уже проявилось в Admin и AI mismatch.
+- **Почему важно:** изменения одного слоя не обнаруживаются до runtime.
+- **Затрагивает:** FastAPI response/request models, `frontend/src/lib/api.ts`, `frontend/src/lib/types.ts`, WebSocket action/state types, docs.
+- **Зависимости:** H2, H8, H10; выбор OpenAPI-generated types или ручного versioned contract.
+- **Сложность:** L.
+- **Самостоятельность:** нет — подход к генерации/версионированию нужно выбрать владельцу.
+
+### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API
+
+- **Проблема/цель:** прямые обращения роутов к `res.data`, `data[0]` и полям разных таблиц требуют единой проверки ошибок, `None` и пустых результатов.
+- **Почему важно:** редкие ошибки БД/неполная запись превращаются в 500, частичное сохранение или неясную ошибку пользователю.
+- **Затрагивает:** `backend/database.py`, все затронутые routers/services, frontend API facade и error UI.
+- **Зависимости:** C5; определить mapping Supabase errors в стабильные HTTP errors и logging policy.
+- **Сложность:** L.
+- **Самостоятельность:** да после schema audit, без изменения бизнес-правил.
+
+### M5. Довести Jeopardy AI до уровня валидации обычного Quiz
+
+- **Проблема/цель:** категории и Jeopardy questions после JSON parse проверяются слабее, чем обычные Quiz variants.
+- **Почему важно:** builder может получить missing points/question/answer или неверное количество slots и сломать игру уже после генерации.
+- **Затрагивает:** `backend/routes/ai.py`, `ai_prompts.py`, `ai_validator.py`, Jeopardy AI components и builder mapping.
+- **Зависимости:** H8 canonical schema; набор обязательных полей и допустимые difficulty/points.
+- **Сложность:** M.
+- **Самостоятельность:** да после утверждения схемы Jeopardy.
+
+### M6. Ввести индексы, constraints и безопасные RPC только по фактической схеме
+
+- **Проблема/цель:** после schema audit нужно проверить индексы для owner/visibility/results/created_at, unique Telegram/email, каскады и атомарные операции usage/visibility/result insert.
+- **Почему важно:** это уменьшит race conditions, ускорит library/results/admin и снизит риск дубликатов.
+- **Затрагивает:** Supabase PostgreSQL, backend queries, `ai_usage`, users/games/results/settings.
+- **Зависимости:** C5; нельзя проектировать SQL по legacy `md/DATABASE_STRUCTURE.md`.
+- **Сложность:** L.
+- **Самостоятельность:** нет — DDL/RPC и RLS изменения требуют согласования владельца.
+
+### M7. Добавить CI quality gates и безопасную проверку зависимостей
+
+- **Проблема/цель:** typecheck уже красный; нет автоматического обязательного набора lint/build/backend syntax/tests и проверки уязвимых зависимостей.
+- **Почему важно:** broken frontend или несовместимые Python/npm зависимости могут попасть в production.
+- **Затрагивает:** frontend scripts, backend requirements, CI/repository settings, deployment checklist.
+- **Зависимости:** H1 и H7; решение о CI provider и минимально допустимых gates.
+- **Сложность:** M.
+- **Самостоятельность:** частично; CI policy и branch protection подтверждает владелец.
+
+### M8. Обновить документацию и удалить устаревшие operational утверждения
+
+- **Проблема/цель:** README всё ещё указывает Render, legacy docs описывают SQLite и старый AI contract; документация расходится с VPS/Supabase/Groq фактическим состоянием.
+- **Почему важно:** onboarding и incident response будут следовать неверным инструкциям.
+- **Затрагивает:** `README.md`, `md/DATABASE_STRUCTURE.md`, `md/AI_LOGIC.md`, `docs/*`, frontend FAQ.
+- **Зависимости:** H6, H8 и решение о сохранении legacy документов как historical material.
+- **Сложность:** S.
+- **Самостоятельность:** да для пометки статуса и ссылок; содержательные продуктовые формулировки требуют ревью владельца.
+
+### M9. Укрепить мониторинг, health checks и audit logging
+
+- **Проблема/цель:** есть health endpoint и таблицы logs, но нет подтверждённого production smoke-check, alerting, correlation ID, метрик WebSocket/AI/Supabase и контроля утечки secrets в логах.
+- **Почему важно:** ошибки deployment, polling, AI и комнат будут обнаруживаться только по жалобам пользователей.
+- **Затрагивает:** `backend/main.py`, error/AI logs, VPS/Cloudflare/UptimeRobot, admin logs UI, deployment docs.
+- **Зависимости:** H6; выбрать monitoring/retention/budget и список PII, которую разрешено логировать.
+- **Сложность:** M/L.
+- **Самостоятельность:** нет — инфраструктуру и retention policy должен утвердить владелец.
+
+## 🔵 Product
+
+### P1. Поддержать восстановление онлайн-игры после краткого disconnect
+
+- **Проблема/цель:** reconnect/cache есть на frontend, но состояние комнаты живёт в памяти и не имеет устойчивого session/resume механизма.
+- **Почему важно:** игрок или host не должны терять игру из-за мобильной сети или краткого restart.
+- **Затрагивает:** room backend, reconnect logic, host/player views, result finalization, storage/pub-sub.
+- **Зависимости:** C2, H4 и решение о persistent room store.
+- **Сложность:** XL.
+- **Самостоятельность:** нет — зависит от архитектуры комнат.
+
+### P2. Добавить версионирование игры и snapshot для результатов
+
+- **Проблема/цель:** игра хранится одним JSON в `games.data`; результату нужен точный snapshot/version, по которому проходили игру.
+- **Почему важно:** редактирование игры не должно менять смысл старых результатов и облегчает независимый пересчёт.
+- **Затрагивает:** builders, `games` persistence, players, results tables, dashboards, online rooms.
+- **Зависимости:** C3, H3 и решение о versioning/retention.
+- **Сложность:** L.
+- **Самостоятельность:** нет — нужна политика владельца по версиям и хранению snapshot.
+
+### P3. Улучшить AI review workflow
+
+- **Проблема/цель:** AI проверяет форму, но не фактологическую корректность; добавить явный review, предупреждения, повторную генерацию и редактирование перед сохранением.
+- **Почему важно:** снизить риск публикации ошибочных вопросов и повысить доверие к AI.
+- **Затрагивает:** AI components, builders, `ai_validator.py`, prompts, usage/AI logs и UI предупреждений.
+- **Зависимости:** H8, решение о responsibility/costs и желательность внешних fact sources.
+- **Сложность:** L.
+- **Самостоятельность:** нет — нужен продуктовый выбор, какой уровень проверки обещает IslandQuiz.
+
+### P4. Сделать полноценные share/invite flows для игр и комнат
+
+- **Проблема/цель:** развить visibility/link сценарии: безопасные share links, QR для room, понятный invite и expiration/revoke.
+- **Почему важно:** это сокращает путь от создания игры до запуска и делает online play удобнее.
+- **Затрагивает:** library, game routes, builder actions, join route, room backend/frontend, visibility.
+- **Зависимости:** H3, C2, H4 и решение о lifetime/доступе link tokens.
+- **Сложность:** L.
+- **Самостоятельность:** нет — нужны правила доступа и сроков ссылок.
+
+### P5. Расширить аналитику автора и результаты
+
+- **Проблема/цель:** добавить сравнение попыток, сложность вопросов, completion/time metrics и экспорт отчёта после появления доверенного scoring.
+- **Почему важно:** превращает результаты в полезный инструмент для автора и обучения.
+- **Затрагивает:** results routes/tables, dashboards, players, online results, frontend charts/export.
+- **Зависимости:** C3, P2, schema/index audit и privacy policy.
+- **Сложность:** L.
+- **Самостоятельность:** нет — нужны решения по метрикам и персональным данным.
+
+### P6. Добавить accessibility/mobile quality pass для builders и players
+
+- **Проблема/цель:** системно проверить keyboard navigation, focus, contrast, screen readers, narrow screens и touch interactions.
+- **Почему важно:** builder и player — основные пользовательские поверхности; ошибки особенно заметны на телефонах во время игры.
+- **Затрагивает:** shared UI, builders, players, rooms, themes/styles.
+- **Зависимости:** H1/build baseline; согласовать минимальный accessibility target.
+- **Сложность:** L.
+- **Самостоятельность:** да после утверждения target уровня.
+
+## ⚪ Needs decision
+
+Эти вопросы нельзя корректно закрыть техническим изменением без решения владельца проекта. Они также являются зависимостями для задач выше.
+
+### D1. Политика JWT и сессий
+
+- Выбрать срок жизни access token, наличие refresh token, server-side revocation/blacklist, реакцию на ban/delete, secret rotation и допустимое client storage.
+- Блокирует C4, часть M2 и security tests.
+- Варианты: короткоживущий access + refresh/revoke; либо сознательно ограниченный stateless policy с документированными рисками.
+
+### D2. Модель безопасности WebSocket player
+
+- Решить, может ли anonymous player входить по коду, как выдаётся/отзывается player identity, должен ли player reconnect-иться, кто имеет право менять score и завершать игру.
+- Блокирует C2, C3, H10, H4 и P1.
+
+### D3. Канонический scoring и anti-cheat
+
+- Утвердить, считается ли результат только backend, допускается ли host adjustment, какие ответы/время являются доказательством и как обрабатываются старые game versions.
+- Блокирует C3, P2 и P5.
+
+### D4. Persistence и масштабирование комнат
+
+- Выбрать single-worker/in-memory как временное ограничение или внешний store/pub-sub (например, отдельный managed service); определить, переживают ли комнаты restart и сколько хранятся.
+- Блокирует H4 и P1; влияет на H5/H6.
+
+### D5. Supabase governance
+
+- Предоставить read-only schema/RLS/RPC audit и решить, кто владеет migrations, constraints, indexes, backups и восстановлением.
+- Блокирует C5, M6, H7 и часть H9.
+
+### D6. Семантика visibility и результатов
+
+- Зафиксировать поведение `private`, `link`, `public` при create/edit/fork, anonymous draft, share link и доступе к результатам.
+- Блокирует H3, H9 и P4.
+
+### D7. Deployment topology и release process
+
+- Подтвердить production branch, число workers/instances, systemd unit, env loading, frontend publish и допустимую автоматизацию/rollback.
+- Блокирует H5/H6/M7/M9.
+
+### D8. Стратегия legacy-кода
+
+- Решить, удаляем ли `backend/models.py`, `md/*`, старые localStorage paths и устаревшие README claims, или сохраняем их как явно маркированный historical материал.
+- Блокирует M1, M2 и M8.
+
+### D9. AI product policy
+
+- Утвердить провайдера/модели, budget, лимиты, правила хранения prompt/logs, ответственность пользователя за фактологию и необходимость внешней проверки фактов.
+- Блокирует H8, M5 и P3.
+
+## Recommended order
+
+Первые 10 задач:
+
+1. **C1 — Сделать Telegram login token одноразовым.**
+2. **C2 — Ввести server-side authorization для WebSocket-комнат.**
+3. **C3 — Перенести расчёт результата на доверенную сторону.**
+4. **C4 — Закрыть базовые риски JWT-аутентификации.**
+5. **C5 — Провести проверку Supabase schema, RLS и ограничений целостности.**
+6. **H7 — Добавить автоматические проверки критических API и room flows.**
+7. **H1 — Устранить текущий TypeScript baseline.**
+8. **H2 — Синхронизировать Admin API и frontend contract.**
+9. **H3 — Исключить потерю visibility при редактировании игры.**
+10. **H6 — Сделать production deployment повторяемым и проверяемым.**
+
+Почему первыми именно первые три:
+
+1. **C1:** replay login token — узкая и потенциально эксплуатируемая уязвимость, способная затронуть аккаунты; её нужно закрыть до дальнейшего расширения auth flow.
+2. **C2:** room commands сейчас являются недоверенными; пока host/player permissions не проверяются на backend, любая онлайн-игра остаётся уязвимой независимо от качества UI.
+3. **C3:** результаты и очки могут быть подделаны клиентом; это риск целостности данных и причина не строить новые dashboards/рейтинги на недостоверной статистике.
+
+Порядок предполагает, что владелец параллельно принимает D1–D5. Без этих решений первые security-задачи можно подготовить и протестировать, но нельзя безопасно завершить их архитектурную часть.

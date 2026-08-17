@@ -145,14 +145,14 @@ export function findUserById(id: string): User | null {
 
 export function findUserByEmail(email: string): User | null {
   const e = normalizeEmail(email);
-  const user = readUsersRaw().find((u) => normalizeEmail(u.email) === e);
+  const user = readUsersRaw().find((u) => normalizeEmail(u.email ?? "") === e);
   return user ? publicUser(user) : null;
 }
 
 export function verifyUserCredentials(email: string, password: string): User | null {
   const e = normalizeEmail(email);
   const list = readUsersRaw();
-  const idx = list.findIndex((u) => normalizeEmail(u.email) === e);
+  const idx = list.findIndex((u) => normalizeEmail(u.email ?? "") === e);
   if (idx < 0) return null;
 
   const user = list[idx];
