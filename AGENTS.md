@@ -217,6 +217,21 @@ Backend ожидает переменные окружения. Код не за
 
 `git push` не является ручным production deployment, но push в `main` с изменениями `backend/**` или `.github/workflows/backend-deploy.yml` запускает configured GitHub Actions backend deploy. Перед таким push проверить workflow scope; после push не выполнять дополнительно SSH, `git pull`, `systemctl restart` или другие direct production actions без отдельного запроса владельца.
 
+### Default staging policy
+
+Если владелец явно не сообщил о ручных или unrelated changes, считать текущие изменения результатом agent-assisted workflow и предпочитать практический staging вместо хирургического partial staging:
+
+1. проверить `git status --short`;
+2. исключить secrets, `.env`, private keys, build artifacts, caches, `node_modules`, `__pycache__` и temporary files;
+3. stage-ить task-relevant files точным списком файлов/директорий;
+4. проверить staged file list и создать commit/push.
+
+Не тратить excessive time на сохранение гипотетических owner edits. Для docs/process задач допустимо stage-ить `AGENTS.md`, `docs/**` и `.github/workflows/**`, если это соответствует scope. Для code задач допустимо stage-ить все изменённые tracked source files, относящиеся к задаче. Не выполнять `git add .` без проверки status и staged file list.
+
+Если есть явно обозначенные owner/manual changes или unrelated risky changes, остановиться и спросить владельца. Если `.git/index.lock` stale и активного Git-процесса нет, разрешено удалить только `.git/index.lock`.
+
+Без отдельного разрешения запрещены `git reset --hard`, `git clean`, force push, rebase, destructive database operations и production operations. Цель — быстрый и практичный commit/push без over-engineering partial staging, когда владелец не пишет код вручную.
+
 ## Если требуется решение владельца
 
 Если реализация требует решения, которого нет в work plan или `docs/DECISIONS.md`:
