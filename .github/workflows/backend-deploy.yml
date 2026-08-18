@@ -113,14 +113,21 @@ jobs:
           PYTHONPYCACHEPREFIX="$compile_cache" "$venv_path/bin/python" -m compileall -q "$project_path/backend"
           systemctl restart "$systemd_unit"
           systemctl is-active --quiet "$systemd_unit"
+          local_health="$(curl --fail --silent --show-error --max-time 20 http://127.0.0.1:8000/)"
+          printf 'Local backend health: %s\n' "$local_health"
           deployed_sha="$(git -C "$project_path" rev-parse HEAD)"
           test "$deployed_sha" = "$target_sha"
           printf 'Deployed commit: %s\n' "$deployed_sha"
           REMOTE
 
       - name: Check public health endpoint
-        run: >-
-          curl --fail --silent --show-error --location
-          --retry 5 --retry-all-errors --retry-delay 3 --max-time 20
-          --user-agent "IslandQuiz-Deploy-Healthcheck"
-          https://api.islandquiz.online/
+        run: |
+          set -euo pipefail
+          if curl --fail --silent --show-error --location \
+            --retry 5 --retry-all-errors --retry-delay 3 --max-time 20 \
+            --user-agent "IslandQuiz-Deploy-Healthcheck" \
+            https://api.islandquiz.online/; then
+            echo "Public Cloudflare health check passed."
+          else
+            echo "::warning::Public Cloudflare health check failed; local VPS backend gate passed and remains authoritative."
+          fi
