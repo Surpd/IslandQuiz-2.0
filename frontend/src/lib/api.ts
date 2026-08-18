@@ -1138,8 +1138,127 @@ export interface GeneratedQuestion {
   pairs?: { left: string; right: string }[];
 }
 
+type AIResponse = Record<string, unknown>;
+
+const AI_QUESTION_TYPES = new Set([
+  "choice",
+  "bool",
+  "text",
+  "matching",
+  "close",
+  "ordering",
+]);
+
+function isAIResponse(value: unknown): value is AIResponse {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function aiResponseError(value: unknown): Error | null {
+  if (!isAIResponse(value)) return null;
+  if (typeof value.error === "string" && value.error.trim()) {
+    return new Error(value.error);
+  }
+  return null;
+}
+
+function requireAIResponse(value: unknown, expected: string): AIResponse {
+  const error = aiResponseError(value);
+  if (error) throw error;
+  if (!isAIResponse(value)) {
+    throw new Error(`AI вернул некорректные данные: ожидался ${expected}.`);
+  }
+  return value;
+}
+
+function requireNonEmptyString(value: unknown, field: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`AI вернул некорректное поле ${field}.`);
+  }
+  return value.trim();
+}
+
+function optionalStringArray(value: unknown, field: string): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || !item.trim())) {
+    throw new Error(`AI вернул некорректное поле ${field}.`);
+  }
+  return value;
+}
+
+function optionalPairs(value: unknown): { left: string; right: string }[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some((pair) => !isAIResponse(pair) || typeof pair.left !== "string" || !pair.left.trim() || typeof pair.right !== "string" || !pair.right.trim())) {
+    throw new Error("AI вернул некорректные пары для сопоставления.");
+  }
+  return value as { left: string; right: string }[];
+}
+
+function normalizeGeneratedQuestion(value: unknown): GeneratedQuestion {
+  const question = requireAIResponse(value, "вариант вопроса");
+  const difficulty = question.difficulty;
+  if (difficulty !== "easy" && difficulty !== "medium" && difficulty !== "hard") {
+    throw new Error("AI вернул некорректную сложность вопроса.");
+  }
+  if (question.correct !== undefined && typeof question.correct !== "number" && typeof question.correct !== "boolean") {
+    throw new Error("AI вернул некорректный правильный ответ.");
+  }
+  if (question.correctAnswer !== undefined && typeof question.correctAnswer !== "string") {
+    throw new Error("AI вернул некорректный текст правильного ответа.");
+  }
+  return {
+    difficulty,
+    question: requireNonEmptyString(question.question, "question"),
+    options: optionalStringArray(question.options, "options"),
+    correct: question.correct as number | boolean | undefined,
+    correctAnswer: question.correctAnswer as string | undefined,
+    pairs: optionalPairs(question.pairs),
+  };
+}
+
+function normalizeGeneratedQuizQuestion(value: unknown): GeneratedQuizQuestion {
+  const question = requireAIResponse(value, "вопрос квиза");
+  if (typeof question.type !== "string" || !AI_QUESTION_TYPES.has(question.type)) {
+    throw new Error("AI вернул неподдерживаемый тип вопроса.");
+  }
+  const normalized = normalizeGeneratedQuestion(question);
+  const type = question.type as GeneratedQuizQuestion["type"];
+  const correct = normalized.correct;
+
+  if (type === "choice" && (!normalized.options || normalized.options.length !== 4 || typeof correct !== "number" || !Number.isInteger(correct) || correct < 0 || correct > 3)) {
+    throw new Error("AI вернул некорректный вопрос с вариантами ответа.");
+  }
+  if (type === "bool" && typeof normalized.correct !== "boolean") {
+    throw new Error("AI вернул некорректный вопрос Да/Нет.");
+  }
+  if ((type === "text" || type === "close") && !normalized.correctAnswer?.trim()) {
+    throw new Error("AI вернул вопрос без правильного ответа.");
+  }
+  if (type === "matching" && (!normalized.pairs || normalized.pairs.length < 3)) {
+    throw new Error("AI вернул некорректный вопрос на сопоставление.");
+  }
+  if (type === "ordering" && (!normalized.options || normalized.options.length < 3)) {
+    throw new Error("AI вернул некорректный вопрос на порядок.");
+  }
+
+  return { ...normalized, type };
+}
+
+async function uploadAIFile(path: string, formData: FormData): Promise<unknown> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("islandquiz.token") : null;
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
+  const payload: unknown = await response.json().catch(() => ({ error: "Network error" }));
+  if (!response.ok) {
+    throw aiResponseError(payload) ?? new Error(`HTTP ${response.status}`);
+  }
+  return payload;
+}
+
 export interface GeneratedQuizQuestion {
-  type: "choice" | "bool" | "text" | "matching";
+  type: "choice" | "bool" | "text" | "matching" | "close" | "ordering";
   difficulty?: "easy" | "medium" | "hard";
   question: string;
   options?: string[];
@@ -1167,10 +1286,14 @@ export async function improveQuestion(input: {
   wishes?: string;
   reroll?: boolean;
 }): Promise<{ variants: GeneratedQuestion[] }> {
-  return apiFetch("/api/ai/improve-question", {
+  const response = requireAIResponse(await apiFetch("/api/ai/improve-question", {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }), "варианты вопроса");
+  if (!Array.isArray(response.variants) || response.variants.length === 0) {
+    throw new Error("AI не вернул варианты вопроса.");
+  }
+  return { variants: response.variants.map(normalizeGeneratedQuestion) };
 }
 
 export async function generateQuestion(input: {
@@ -1182,10 +1305,14 @@ export async function generateQuestion(input: {
   reroll?: boolean;
   difficulty?: "easy" | "medium" | "hard";
 }): Promise<{ variants: GeneratedQuestion[] }> {
-  return apiFetch("/api/ai/generate-question", {
+  const response = requireAIResponse(await apiFetch("/api/ai/generate-question", {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }), "варианты вопроса");
+  if (!Array.isArray(response.variants) || response.variants.length === 0) {
+    throw new Error("AI не вернул варианты вопроса.");
+  }
+  return { variants: response.variants.map(normalizeGeneratedQuestion) };
 }
 
 export async function generateQuiz(input: {
@@ -1197,20 +1324,64 @@ export async function generateQuiz(input: {
   title: string;
   questions: GeneratedQuizQuestion[];
 }> {
-  return apiFetch("/api/ai/generate-quiz", {
+  const response = requireAIResponse(await apiFetch("/api/ai/generate-quiz", {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }), "квиз");
+  if (!Array.isArray(response.questions) || response.questions.length === 0) {
+    throw new Error("AI не вернул вопросы квиза.");
+  }
+  return {
+    title: requireNonEmptyString(response.title, "title"),
+    questions: response.questions.map(normalizeGeneratedQuizQuestion),
+  };
+}
+
+export async function generateQuizFromFile(input: {
+  file: File;
+  count: number;
+  difficulty: QuizDifficulty;
+  wishes?: string;
+}): Promise<{ title: string; questions: GeneratedQuizQuestion[] }> {
+  const formData = new FormData();
+  formData.append("file", input.file);
+  formData.append("count", String(input.count));
+  formData.append("difficulty", input.difficulty);
+  if (input.wishes) formData.append("wishes", input.wishes);
+
+  const response = requireAIResponse(
+    await uploadAIFile("/api/ai/generate-from-file", formData),
+    "квиз",
+  );
+  if (!Array.isArray(response.questions) || response.questions.length === 0) {
+    throw new Error("AI не вернул вопросы квиза.");
+  }
+  return {
+    title: requireNonEmptyString(response.title, "title"),
+    questions: response.questions.map(normalizeGeneratedQuizQuestion),
+  };
 }
 
 export async function generateJeopardyCategories(input: {
   topic?: string;
   wishes?: string;
 }): Promise<{ categories: GeneratedJeopardyCategory[] }> {
-  return apiFetch("/api/ai/generate-jeopardy-categories", {
+  const response = requireAIResponse(await apiFetch("/api/ai/generate-jeopardy-categories", {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }), "категории Jeopardy");
+  if (!Array.isArray(response.categories) || response.categories.length === 0) {
+    throw new Error("AI не вернул категории Jeopardy.");
+  }
+  return {
+    categories: response.categories.map((category) => {
+      const value = requireAIResponse(category, "категорию Jeopardy");
+      return {
+        name: requireNonEmptyString(value.name, "category.name"),
+        description: requireNonEmptyString(value.description, "category.description"),
+      };
+    }),
+  };
 }
 
 export async function generateJeopardyQuestions(input: {
@@ -1218,10 +1389,32 @@ export async function generateJeopardyQuestions(input: {
   emptySlots: number[];
   wishes?: string;
 }): Promise<{ questions: GeneratedJeopardyQuestion[] }> {
-  return apiFetch("/api/ai/generate-jeopardy-questions", {
+  const response = requireAIResponse(await apiFetch("/api/ai/generate-jeopardy-questions", {
     method: "POST",
     body: JSON.stringify(input),
+  }), "вопросы Jeopardy");
+  if (!Array.isArray(response.questions) || response.questions.length === 0) {
+    throw new Error("AI не вернул вопросы Jeopardy.");
+  }
+  const seenPoints = new Set<number>();
+  const questions = response.questions.map((question) => {
+      const value = requireAIResponse(question, "вопрос Jeopardy");
+      const points = value.points;
+      if (typeof points !== "number" || !Number.isInteger(points) || !input.emptySlots.includes(points) || seenPoints.has(points)) {
+        throw new Error("AI вернул некорректную стоимость вопроса Jeopardy.");
+      }
+      seenPoints.add(points);
+      return {
+        points,
+        difficulty: typeof value.difficulty === "string" ? value.difficulty : "",
+        q: requireNonEmptyString(value.q, "question.q"),
+        a: requireNonEmptyString(value.a, "question.a"),
+      };
   });
+  if (questions.length !== input.emptySlots.length) {
+    throw new Error("AI вернул неполный набор вопросов Jeopardy.");
+  }
+  return { questions };
 }
 
 export const __apiVersion = "2.0.0-rest-ws";

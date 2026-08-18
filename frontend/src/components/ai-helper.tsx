@@ -41,6 +41,7 @@ export function AIHelperButton({
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
   const [variants, setVariants] = useState<GeneratedQuestion[]>([]);
   const [wishes, setWishes] = useState("");
   const [localTopic, setLocalTopic] = useState("");
@@ -101,6 +102,7 @@ export function AIHelperButton({
 
   const run = async (reroll = false) => {
     setStatus("loading");
+    setError(null);
     try {
       const { variants } = await generateQuestion({
         topic: effectiveTopic,
@@ -115,6 +117,7 @@ export function AIHelperButton({
       setStatus("idle");
     } catch (err) {
       console.error(err);
+      setError(err instanceof Error ? err.message : "Не удалось сгенерировать варианты.");
       setStatus("error");
     }
   };
@@ -225,7 +228,7 @@ export function AIHelperButton({
             )}
             {status === "error" && (
               <div className="rounded-lg border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger">
-                Не удалось сгенерировать. Попробуйте ещё раз.
+                {error ?? "Не удалось сгенерировать. Попробуйте ещё раз."}
                 <button
                   onClick={() => run(false)}
                   className="ml-2 underline"

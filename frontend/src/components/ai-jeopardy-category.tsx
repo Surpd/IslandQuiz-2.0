@@ -58,7 +58,7 @@ export function AIJeopardyCategoryButton({
     } catch (err) {
       console.error(err);
       setStatus("error");
-      setError("Не удалось сгенерировать вопросы. Попробуйте ещё раз.");
+      setError(err instanceof Error ? err.message : "Не удалось сгенерировать вопросы. Попробуйте ещё раз.");
     }
   };
 
@@ -75,7 +75,7 @@ export function AIJeopardyCategoryButton({
     } catch (err) {
       console.error(err);
       setStatus("error");
-      setError("Не удалось сгенерировать категории. Попробуйте ещё раз.");
+      setError(err instanceof Error ? err.message : "Не удалось сгенерировать категории. Попробуйте ещё раз.");
     }
   };
 

@@ -24,24 +24,23 @@
 
 ## Broken / needs fix now
 
-### H11 — Quiz Builder AI generation (`READY`, Terra / high)
+### H11 — Quiz Builder AI generation (`DONE`, Terra / high)
 
-Найдены два пользовательских сбоя:
+Исправлены два пользовательских сбоя:
 
 - full quiz generation падает с `Cannot read properties of undefined (reading 'map')`;
 - per-question AI helper падает с `Cannot read properties of undefined (reading 'length')`.
 
-Это главный blocker для working product/demo. Нужно починить end-to-end путь `AI response → normalization/mapping → Quiz Builder state` для успешных, пустых/неполных и error responses. Простого optional chaining или скрытия ошибки недостаточно.
+Frontend теперь нормализует success payload и переводит error/empty/malformed response в controlled UI error до `.map`/`.length`; legacy malformed QuizData не ломает builder. Jeopardy raw-response backend validation остаётся H8 follow-up.
 
-Scope H11: `ai-generate-quiz.tsx`, `ai-helper.tsx`, `builder.quiz.tsx`, `api.ts` и проверка фактического backend AI contract. Если потребуется менять canonical AI schema или `games.data`, работу нужно остановить и связать с H8.
+Завершённый scope H11: `ai-generate-quiz.tsx`, `ai-helper.tsx`, `ai-jeopardy-category.tsx`, `builder.quiz.tsx`, `api.ts` и проверка фактического backend AI contract. Canonical AI schema и `games.data` не менялись.
 
 ## Next 3–5 recommended tasks
 
-1. **H11 — Починить Quiz Builder AI generation** — **Terra / high**. Главный demo blocker.
-2. **H8 — Согласовать AI contract и документацию** — **Terra / high**. Закрепить response shapes и mapping после исправления фактического flow.
-3. **H7 — Добавить критические API/room/AI tests** — **Terra / high**. Зафиксировать full quiz и per-question regression cases.
-4. **C2 — Server-side authorization WebSocket-комнат** — **Sol / high**. Главный security blocker онлайн-режима.
-5. **C3 — Server-side scoring и trusted results** — **Sol / high**. Закрыть целостность результатов после C2.
+1. **H8 — Согласовать AI contract и документацию** — **Terra / high**. Закрепить response shapes, включая server-side Jeopardy validation.
+2. **H7 — Добавить критические API/room/AI tests** — **Terra / high**. Зафиксировать full quiz и per-question regression cases.
+3. **C2 — Server-side authorization WebSocket-комнат** — **Sol / high**. Главный security blocker онлайн-режима.
+4. **C3 — Server-side scoring и trusted results** — **Sol / high**. Закрыть целостность результатов после C2.
 
 Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
 

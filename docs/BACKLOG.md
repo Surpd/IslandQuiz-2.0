@@ -149,6 +149,7 @@
 - **Зависимости:** выбрать canonical JSON schema, error format и compatibility policy; затем добавить contract tests для Quiz и Jeopardy.
 - **Сложность:** L.
 - **Самостоятельность:** частично; техническое описание можно обновить самостоятельно, но canonical contract должен подтвердить владелец.
+- **H11 note:** Jeopardy endpoints возвращают raw parsed JSON без server-side validation; H11 ограничился frontend normalization и controlled error. В H8 нужно выбрать и закрепить backend validation/error envelope.
 
 ### H9. Ввести единый контроль доступа к результатам и online results
 
@@ -170,7 +171,7 @@
 
 ### H11. Починить end-to-end AI generation в Quiz Builder
 
-- **Статус:** `READY`; найденный owner’ом demo blocker.
+- **Статус:** `DONE`; frontend response normalization завершена.
 - **Проблема/цель:** full quiz generation падает с `Cannot read properties of undefined (reading 'map')`, а per-question AI helper — с `Cannot read properties of undefined (reading 'length')`. Нужно восстановить полный flow от AI response до builder state, а не скрыть TypeError защитной проверкой.
 - **Почему важно:** основная AI-функция Quiz Builder сейчас не работает и блокирует нормальную демонстрацию и практическое использование продукта.
 - **Затрагивает:** `frontend/src/components/ai-generate-quiz.tsx`, `frontend/src/components/ai-helper.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/src/lib/api.ts`, фактический contract `backend/routes/ai.py` и mapping в builder.
@@ -180,6 +181,7 @@
 - **Проверки:** authenticated Quiz Builder smoke, full generation, per-question helper для нескольких question types, invalid/empty/error response fixtures, `npx tsc --noEmit`, targeted lint/build и сохранение сгенерированной игры.
 - **Сложность:** L.
 - **Самостоятельность:** да в рамках текущего API contract; если потребуется менять canonical AI schema или `games.data`, остановиться и вынести решение в H8.
+- **Решение:** error/empty/malformed payload теперь отклоняется в `api.ts` до использования в UI; full/file Quiz, helpers и Jeopardy защищены от absent arrays. При загрузке legacy malformed QuizData builder применяет безопасные defaults. Server-side Jeopardy validator не добавлялся — H8 follow-up.
 
 ## 🟡 Medium
 

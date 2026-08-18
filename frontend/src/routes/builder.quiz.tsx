@@ -71,6 +71,65 @@ const TYPE_META: Record<QuizQuestionType, { label: string; icon: typeof Circle; 
   ordering: { label: "Порядок", icon: ListOrdered, tone: "text-accent" },
 };
 
+const DEFAULT_QUIZ_CONFIG: QuizConfig = {
+  title: "Новый квиз",
+  description: "",
+  theme: "amber",
+  shuffleQuestions: false,
+  showResult: "end",
+  defaultTime: 30,
+  orderMode: "sequential",
+  totalTime: 10,
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isQuizQuestionType(value: unknown): value is QuizQuestionType {
+  return value === "choice" || value === "bool" || value === "text" || value === "matching" || value === "close" || value === "ordering";
+}
+
+function normalizeQuizConfig(value: unknown): QuizConfig {
+  if (!isRecord(value)) return DEFAULT_QUIZ_CONFIG;
+  const theme = value.theme;
+  return {
+    title: typeof value.title === "string" ? value.title : DEFAULT_QUIZ_CONFIG.title,
+    description: typeof value.description === "string" ? value.description : "",
+    theme: theme === "amber" || theme === "midnight" || theme === "classic" || theme === "ocean" || theme === "forest" ? theme : "amber",
+    shuffleQuestions: typeof value.shuffleQuestions === "boolean" ? value.shuffleQuestions : false,
+    showResult: value.showResult === "each" || value.showResult === "end" ? value.showResult : "end",
+    defaultTime: typeof value.defaultTime === "number" && value.defaultTime > 0 ? value.defaultTime : 30,
+    orderMode: value.orderMode === "free" || value.orderMode === "sequential" ? value.orderMode : "sequential",
+    totalTime: typeof value.totalTime === "number" && value.totalTime > 0 ? value.totalTime : 10,
+  };
+}
+
+function normalizeQuizQuestion(value: unknown, defaultTime: number): QuizQuestion | null {
+  if (!isRecord(value) || !isQuizQuestionType(value.type)) return null;
+  const type = value.type;
+  const options = Array.isArray(value.options) ? value.options.filter((option): option is string => typeof option === "string") : [];
+  return {
+    id: typeof value.id === "string" && value.id ? value.id : newId(),
+    type,
+    q: typeof value.q === "string" ? value.q : "",
+    image: typeof value.image === "string" ? value.image : "",
+    options: type === "choice" ? (options.length ? options : ["", "", "", ""]) : [],
+    answer: typeof value.answer === "string" ? value.answer : type === "bool" ? "true" : "",
+    points: typeof value.points === "number" && value.points > 0 ? value.points : 100,
+    time: typeof value.time === "number" && value.time > 0 ? value.time : defaultTime,
+  };
+}
+
+function normalizeQuizData(value: unknown): QuizData {
+  const data = isRecord(value) ? value : {};
+  const config = normalizeQuizConfig(data.config);
+  const questions = Array.isArray(data.questions)
+    ? data.questions.map((question) => normalizeQuizQuestion(question, config.defaultTime)).filter((question): question is QuizQuestion => question !== null)
+    : [];
+  return { config, questions: questions.length ? questions : [makeQuestion("choice", 100, config.defaultTime)] };
+}
+
 function makeQuestion(type: QuizQuestionType, points = 100, time = 30): QuizQuestion {
   const base = { id: newId(), type, q: "", image: "", options: [], answer: "", points, time };
   if (type === "choice") return { ...base, options: ["", "", "", ""], answer: "" };
@@ -83,16 +142,7 @@ function makeQuestion(type: QuizQuestionType, points = 100, time = 30): QuizQues
 
 function BuilderQuiz() {
   const { id: urlId } = Route.useSearch();
-  const [config, setConfig] = useState<QuizConfig>({
-    title: "Новый квиз",
-    description: "",
-    theme: "amber",
-    shuffleQuestions: false,
-    showResult: "end",
-    defaultTime: 30,
-    orderMode: "sequential",
-    totalTime: 10,
-  });
+  const [config, setConfig] = useState<QuizConfig>(DEFAULT_QUIZ_CONFIG);
   const [questions, setQuestions] = useState<QuizQuestion[]>([makeQuestion("choice")]);
   const [tags, setTags] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
@@ -110,8 +160,9 @@ function BuilderQuiz() {
       try {
         const rec = await loadGame<QuizData>("quiz", urlId);
         if (rec) {
-          setConfig(rec.data.config);
-          setQuestions(rec.data.questions);
+          const data = normalizeQuizData(rec.data);
+          setConfig(data.config);
+          setQuestions(data.questions);
           setTags(rec.tags ?? []);
           if (rec.visibility) setVisibility(rec.visibility);
           setSavedId(urlId);
@@ -138,8 +189,9 @@ function BuilderQuiz() {
   const restoreDraft = () => {
     const d = draftPrompt.draft;
     if (!d) return;
-    setConfig(d.data.config);
-    setQuestions(d.data.questions);
+    const data = normalizeQuizData(d.data);
+    setConfig(data.config);
+    setQuestions(data.questions);
     setTags(d.data.tags ?? []);
     draftPrompt.accept();
     showToast("Черновик восстановлен");
@@ -259,7 +311,12 @@ function BuilderQuiz() {
 
 
   const applyGeneratedQuiz = (result: { title: string; questions: import("@/lib/api").GeneratedQuizQuestion[] }) => {
-    const next: QuizQuestion[] = result.questions.map((g) => {
+    const generatedQuestions = Array.isArray(result.questions) ? result.questions : [];
+    if (!generatedQuestions.length) {
+      showToast("AI не вернул вопросы квиза");
+      return;
+    }
+    const next: QuizQuestion[] = generatedQuestions.map((g) => {
       if (g.type === "choice") {
         const opts = g.options ?? ["", "", "", ""];
         const correctIdx = typeof g.correct === "number" ? g.correct : 0;

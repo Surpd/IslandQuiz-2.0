@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { Sparkles, Loader2, X, Upload } from "lucide-react";
 import {
   generateQuiz,
+  generateQuizFromFile,
   type GeneratedQuizQuestion,
   type QuizDifficulty,
 } from "@/lib/api";
@@ -94,34 +95,12 @@ export function AIGenerateQuizButton({
       setError(null);
 
       try {
-        const formData = new FormData();
-
-        formData.append("file", file);
-        formData.append("count", String(count));
-        formData.append("difficulty", difficulty);
-
-        if (wishes.trim()) {
-          formData.append("wishes", wishes.trim());
-        }
-
-        // Исправлено: Запрос идет на актуальный домен VPS
-        const token = typeof window !== "undefined" ? localStorage.getItem("islandquiz.token") : null;
-
-        const res = await fetch("https://api.islandquiz.online/api/ai/generate-from-file", {
-          method: "POST",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: formData,
+        const result = await generateQuizFromFile({
+          file,
+          count,
+          difficulty,
+          wishes: wishes.trim() || undefined,
         });
-
-        const result = await res.json();
-
-        if (result.error) {
-          setError(result.error);
-          setStatus("error");
-          return;
-        }
 
         onGenerated(result);
 
@@ -131,7 +110,7 @@ export function AIGenerateQuizButton({
         setOpen(false);
       } catch (err) {
         console.error(err);
-        setError("Ошибка загрузки файла.");
+        setError(err instanceof Error ? err.message : "Ошибка загрузки файла.");
         setStatus("error");
       }
 
@@ -173,7 +152,9 @@ export function AIGenerateQuizButton({
       console.error(err);
 
       setError(
-        "Не удалось сгенерировать квиз. Попробуйте ещё раз.",
+        err instanceof Error
+          ? err.message
+          : "Не удалось сгенерировать квиз. Попробуйте ещё раз.",
       );
 
       setStatus("error");

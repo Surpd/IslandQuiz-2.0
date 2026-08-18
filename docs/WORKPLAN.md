@@ -109,13 +109,14 @@
 #### H8. Согласовать фактический AI contract и документацию — `DEPENDENCY`
 
 - **Зависимости:** инвентаризация текущих shapes для Quiz, Jeopardy, improve и file flows; решение canonical JSON schema/error format.
+- **H11 handoff:** Jeopardy endpoints пока возвращают raw parsed JSON без backend validator; H11 добавил frontend guard и controlled error, а server-side schema/error normalization остаётся scope H8.
 - **Блокирующие D1–D9:** нет; техническая сверка и дальнейшая реализация зависят от contract tables.
 - **Техническое исследование до решения:** да — сравнить `ai.py`, prompts, validator, `api.ts`, builders и `docs/AI.md`.
 - **Файлы:** `backend/routes/ai.py`, `backend/services/ai_prompts.py`, `backend/services/ai_validator.py`, `frontend/src/lib/api.ts`, AI components/builders, `docs/AI.md`, `md/AI_LOGIC.md`.
 - **Готово, когда:** один contract описывает input, success и error для всех AI endpoints; prompt, validator, mapping и документация согласованы.
 - **Проверки:** fixtures для valid/invalid Quiz и Jeopardy responses, count/type/difficulty validation, improve/file flows; backend syntax/import, frontend `tsc`, lint, build.
 
-#### H11. Починить end-to-end AI generation в Quiz Builder — `READY`
+#### H11. Починить end-to-end AI generation в Quiz Builder — `DONE`
 
 - **Приоритет:** главный practical blocker для working product/demo.
 - **Проблема:** full quiz generation падает с `Cannot read properties of undefined (reading 'map')`; per-question AI helper падает с `Cannot read properties of undefined (reading 'length')`.
@@ -126,6 +127,8 @@
 - **Готово, когда:** full quiz и per-question generation работают для валидного ответа, empty/incomplete response и API error; вопросы корректно попадают в builder; TypeError не возникает и не скрывается.
 - **Проверки:** authenticated Quiz Builder smoke, full generation, helper для нескольких question types, invalid/empty/error fixtures, `npx tsc --noEmit`, targeted lint/build и сохранение результата.
 - **Граница scope:** если потребуется менять canonical AI schema или `games.data`, остановиться и обновить зависимость H8; не начинать архитектурное изменение в H11.
+- **Фактический результат:** frontend API facade теперь отклоняет `{error}`, empty и malformed AI responses до `.map`/`.length`; full/file Quiz, per-question helper и Jeopardy flow получают validated arrays. Legacy malformed QuizData/drafts нормализуются при открытии builder. Canonical backend contract и Jeopardy server validator не менялись.
+- **Проверки:** AI entry-point/consumer sweep, `npx tsc --noEmit`, `npm run build`, `git diff --check` — успешно. `npm run lint` не проходит из-за существующего общего Prettier/ESLint baseline (2151 problems), не исправлявшегося в H11.
 
 #### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation — `DEPENDENCY`
 
