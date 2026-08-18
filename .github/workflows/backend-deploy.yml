@@ -48,14 +48,14 @@ jobs:
       - name: Check deployment configuration
         run: |
           set -euo pipefail
-          test -n "$VPS_HOST"
-          test -n "$VPS_PORT"
-          test -n "$VPS_USER"
-          test -n "$VPS_SSH_KEY"
-          test -n "$VPS_KNOWN_HOSTS"
-          test -n "$VPS_PROJECT_PATH"
-          test -n "$VPS_VENV_PATH"
-          test -n "$VPS_SYSTEMD_UNIT"
+          for variable_name in \
+            VPS_HOST VPS_PORT VPS_USER VPS_SSH_KEY VPS_KNOWN_HOSTS \
+            VPS_PROJECT_PATH VPS_VENV_PATH VPS_SYSTEMD_UNIT; do
+            if [ -z "${!variable_name:-}" ]; then
+              echo "::error::Missing deployment configuration: $variable_name"
+              exit 1
+            fi
+          done
 
       - name: Configure SSH
         run: |
