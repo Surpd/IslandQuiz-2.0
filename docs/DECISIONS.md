@@ -68,7 +68,7 @@ Production Supabase разрешено использовать для read-only
 
 Frontend: GitHub `main` → Cloudflare Pages. Backend: repository `https://github.com/Surpd/IslandQuiz-2.0.git`, branch `main`, VPS `77.221.137.100:22`, checkout `/opt/islandquiz`, systemd `islandquiz.service`, `WorkingDirectory=/opt/islandquiz/backend`, user `root`, Python 3.12, venv `/opt/islandquiz/backend/venv`, один Uvicorn worker. ExecStart: `/opt/islandquiz/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'`. Secrets находятся только в `/opt/islandquiz/backend/.env` на VPS.
 
-Backend deployment сейчас ручной. Целевая контролируемая последовательность: push в `main` → deployment конкретного commit SHA → при необходимости обновление зависимостей → restart `islandquiz.service` → systemd status check → health check `https://api.islandquiz.online/`. Успешность подтверждается только после проверок; rollback выполняется на предыдущий успешный commit. CI/CD, Docker и автоматический production deploy в рамках этого решения не вводятся.
+Backend deployment автоматизирован GitHub Actions для `backend/**` и изменения самого workflow в `main`: exact commit SHA → dependency update → restart `islandquiz.service` → systemd status → local `127.0.0.1:8000` health → SHA verification. Cloudflare edge может возвращать GitHub runner `403`, поэтому public URL является diagnostic warning, а local backend health — обязательным release gate. `workflow_dispatch(target_sha)` реализует rollback capability; full production rehearsal требует отдельного approval. Frontend Cloudflare Pages — отдельный pipeline. CI/CD и Docker не вводятся.
 
 ## Documentation source of truth
 

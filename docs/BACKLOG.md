@@ -4,7 +4,7 @@
 
 Цель: снизить риски безопасности и потери данных, восстановить согласованность frontend/backend-контрактов, сделать deployment и проверку изменений воспроизводимыми, затем развивать продукт.
 
-Источник: фактическое описание в `docs/ARCHITECTURE.md`, `docs/AI.md`, `docs/DEPLOYMENT.md`, `docs/DECISIONS.md`, legacy-документация и проверка текущего TypeScript baseline. Supabase production schema, RLS/RPC и VPS configuration в репозитории не подтверждены; такие пункты помечены как требующие проверки или решения владельца.
+Источник: фактическое описание в `docs/ARCHITECTURE.md`, `docs/AI.md`, `docs/DEPLOYMENT.md`, `docs/DECISIONS.md`, legacy-документация и проверка текущего TypeScript baseline. Supabase production schema, RLS/RPC зафиксированы read-only snapshot в `docs/DATABASE.md`; изменения production требуют approval владельца.
 
 Формат сложности: S — до 1 дня, M — несколько дней, L — до 1–2 недель, XL — крупная межслойная работа. Оценка предварительная.
 
@@ -15,7 +15,7 @@
 - **Проблема/цель:** HMAC-токен живёт 5 минут, `nonce` подписывается, но не хранится и не помечается использованным. Один и тот же токен можно повторно отправить в `bot-login`/`complete` до истечения срока.
 - **Почему важно:** replay может повторно завершить вход или привязку Telegram и привести к захвату login flow.
 - **Затрагивает:** `backend/routes/telegram_auth.py`, `backend/bot.py`, frontend Telegram login flow, таблицу/механизм хранения использованных nonce.
-- **Зависимости:** выбор server-side storage и атомарной операции consume; проверка production schema Supabase; тесты повторной отправки и параллельных запросов.
+- **Зависимости:** выбор server-side storage и атомарной операции consume; production schema snapshot уже проверен; для migration/storage proposal нужен approval владельца.
 - **Сложность:** L.
 - **Самостоятельность:** нет — нужен выбор владельца, где хранить nonce и как долго; после решения реализация локальна.
 
@@ -24,27 +24,38 @@
 - **Проблема/цель:** WebSocket принимает соединение и действия, а `hostId`, `playerId`, score delta и переходы состояния в значительной степени приходят от клиента. Для host/player нет полноценной проверки прав на каждую команду.
 - **Почему важно:** посторонний клиент может вмешаться в игру, изменить очки, kick/start/finish комнату или раскрыть состояние.
 - **Затрагивает:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, host/player room views, reconnect logic, протокол actions/state.
-- **Зависимости:** схема идентичности участника, способ передачи JWT в WebSocket, матрица прав host/player, тесты протокола; отдельно — решение о persistence комнат.
+- **Зависимости:** server-issued player identity, способ передачи guest credential/JWT в WebSocket, матрица прав host/player, тесты протокола; отдельно — решение о persistence комнат.
 - **Сложность:** XL.
-- **Самостоятельность:** частично; технический фикс возможен после решения владельца о модели идентификации гостевого player и допустимых anonymous-сценариях.
+- **Самостоятельность:** да в рамках принятой D2 policy; persistence комнат остаётся отдельным решением D4.
 
 ### C3. Перенести расчёт результата на доверенную сторону
 
 - **Проблема/цель:** одиночный player считает ответы и score на frontend; room actions и result payload также передают `correct`, `delta`, `score` и историю от клиента. Нужен независимый пересчёт по game snapshot и правилам конкретного формата.
 - **Почему важно:** иначе пользователь может отправить завышенный результат, а сохранённая статистика и leaderboard не являются доказательством прохождения.
 - **Затрагивает:** players всех трёх форматов, `backend/routes/results.py`, `backend/routes/rooms.py`, `games.data`, `frontend/src/lib/api.ts`, таблицы результатов и online rooms.
-- **Зависимости:** решение о канонических правилах scoring, версии game snapshot, допустимом ручном score adjustment для host и формате детальных ответов.
+- **Зависимости:** C2, versioned game snapshot, формат детальных ответов и реализация принятой D3 policy.
 - **Сложность:** XL.
-- **Самостоятельность:** нет — сначала владелец должен утвердить источник истины и правила пересчёта; затем потребуется синхронная backend/frontend работа.
+- **Самостоятельность:** да в рамках принятой D3 policy; потребуется синхронная backend/frontend работа.
 
 ### C4. Закрыть базовые риски JWT-аутентификации
 
 - **Проблема/цель:** JWT stateless хранится в `localStorage`, logout удаляет его только на клиенте, server-side revocation не предусмотрен. Требуется формально проверить `exp`, secret rotation, инвалидирование banned/deleted пользователей и поведение refresh/повторного входа.
 - **Почему важно:** украденный токен продолжает действовать, а изменение статуса пользователя не обязательно немедленно прекращает доступ.
 - **Затрагивает:** `backend/routes/auth.py`, `frontend/src/lib/auth.ts`, `frontend/src/hooks/use-auth.tsx`, Bearer middleware/helpers, users schema.
-- **Зависимости:** политика срока жизни, refresh/revocation и хранения токена; проверка bcrypt/JWT алгоритмов и production secrets.
+- **Статус:** `DONE`. Access token сокращён до 1 часа; проверены `exp`, обязательные claims и HS256, ban/delete и frontend reaction на `401`.
+- **Результат:** базовая JWT-защита завершена. Полный server-side session lifecycle вынесен в отдельную C4.1 и не является blocker’ом для C4.
 - **Сложность:** L.
-- **Самостоятельность:** нет — политика revocation, сроков и допустимого способа хранения требует решения владельца.
+- **Самостоятельность:** да в рамках принятой D1 policy.
+
+### C4.1. Ввести server-side session lifecycle: refresh и revoke/logout
+
+- **Статус:** `BACKLOG` / `DEPENDENCY`, не `READY`.
+- **Проблема/цель:** текущий JWT lifecycle stateless; logout удаляет token на frontend, но server-side sessions и refresh/revocation отсутствуют.
+- **Зависимости:** отдельное решение по persistent session storage; вероятно потребуется изменение production Supabase schema и approval владельца. C4.1 не блокирует уже выполненную базовую JWT-защиту C4.
+- **Acceptance direction:** login создаёт server-side session; короткоживущий access token продлевается через refresh; logout отзывает session; revoked/expired refresh token не работает; повторное использование отозванного refresh token безопасно блокируется; при необходимости можно отозвать все sessions пользователя; secrets и raw refresh tokens не попадают в логи.
+- **Проверки:** login/refresh/logout, expiry/revocation/replay refresh token, revoke-all, повторный login и secret/token log scan.
+- **Сложность:** L/XL.
+- **Самостоятельность:** нет — требуется архитектурное решение по storage и production schema.
 
 ### C5. Провести аварийную проверку Supabase schema, RLS и ограничений целостности — DONE
 
@@ -109,14 +120,17 @@
 - **Решение:** D7 подтверждает `islandquiz.service` на VPS с одним Uvicorn worker и одним backend instance. Startup запускает одну polling task на процесс, поэтому duplicate polling не возникает; отдельный bot service или кодовый guard не требуется.
 - **Проверка:** сверены `backend/main.py`, `backend/bot.py`, `backend/routes/telegram_auth.py` и зафиксированный systemd/Uvicorn `ExecStart`; Telegram login flow сохраняется.
 
-### H6. Сделать production deployment повторяемым и проверяемым
+### H6. Сделать production deployment повторяемым и проверяемым — DONE
 
-- **Проблема/цель:** deployment выполняется вручную по SSH/Git/systemd; имя unit, checkout path, branch, env loading, frontend publish и smoke-check не зафиксированы.
-- **Почему важно:** ручная процедура повышает риск деплоя не того commit, запуска без secrets, простоя или незамеченной поломки.
-- **Затрагивает:** VPS, Cloudflare Pages, systemd/Uvicorn, Git workflow, `docs/DEPLOYMENT.md`, health endpoint и frontend/API URLs.
-- **Зависимости:** решение владельца о release strategy и доступ к VPS; после этого — deploy checklist/script, rollback и smoke tests без секретов.
-- **Сложность:** L.
-- **Самостоятельность:** нет — exact infrastructure details и допустимый способ автоматизации должен подтвердить владелец.
+- **Результат:** backend deployment автоматизирован GitHub Actions: exact SHA, dependency update, syntax, restart `islandquiz.service`, systemd status, local VPS health и SHA verification прошли на production.
+- **Ограничение:** Cloudflare public URL может вернуть GitHub runner `403`; это diagnostic warning, не backend deploy gate. Frontend Cloudflare Pages остаётся отдельным pipeline.
+- **Rollback:** ручной `workflow_dispatch(target_sha)` реализован; full production rehearsal намеренно вынесен в H6.1.
+
+### H6.1. Провести controlled production rollback rehearsal — DEPENDENCY
+
+- **Проблема/цель:** проверить на production rollback к предыдущему подтверждённому SHA и возврат на актуальный SHA без изменения secrets или данных.
+- **Зависимости:** отдельный approval владельца на production operation.
+- **Проверки:** exact SHA, `islandquiz.service`, blocking local health gate до и после возврата; Cloudflare check только diagnostic.
 
 ### H7. Добавить автоматические проверки критических API и room flows
 
@@ -141,7 +155,7 @@
 - **Проблема/цель:** доступ к результатам реализован отдельными endpoint-ветками и разными payload; нужно проверить owner/admin/public/link semantics, userId filters и доступ к online player data.
 - **Почему важно:** результаты могут раскрывать персональные данные или быть недоступны законному владельцу; разрозненная authorization логика создаёт обходы.
 - **Затрагивает:** `backend/routes/results.py`, `backend/routes/games.py`, frontend results/dashboard/profile routes, `quiz_results`, `jeopardy_results`, `millionaire_results`, `online_quiz_results`.
-- **Зависимости:** visibility policy, user identity policy и production schema/RLS audit; tests на owner/non-owner/admin/anonymous.
+- **Зависимости:** принятая visibility policy, user identity policy и production schema/RLS snapshot; tests на owner/non-owner/admin/anonymous.
 - **Сложность:** L.
 - **Самостоятельность:** нет — нужны правила владельца для публичности результатов и персональных данных.
 
@@ -170,7 +184,7 @@
 - **Проблема/цель:** drafts/ID/visibility и auth token используют localStorage; legacy `src/lib/storage.ts` сосуществует с backend persistence и может давать stale values.
 - **Почему важно:** возможны потеря draft, конфликт между вкладками/пользователями и неправильная visibility; удалять legacy код изолированно нельзя.
 - **Затрагивает:** `frontend/src/hooks/use-draft.ts`, `frontend/src/lib/storage.ts`, `frontend/src/lib/auth.ts`, builders, `builder-actions.tsx`, backend save flows.
-- **Зависимости:** политика миграции draft, TTL/очистки, multi-tab conflict и решение по storage JWT из C4.
+- **Зависимости:** D8, политика миграции draft, TTL/очистки, multi-tab conflict и результат C4.
 - **Сложность:** L.
 - **Самостоятельность:** нет — нужен владелец для правил совместимости и удаления legacy поведения.
 
@@ -215,7 +229,7 @@
 - **Проблема/цель:** Supabase advisor подтвердил отключённый RLS на `settings`, `error_logs`, `ai_logs`, `ai_usage`, `feedback`, `password_resets`; `jeopardy_results` и `online_quiz_results` имеют RLS без policies. Существующие policies используют `auth.uid()`, а приложение — собственные JWT.
 - **Почему важно:** таблицы public schema могут быть доступны через PostgREST, а policies могут не ограничивать строки так, как предполагает backend.
 - **Затрагивает:** Supabase RLS/policies, `backend/database.py`, auth identity и admin/results routes.
-- **Зависимости:** D5 и решение о том, используется ли Supabase JWT identity или только privileged backend client; затем owner/non-owner policy tests.
+- **Зависимости:** решение о Supabase JWT identity versus privileged backend client; затем owner/non-owner policy tests. Любые RLS changes требуют approval.
 - **Сложность:** L.
 - **Самостоятельность:** нет — нельзя включать RLS или добавлять policies в production без согласования доступа.
 
@@ -224,7 +238,7 @@
 - **Проблема/цель:** `quiz_results.game_id`, `jeopardy_results.game_id`, `millionaire_results.game_id` и `online_quiz_results.game_id` используются кодом как связи, но FK на `games(id)` отсутствуют.
 - **Почему важно:** база не предотвращает orphan results после удаления игры.
 - **Затрагивает:** result routes, delete/fork game flows, Supabase constraints и возможное сохранение исторических результатов.
-- **Зависимости:** D3, H9 и решение о retention/cascade behavior; перед DDL нужен orphan-data audit.
+- **Зависимости:** H9 и решение о retention/cascade behavior; перед DDL нужен orphan-data audit и approval владельца.
 - **Сложность:** M.
 - **Самостоятельность:** нет — каскад, restrict или сохранение исторических результатов требует решения владельца.
 
@@ -280,7 +294,7 @@
 - **Проблема/цель:** AI проверяет форму, но не фактологическую корректность; добавить явный review, предупреждения, повторную генерацию и редактирование перед сохранением.
 - **Почему важно:** снизить риск публикации ошибочных вопросов и повысить доверие к AI.
 - **Затрагивает:** AI components, builders, `ai_validator.py`, prompts, usage/AI logs и UI предупреждений.
-- **Зависимости:** H8, решение о responsibility/costs и желательность внешних fact sources.
+- **Зависимости:** H8 и реализация принятой AI policy; внешние fact sources не обязательны.
 - **Сложность:** L.
 - **Самостоятельность:** нет — нужен продуктовый выбор, какой уровень проверки обещает IslandQuiz.
 
@@ -311,55 +325,47 @@
 - **Сложность:** L.
 - **Самостоятельность:** да после утверждения target уровня.
 
-## ⚪ Needs decision
+## ⚪ Decisions
 
-Эти вопросы нельзя корректно закрыть техническим изменением без решения владельца проекта. Они также являются зависимостями для задач выше.
+Принятые решения фиксируют policy; технические детали выбираются внутри соответствующих задач. D4 и D8 остаются открытыми decision blockers.
 
-### D1. Политика JWT и сессий
+### D1. Политика JWT и сессий — RESOLVED
 
-- Выбрать срок жизни access token, наличие refresh token, server-side revocation/blacklist, реакцию на ban/delete, secret rotation и допустимое client storage.
-- Блокирует C4, часть M2 и security tests.
-- Варианты: короткоживущий access + refresh/revoke; либо сознательно ограниченный stateless policy с документированными рисками.
+- Короткоживущий access token, продление сессии и server-side revoke/logout; ban/delete инвалидируют сессии. TTL, storage и rotation выбираются при C4. Разблокирует C4 и снимает decision dependency с M2.
 
-### D2. Модель безопасности WebSocket player
+### D2. Модель безопасности WebSocket player — RESOLVED
 
-- Решить, может ли anonymous player входить по коду, как выдаётся/отзывается player identity, должен ли player reconnect-иться, кто имеет право менять score и завершать игру.
-- Блокирует C2, C3, H10, H4 и P1.
+- Anonymous join по коду разрешён; server-issued identity связывает reconnect с игроком; spoofing и изменение чужого состояния запрещены; host/player имеют разные права. Разблокирует C2 и снимает decision dependency с C3/H10; H4/P1 всё ещё зависят от D4.
 
-### D3. Канонический scoring и anti-cheat
+### D3. Канонический scoring и anti-cheat — RESOLVED
 
-- Утвердить, считается ли результат только backend, допускается ли host adjustment, какие ответы/время являются доказательством и как обрабатываются старые game versions.
-- Блокирует C3, P2 и P5.
+- Сервер определяет правильность, очки и итог; client score/correct/delta не доверяются. Host adjustment — отдельная явно фиксируемая ручная корректировка; сохраняются ответы и snapshot/version для проверки. Снимает decision dependency с C3/P2/P5.
 
 ### D4. Persistence и масштабирование комнат
 
 - Выбрать single-worker/in-memory как временное ограничение или внешний store/pub-sub (например, отдельный managed service); определить, переживают ли комнаты restart и сколько хранятся.
 - Блокирует H4 и P1; влияет на H5/H6.
 
-### D5. Supabase governance
+### D5. Supabase governance — RESOLVED
 
-- Предоставить read-only schema/RLS/RPC audit и решить, кто владеет migrations, constraints, indexes, backups и восстановлением.
-- Блокирует C5, M6, H7 и часть H9.
+- Read-only аудит и snapshot выполнены в `docs/DATABASE.md`. Production changes к tables/columns/constraints/indexes/RLS/RPC/migrations/data требуют явного approval; агент готовит предложение, но не применяет его. C5 закрыта; DDL/RLS задачи требуют отдельного approval.
 
-### D6. Семантика visibility и результатов
+### D6. Семантика visibility и результатов — RESOLVED
 
-- Зафиксировать поведение `private`, `link`, `public` при create/edit/fork, anonymous draft, share link и доступе к результатам.
-- Блокирует H3, H9 и P4.
+- `PRIVATE` — владелец/явно разрешённые пользователи, без публичного каталога; `LINK` — любой по ссылке, без каталога; `PUBLIC` — публичный каталог. Fork независим и не расширяет доступ к source; edit применяет текущее visibility. Разблокирует H3/H9; P4 всё ещё зависит от D4 и C2/H4.
 
-### D7. Deployment topology и release process
+### D7. Deployment topology и release process — RESOLVED
 
-- Подтвердить production branch, число workers/instances, systemd unit, env loading, frontend publish и допустимую автоматизацию/rollback.
-- Блокирует H5/H6/M7/M9.
+- Утверждены GitHub `main` → Cloudflare Pages для frontend и backend topology на VPS `77.221.137.100:22`, `/opt/islandquiz`, `islandquiz.service`, один Uvicorn worker, Python 3.12 и `.env` только на VPS; полный release policy находится в `docs/DECISIONS.md`. Backend GitHub Actions реализован в H6; full rollback rehearsal остаётся H6.1. Разблокирует H5/M7/M9.
 
 ### D8. Стратегия legacy-кода
 
 - Решить, удаляем ли `backend/models.py`, `md/*`, старые localStorage paths и устаревшие README claims, или сохраняем их как явно маркированный historical материал.
 - Блокирует M1, M2 и M8.
 
-### D9. AI product policy
+### D9. AI product policy — DEFERRED
 
-- Утвердить провайдера/модели, budget, лимиты, правила хранения prompt/logs, ответственность пользователя за фактологию и необходимость внешней проверки фактов.
-- Блокирует H8, M5 и P3.
+- Решение принято, реализация отложена: AI не гарантирует абсолютную фактическую достоверность; учитываются стоимость моделей/лимитов и privacy/стоимость prompt/log storage; unnecessary expensive calls следует избегать; fact-checking не обязателен. Снимает decision dependency с H8/M5/P3.
 
 ## Recommended order
 
@@ -374,7 +380,6 @@
 7. **H1 — Устранить текущий TypeScript baseline.**
 8. **H2 — Синхронизировать Admin API и frontend contract.**
 9. **H3 — Исключить потерю visibility при редактировании игры.**
-10. **H6 — Сделать production deployment повторяемым и проверяемым.**
 
 Почему первыми именно первые три:
 
@@ -382,4 +387,4 @@
 2. **C2:** room commands сейчас являются недоверенными; пока host/player permissions не проверяются на backend, любая онлайн-игра остаётся уязвимой независимо от качества UI.
 3. **C3:** результаты и очки могут быть подделаны клиентом; это риск целостности данных и причина не строить новые dashboards/рейтинги на недостоверной статистике.
 
-Порядок предполагает, что владелец параллельно принимает D1–D5. Без этих решений первые security-задачи можно подготовить и протестировать, но нельзя безопасно завершить их архитектурную часть.
+Порядок предполагает, что D1–D3, D5–D7 закрыты, D9 отложено без блокировки текущей реализации, а D4 и D8 остаются открытыми. Поэтому C2/C4 и visibility/deployment tracks могут двигаться дальше; H4/P1 и legacy tracks сохраняют свои отдельные блокеры.
