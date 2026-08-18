@@ -112,4 +112,8 @@ jobs:
           REMOTE
 
       - name: Check public health endpoint
-        run: curl --fail --silent --show-error --max-time 20 https://api.islandquiz.online/
+        run: >-
+          curl --fail --silent --show-error --location
+          --retry 5 --retry-all-errors --retry-delay 3 --max-time 20
+          --user-agent "IslandQuiz-Deploy-Healthcheck"
+          https://api.islandquiz.online/
