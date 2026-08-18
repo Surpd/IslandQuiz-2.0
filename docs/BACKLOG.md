@@ -69,12 +69,13 @@
 
 ### H2. Синхронизировать Admin API и frontend contract
 
+- **Статус реализации:** `DONE`. Users/games frontend теперь использует backend envelope с typed helpers и pagination; остальные admin calls сверены без изменения их методов и payload.
 - **Проблема/цель:** admin backend содержит users/games/stats/logs/limits и AI test endpoints, но frontend contract и фактические запросы/ответы нужно привести к одному набору путей, методов, payload и response shapes.
 - **Почему важно:** админские операции могут выглядеть доступными в UI, но не работать или работать с неправильными данными; это затрудняет управление пользователями, играми и AI.
 - **Затрагивает:** `backend/routes/admin.py`, `frontend/src/routes/admin.tsx`, `frontend/src/lib/api.ts`, admin types и pagination/AI lab UI.
 - **Зависимости:** таблица endpoint contract, решение о необходимом объёме admin-функций, затем интеграционные tests.
 - **Сложность:** L.
-- **Самостоятельность:** частично; нужен владелец для подтверждения списка админских операций и ожидаемых ответов.
+- **Самостоятельность:** выполнено в минимальном текущем наборе операций; новые admin operations не добавлялись.
 
 ### H3. Исключить потерю visibility при редактировании игры
 

@@ -88,14 +88,14 @@
 - **Готово, когда:** текущие 9 ошибок устранены без изменения пользовательских маршрутов и API-контрактов; типы nullable/search params отражают фактическое поведение.
 - **Проверки:** `npx tsc --noEmit`, `npm run lint`, `npm run build`; отдельно проверить переходы library → game → result и auth redirect.
 
-#### H2. Синхронизировать Admin API и frontend contract — `DEPENDENCY`
+#### H2. Синхронизировать Admin API и frontend contract — `DONE`
 
-- **Зависимости:** сначала составить таблицу фактических admin endpoints, методов, payload, response и pagination; затем подтвердить минимальный набор операций.
+- **Фактический результат:** инвентаризированы AI test, users, games, stats, limits и logs endpoints. Frontend users/games переведён с ошибочного ожидания массива на backend envelope `{users|games,total,limit,offset}`; добавлены typed admin response helpers в `api.ts`, передача `limit/offset` и prev/next pagination в обеих таблицах. Остальные методы, payload и error propagation совпадают и не менялись.
 - **Блокирующие D1–D9:** нет отдельного D-решения; нужен небольшой product review списка admin-операций после инвентаризации.
 - **Техническое исследование до решения:** да — полностью: сравнить backend, `api.ts` и admin UI без изменения контракта.
 - **Файлы:** `backend/routes/admin.py`, `frontend/src/routes/admin.tsx`, `frontend/src/lib/api.ts`, admin types и pagination/AI lab UI.
 - **Готово, когда:** каждая операция UI имеет один документированный backend contract, корректные ошибки и одинаковую форму данных; неиспользуемые вызовы удалены или явно отмечены.
-- **Проверки:** contract/integration tests для users, games, stats, logs, limits и AI test endpoints; admin/non-admin/unauthenticated matrix; `tsc`, lint, build.
+- **Проверки:** targeted admin contract/flow checks, `python -m py_compile backend/routes/admin.py`, `npx tsc --noEmit`, `npm run build`, `git diff --check`, secret scan — успешно. Полный lint не запускался: pre-existing Prettier/ESLint baseline вне scope.
 
 #### H7. Добавить автоматические проверки критических API и room flows — `DEPENDENCY`
 

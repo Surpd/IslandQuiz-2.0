@@ -56,6 +56,41 @@ export async function apiFetch(path: string, options?: RequestInit): Promise<any
   return res.json();
 }
 
+export interface AdminUser {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  plan?: string | null;
+  role?: string | null;
+  banned?: boolean | null;
+  created_at?: string | null;
+}
+
+export interface AdminGame {
+  id: string;
+  kind?: string | null;
+  data?: { config?: { title?: string | null } } | null;
+  owner_name?: string | null;
+  visibility?: string | null;
+}
+
+export interface AdminListResponse<T> {
+  total: number;
+  limit: number;
+  offset: number;
+  items: T[];
+}
+
+export async function getAdminUsers(limit = 20, offset = 0): Promise<AdminListResponse<AdminUser>> {
+  const data = await apiFetch(`/api/admin/users?limit=${limit}&offset=${offset}`);
+  return { items: Array.isArray(data?.users) ? data.users : [], total: data?.total ?? 0, limit: data?.limit ?? limit, offset: data?.offset ?? offset };
+}
+
+export async function getAdminGames(limit = 20, offset = 0): Promise<AdminListResponse<AdminGame>> {
+  const data = await apiFetch(`/api/admin/games?limit=${limit}&offset=${offset}`);
+  return { items: Array.isArray(data?.games) ? data.games : [], total: data?.total ?? 0, limit: data?.limit ?? limit, offset: data?.offset ?? offset };
+}
+
 function newId(): string {
   return Math.random().toString(36).slice(2, 10);
 }

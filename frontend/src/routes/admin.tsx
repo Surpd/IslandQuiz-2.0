@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/hooks/use-auth";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getAdminGames, getAdminUsers, type AdminGame, type AdminUser } from "@/lib/api";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Админ-панель — IslandQuiz" }] }),
@@ -347,16 +347,17 @@ function AITestUI({
 // ==================== USERS ====================
 
 function UsersTab() {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [page, setPage] = useState({ total: 0, limit: 20, offset: 0 });
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    try { const res = await apiFetch("/api/admin/users"); setUsers(res || []); } catch (e) { console.error(e); }
+    try { const res = await getAdminUsers(page.limit, page.offset); setUsers(res.items); setPage(res); } catch (e) { console.error(e); }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [page.offset]);
 
   const action = async (path: string) => { await apiFetch(path, { method: "POST" }); load(); };
 
@@ -373,7 +374,7 @@ function UsersTab() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u: any) => (
+            {users.map((u) => (
               <tr key={u.id} className="border-t border-border">
                 <td className="px-4 py-3 font-mono text-xs">{u.id}</td><td className="px-4 py-3">{u.email}</td><td className="px-4 py-3 font-semibold">{u.name}</td>
                 <td className="px-4 py-3">
@@ -383,7 +384,7 @@ function UsersTab() {
                 </td>
                 <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${u.role === "admin" ? "bg-amber-soft text-amber" : "bg-surface-muted text-muted-foreground"}`}>{u.role || "user"}</span></td>
                 <td className="px-4 py-3">{u.banned ? "🚫" : "✅"}</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString("ru-RU")}</td>
+                <td className="px-4 py-3 text-muted-foreground text-xs">{u.created_at ? new Date(u.created_at).toLocaleDateString("ru-RU") : "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
                     <button onClick={() => action(`/api/admin/users/${u.id}/set-plan?plan=premium`)} className="btn-ghost p-1.5" title="Premium">💎</button>
@@ -397,6 +398,13 @@ function UsersTab() {
           </tbody>
         </table>
       </div>
+      <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm">
+        <span>{page.total ? `${page.offset + 1}–${Math.min(page.offset + page.limit, page.total)} из ${page.total}` : "Нет пользователей"}</span>
+        <div className="flex gap-2">
+          <button disabled={page.offset === 0} onClick={() => setPage((current) => ({ ...current, offset: Math.max(0, current.offset - current.limit) }))} className="btn-ghost" type="button">Назад</button>
+          <button disabled={page.offset + page.limit >= page.total} onClick={() => setPage((current) => ({ ...current, offset: current.offset + current.limit }))} className="btn-ghost" type="button">Далее</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -405,16 +413,17 @@ function UsersTab() {
 // ==================== GAMES ====================
 
 function GamesTab() {
-  const [games, setGames] = useState<any[]>([]);
+  const [games, setGames] = useState<AdminGame[]>([]);
+  const [page, setPage] = useState({ total: 0, limit: 20, offset: 0 });
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    try { const res = await apiFetch("/api/admin/games"); setGames(res || []); } catch (e) { console.error(e); }
+    try { const res = await getAdminGames(page.limit, page.offset); setGames(res.items); setPage(res); } catch (e) { console.error(e); }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [page.offset]);
 
   const action = async (path: string) => { await apiFetch(path, { method: "PATCH" }); load(); };
   const deleteGame = async (id: string) => { if (!confirm("Удалить игру?")) return; await apiFetch(`/api/admin/games/${id}`, { method: "DELETE" }); load(); };
@@ -432,7 +441,7 @@ function GamesTab() {
             </tr>
           </thead>
           <tbody>
-            {games.map((g: any) => (
+            {games.map((g) => (
               <tr key={g.id} className="border-t border-border">
                 <td className="px-4 py-3 font-mono text-xs">{g.id}</td><td className="px-4 py-3 font-semibold">{g.data?.config?.title || "—"}</td><td className="px-4 py-3">{g.kind}</td>
                 <td className="px-4 py-3">{g.owner_name || "—"}</td><td className="px-4 py-3">{g.visibility}</td>
@@ -447,6 +456,13 @@ function GamesTab() {
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm">
+        <span>{page.total ? `${page.offset + 1}–${Math.min(page.offset + page.limit, page.total)} из ${page.total}` : "Нет игр"}</span>
+        <div className="flex gap-2">
+          <button disabled={page.offset === 0} onClick={() => setPage((current) => ({ ...current, offset: Math.max(0, current.offset - current.limit) }))} className="btn-ghost" type="button">Назад</button>
+          <button disabled={page.offset + page.limit >= page.total} onClick={() => setPage((current) => ({ ...current, offset: current.offset + current.limit }))} className="btn-ghost" type="button">Далее</button>
+        </div>
       </div>
     </div>
   );
