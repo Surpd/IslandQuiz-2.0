@@ -19,11 +19,13 @@
 |---|---|---|---|---|---|
 | H7 | Добавить автоматические проверки критических API и room flows | Terra | high | Межслойные backend/frontend tests, fixtures и negative security cases; контракты уже перечислены в work plan. | Нужно одновременно проектировать новую security policy, scoring model или persistent room architecture. |
 | H8 | Согласовать фактический AI contract и документацию | Terra | high | Нужно сопоставить backend, prompts, validator, frontend mapping и документацию; это contract integration, но без DB/deploy риска. | Обнаружится необходимость менять форму `games.data`, типы вопросов или публичный API без утверждённой схемы совместимости. |
+| H11 | Починить end-to-end AI generation в Quiz Builder | Terra | high | Реальный frontend/backend AI integration bug в главном demo flow; требуется понять response shape и исправить mapping, а не скрыть TypeError. | Потребуется менять canonical AI schema, `games.data`, backend contract или добавлять новый provider behavior. |
 | H10 | Ограничить доверие к WebSocket input и стабилизировать protocol validation | Terra | high | State-machine inventory и schema validation затрагивают обе стороны WebSocket-протокола. | Меняется модель identity/permissions, scoring или lifecycle комнат; тогда это security/architecture work. |
 | M3 | Создать единый typed API/contract source of truth | Terra | medium | Интеграционная задача после H2/H8/H10: реестр контрактов и выбор реализации в ограниченном scope. | Потребуется новый versioning strategy для REST/WS или широкая миграция consumers. |
 | C1 | Сделать Telegram login token одноразовым | Sol | high | Auth security, replay prevention и atomic consume с возможной DB-зависимостью. | Не определены nonce storage/atomicity, нужен production schema change или есть race между bot-login и complete. |
 | C4.1 | Ввести server-side session lifecycle: refresh и revoke/logout | Sol | high | Persistent sessions, revocation и replay-safe refresh — критический auth design. | Нужно выбирать новую session schema, миграцию production данных или менять trust boundary между JWT и Supabase. |
 | H6 | Сделать production deployment повторяемым и проверяемым | Terra | high | Deployment checklist, artifact verification, health/smoke/rollback facts; production deploy в scope задачи не входит. | Требуется менять production infrastructure, secrets, systemd topology или выполнять реальный deploy. |
+| H6.1 | Провести controlled production rollback rehearsal | Terra | high | Отдельная operational follow-up задача с понятным workflow и двумя ручными rollback/restore проверками. | Нужен новый deployment design, изменение production secrets/infrastructure или rehearsal нельзя провести без расширения approval. |
 | H9 | Ввести единый контроль доступа к результатам и online results | Sol | high | Authorization matrix, PII exposure и cross-user tampering затрагивают security и DB data access. | Нужно менять RLS, Supabase identity model или правила публичности результатов. |
 | C2 | Server-side authorization WebSocket-комнат | Sol | high | Server-side host/player identity и permissions — security-critical stateful protocol. | Не утверждены guest identity, reconnect semantics или требуется новый room persistence layer. |
 | C3 | Перенести расчёт результата на доверенную сторону | Sol | high | Server-authoritative scoring, anti-cheat и snapshot consistency затрагивают все форматы и результаты. | Нужно менять scoring policy, исторические результаты, game snapshot schema или делать data migration. |
@@ -59,7 +61,7 @@
 ### По умолчанию Terra
 
 - **Terra / medium:** M3, M4, M5, P3, P6, M7.
-- **Terra / high:** H6, H7, H8, H10, M9, P2, P4, P5.
+- **Terra / high:** H6, H6.1, H7, H8, H10, H11, M9, P2, P4, P5.
 
 Это задачи с понятным scope, но с несколькими файлами, contract checks, UI/backend integration или deployment documentation.
 

@@ -168,6 +168,19 @@
 - **Сложность:** L.
 - **Самостоятельность:** да после утверждения room protocol; изменения должны идти синхронно в обеих сторонах.
 
+### H11. Починить end-to-end AI generation в Quiz Builder
+
+- **Статус:** `READY`; найденный owner’ом demo blocker.
+- **Проблема/цель:** full quiz generation падает с `Cannot read properties of undefined (reading 'map')`, а per-question AI helper — с `Cannot read properties of undefined (reading 'length')`. Нужно восстановить полный flow от AI response до builder state, а не скрыть TypeError защитной проверкой.
+- **Почему важно:** основная AI-функция Quiz Builder сейчас не работает и блокирует нормальную демонстрацию и практическое использование продукта.
+- **Затрагивает:** `frontend/src/components/ai-generate-quiz.tsx`, `frontend/src/components/ai-helper.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/src/lib/api.ts`, фактический contract `backend/routes/ai.py` и mapping в builder.
+- **Зависимости:** точная сверка success/error/empty response shapes; H8 остаётся отдельной задачей по документированию и стабилизации общего AI contract.
+- **Рекомендуемая модель:** Terra / high.
+- **Готово, когда:** full quiz и per-question generation работают end-to-end для валидного ответа, пустого/неполного ответа и API error; builder получает корректные questions/variants; TypeError не маскируется и не возникает повторно.
+- **Проверки:** authenticated Quiz Builder smoke, full generation, per-question helper для нескольких question types, invalid/empty/error response fixtures, `npx tsc --noEmit`, targeted lint/build и сохранение сгенерированной игры.
+- **Сложность:** L.
+- **Самостоятельность:** да в рамках текущего API contract; если потребуется менять canonical AI schema или `games.data`, остановиться и вынести решение в H8.
+
 ## 🟡 Medium
 
 ### M1. Убрать двусмысленность вокруг legacy `backend/models.py`
@@ -369,22 +382,23 @@
 
 ## Recommended order
 
-Первые 10 задач:
+Практический порядок ближайших задач:
 
-1. **C1 — Сделать Telegram login token одноразовым.**
-2. **C2 — Ввести server-side authorization для WebSocket-комнат.**
-3. **C3 — Перенести расчёт результата на доверенную сторону.**
-4. **C4 — Закрыть базовые риски JWT-аутентификации.**
-5. **C5 — Провести проверку Supabase schema, RLS и ограничений целостности.**
-6. **H7 — Добавить автоматические проверки критических API и room flows.**
-7. **H1 — Устранить текущий TypeScript baseline.**
-8. **H2 — Синхронизировать Admin API и frontend contract.**
-9. **H3 — Исключить потерю visibility при редактировании игры.**
+1. **H11 — Починить end-to-end AI generation в Quiz Builder.**
+2. **H8 — Согласовать фактический AI contract и документацию.**
+3. **H7 — Добавить автоматические проверки критических API и room flows.**
+4. **C2 — Ввести server-side authorization для WebSocket-комнат.**
+5. **C3 — Перенести расчёт результата на доверенную сторону.**
+6. **H6.1 — Провести controlled production rollback rehearsal** *(после отдельного approval владельца)*.
+7. **H9 — Ввести единый контроль доступа к результатам и online results.**
+8. **C1 — Сделать Telegram login token одноразовым** *(после approval для nonce storage/migration)*.
+9. **H10 — Ограничить доверие к WebSocket input и стабилизировать protocol validation.**
+10. **M3 — Создать единый typed API/contract source of truth.**
 
 Почему первыми именно первые три:
 
-1. **C1:** replay login token — узкая и потенциально эксплуатируемая уязвимость, способная затронуть аккаунты; её нужно закрыть до дальнейшего расширения auth flow.
-2. **C2:** room commands сейчас являются недоверенными; пока host/player permissions не проверяются на backend, любая онлайн-игра остаётся уязвимой независимо от качества UI.
-3. **C3:** результаты и очки могут быть подделаны клиентом; это риск целостности данных и причина не строить новые dashboards/рейтинги на недостоверной статистике.
+1. **H11:** сейчас это главный blocker working product/demo: ключевой Quiz Builder AI flow падает у пользователя.
+2. **H8:** после фикса нужно закрепить фактические response shapes и mapping, чтобы тот же класс ошибки не возвращался в других AI flows.
+3. **H7:** воспроизводимые smoke/contract tests должны закрепить full quiz и per-question flows вместе с критическими auth/room сценариями.
 
-Порядок предполагает, что D1–D3, D5–D7 закрыты, D9 отложено без блокировки текущей реализации, а D4 и D8 остаются открытыми. Поэтому C2/C4 и visibility/deployment tracks могут двигаться дальше; H4/P1 и legacy tracks сохраняют свои отдельные блокеры.
+Порядок предполагает, что D1–D3, D5–D7 закрыты, D9 отложено без блокировки текущей реализации, а D4 и D8 остаются открытыми. H6 уже завершён; H6.1 остаётся отдельной production follow-up задачей. H4/P1 и legacy tracks сохраняют свои отдельные блокеры.

@@ -115,6 +115,18 @@
 - **Готово, когда:** один contract описывает input, success и error для всех AI endpoints; prompt, validator, mapping и документация согласованы.
 - **Проверки:** fixtures для valid/invalid Quiz и Jeopardy responses, count/type/difficulty validation, improve/file flows; backend syntax/import, frontend `tsc`, lint, build.
 
+#### H11. Починить end-to-end AI generation в Quiz Builder — `READY`
+
+- **Приоритет:** главный practical blocker для working product/demo.
+- **Проблема:** full quiz generation падает с `Cannot read properties of undefined (reading 'map')`; per-question AI helper падает с `Cannot read properties of undefined (reading 'length')`.
+- **Цель:** восстановить полный flow AI response → normalization/mapping → Quiz Builder state для full quiz и per-question generation; не маскировать TypeError защитной проверкой.
+- **Рекомендуемая модель:** Terra / high, согласно `docs/CODEX_MODEL_GUIDE.md`.
+- **Зависимости:** точечная сверка текущих success/error/empty response shapes; H8 остаётся отдельной задачей по canonical AI contract.
+- **Файлы:** `frontend/src/components/ai-generate-quiz.tsx`, `frontend/src/components/ai-helper.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/src/lib/api.ts`, `backend/routes/ai.py` только для проверки фактического contract.
+- **Готово, когда:** full quiz и per-question generation работают для валидного ответа, empty/incomplete response и API error; вопросы корректно попадают в builder; TypeError не возникает и не скрывается.
+- **Проверки:** authenticated Quiz Builder smoke, full generation, helper для нескольких question types, invalid/empty/error fixtures, `npx tsc --noEmit`, targeted lint/build и сохранение результата.
+- **Граница scope:** если потребуется менять canonical AI schema или `games.data`, остановиться и обновить зависимость H8; не начинать архитектурное изменение в H11.
+
 #### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation — `DEPENDENCY`
 
 - **Зависимости:** сначала описать state machine и все action/state fields; реализация следует после C2 и согласования scoring/room protocol.
