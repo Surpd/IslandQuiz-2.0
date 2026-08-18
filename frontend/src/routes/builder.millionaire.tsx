@@ -33,6 +33,7 @@ import type {
   MoneyScale,
   PlayerTheme,
   PointsMode,
+  GameVisibility,
 } from "@/lib/types";
 
 export const Route = createFileRoute("/builder/millionaire")({
@@ -86,6 +87,7 @@ function BuilderMillionaire() {
   const [toast, setToast] = useState<string | null>(null);
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
+  const [visibility, setVisibility] = useState<GameVisibility>("private");
 
 
   useEffect(() => {
@@ -97,6 +99,7 @@ function BuilderMillionaire() {
           setConfig(rec.data.config);
           setQuestions(rec.data.questions);
           setTags(rec.tags ?? []);
+          if (rec.visibility) setVisibility(rec.visibility);
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -198,8 +201,7 @@ function BuilderMillionaire() {
   const handleSave = (): string | null => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    const vis = localStorage.getItem("islandquiz.visibility") || "private";
-    saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility: vis });
+    saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility });
     setSavedId(id);
     clearDraft("millionaire");
     showToast(savedId ? "Изменения сохранены" : "Игра сохранена!");
@@ -209,7 +211,7 @@ function BuilderMillionaire() {
   const handleSaveAsCopy = (): string | null => {
     if (!validate()) return null;
     const id = newId();
-    saveGame({ kind: "millionaire", id, data: { config, questions }, tags });
+    saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility: "private" });
     setSavedId(id);
     clearDraft("millionaire");
     showToast("Создана копия");
@@ -394,6 +396,8 @@ function BuilderMillionaire() {
           <BuilderFabs
             kind="millionaire"
             savedId={savedId}
+            visibility={visibility}
+            onVisibilityChange={setVisibility}
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
           />

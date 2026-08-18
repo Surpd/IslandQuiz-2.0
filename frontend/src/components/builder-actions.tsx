@@ -276,16 +276,17 @@ function ImportModal({
 interface FabsProps {
   kind: GameKind;
   savedId: string | null;
+  visibility: GameVisibility;
+  onVisibilityChange: (visibility: GameVisibility) => void;
   onSave: () => string | null;
   onSaveAsCopy: () => string | null;
   themeAccent?: string;
 }
 
-export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, themeAccent }: FabsProps) {
+export function BuilderFabs({ kind, savedId, visibility, onVisibilityChange, onSave, onSaveAsCopy, themeAccent }: FabsProps) {
   const { user } = useAuth();
   const [openSaveMenu, setOpenSaveMenu] = useState(false);
   const [openPlay, setOpenPlay] = useState(false);
-  const [visibility, setVisibility] = useState<GameVisibility>(user ? "private" : "link");
   const [visOpen, setVisOpen] = useState(false);
   const saveRef = useRef<HTMLDivElement>(null);
   const visRef = useRef<HTMLDivElement>(null);
@@ -304,20 +305,17 @@ export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, themeAccent }
     if (savedId) {
       findGame(savedId).then(g => {
         if (g?.visibility) {
-          setVisibility(g.visibility);
-          localStorage.setItem("islandquiz.visibility", g.visibility);
+          onVisibilityChange(g.visibility);
         }
       });
-    } else {
-      localStorage.setItem("islandquiz.visibility", user ? "private" : "link");
     }
-  }, [savedId]);
+  }, [savedId, onVisibilityChange]);
 
   const changeVisibility = async (v: GameVisibility) => {
-    setVisibility(v);
+    if (!user && v !== "private") return;
+    onVisibilityChange(v);
     setVisOpen(false);
-    localStorage.setItem("islandquiz.visibility", v);  // всегда
-    if (savedId) await apiSetGameVisibility(savedId, v);
+    if (savedId && user) await apiSetGameVisibility(savedId, v);
   };
 
   const handlePlay = () => {
@@ -327,8 +325,8 @@ export function BuilderFabs({ kind, savedId, onSave, onSaveAsCopy, themeAccent }
   };
 
   const visOptions: Array<{ v: GameVisibility; label: string; Icon: typeof Lock; disabled?: boolean }> = [
-    { v: "private", label: "Только я", Icon: Lock, disabled: !user },
-    { v: "link", label: "По ссылке", Icon: Link2 },
+    { v: "private", label: "Только я", Icon: Lock },
+    { v: "link", label: "По ссылке", Icon: Link2, disabled: !user },
     { v: "public", label: "Публичная", Icon: Globe, disabled: !user },
   ];
   const current = visOptions.find((o) => o.v === visibility) ?? visOptions[0];

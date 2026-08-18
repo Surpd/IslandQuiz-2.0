@@ -158,11 +158,12 @@
 #### H3. Исключить потерю visibility при редактировании игры — `BLOCKED`
 
 - **Зависимости:** D6; затем проверить create/edit/fork/anonymous draft и источник значения visibility.
-- **Блокирующие D1–D9:** D6.
+- **Блокирующие D1–D9:** нет.
 - **Техническое исследование до решения:** да — проследить builder state, localStorage и payload save без изменения поведения.
 - **Файлы:** `frontend/src/components/builder-actions.tsx`, `frontend/src/lib/api.ts`, `backend/routes/games.py`, edit flows builders, `games.visibility`.
 - **Готово, когда:** `private`, `link`, `public` сохраняются и редактируются предсказуемо; stale localStorage не перезаписывает актуальное server value.
 - **Проверки:** create/edit/fork для всех трёх visibility, anonymous draft, reload и multi-tab stale value regression; API payload assertions.
+- **Фактический результат:** server visibility стала источником истины для edit; stale localStorage больше не участвует в save; create/copy/fork и anonymous draft используют предсказуемое значение согласно D6.
 
 #### H5. Зафиксировать безопасную topology для Telegram polling — `BLOCKED`
 

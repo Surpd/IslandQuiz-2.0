@@ -47,7 +47,6 @@ import type {
   QuizQuestionType,
 } from "@/lib/types";
 
-import { useAuth } from "@/hooks/use-auth";
 import type { GameVisibility } from "@/lib/types";
 
 export const Route = createFileRoute("/builder/quiz")({
@@ -84,7 +83,6 @@ function makeQuestion(type: QuizQuestionType, points = 100, time = 30): QuizQues
 
 function BuilderQuiz() {
   const { id: urlId } = Route.useSearch();
-  const { user } = useAuth();
   const [config, setConfig] = useState<QuizConfig>({
     title: "Новый квиз",
     description: "",
@@ -102,7 +100,7 @@ function BuilderQuiz() {
   const [toast, setToast] = useState<string | null>(null);
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
-  const [visibility, setVisibility] = useState<GameVisibility>(user ? "private" : "link");
+  const [visibility, setVisibility] = useState<GameVisibility>("private");
   const listRef = useRef<HTMLDivElement>(null);
 
   // Bug 1.2: подгружаем сохранённый квиз по ?id=
@@ -115,6 +113,7 @@ function BuilderQuiz() {
           setConfig(rec.data.config);
           setQuestions(rec.data.questions);
           setTags(rec.tags ?? []);
+          if (rec.visibility) setVisibility(rec.visibility);
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -180,9 +179,7 @@ function BuilderQuiz() {
   const handleSave = (): string | null => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    const vis = localStorage.getItem("islandquiz.visibility") || "private";
-    console.log("[handleSave] visibility:", vis);
-    saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility: vis });
+    saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility });
     setSavedId(id);
     clearDraft("quiz");
     showToast(savedId ? "Изменения сохранены" : "Квиз сохранён!");
@@ -501,6 +498,8 @@ function BuilderQuiz() {
           <BuilderFabs
             kind="quiz"
             savedId={savedId}
+            visibility={visibility}
+            onVisibilityChange={setVisibility}
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
           />

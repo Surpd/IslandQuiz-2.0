@@ -334,11 +334,10 @@ export interface SaveGameInput<T = AnyGameData> {
   data: T;
   title?: string;
   tags?: string[];
-  visibility?: string;  // ← добавить
+  visibility?: GameVisibility;
 }
 
 export async function saveGame<T = AnyGameData>(input: SaveGameInput<T>) {
-  console.log("[saveGame] input:", input);
   return apiFetch("/api/games/", {
     method: "POST",
     body: JSON.stringify({

@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -40,7 +40,7 @@ class SaveGameInput(BaseModel):
     data: dict
     title: Optional[str] = None
     tags: Optional[List[str]] = None
-    visibility: Optional[str] = "private"
+    visibility: Optional[Literal["private", "link", "public"]] = None
 
     @field_validator("kind")
     @classmethod
@@ -51,8 +51,8 @@ class SaveGameInput(BaseModel):
 
     @field_validator("visibility")
     @classmethod
-    def validate_visibility(cls, v: str) -> str:
-        if v not in VALID_VISIBILITY:
+    def validate_visibility(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_VISIBILITY:
             raise ValueError(f"Недопустимая видимость: {v}")
         return v
 
@@ -98,12 +98,14 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
         if existing.get("owner_id") != user["id"]:
             raise HTTPException(status_code=403, detail="Нет доступа к редактированию этой игры")
         
-        supabase.table("games").update({
+        update = {
             "data": input.data,
             "tags": input.tags,
-            "visibility": input.visibility,
             "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", game_id).execute()
+        }
+        if input.visibility is not None:
+            update["visibility"] = input.visibility
+        supabase.table("games").update(update).eq("id", game_id).execute()
     else:
         supabase.table("games").insert({
             "id": game_id,

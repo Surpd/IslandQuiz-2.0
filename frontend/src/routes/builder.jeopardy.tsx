@@ -38,6 +38,7 @@ import type {
   JeopardyFinal,
   JeopardyQuestion,
   PlayerTheme,
+  GameVisibility,
 } from "@/lib/types";
 
 export const Route = createFileRoute("/builder/jeopardy")({
@@ -89,6 +90,7 @@ function BuilderJeopardy() {
   const [modal, setModal] = useState<ModalTarget | null>(null);
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
+  const [visibility, setVisibility] = useState<GameVisibility>("private");
 
 
   useEffect(() => {
@@ -101,6 +103,7 @@ function BuilderJeopardy() {
           setRounds(rec.data.rounds);
           setFinal(rec.data.final);
           setTags(rec.tags ?? []);
+          if (rec.visibility) setVisibility(rec.visibility);
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -235,8 +238,7 @@ function BuilderJeopardy() {
   const handleSave = (): string | null => {
     const id = savedId ?? newId();
     const data: JeopardyData = { config, rounds, final };
-    const vis = localStorage.getItem("islandquiz.visibility") || "private";
-    saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility: vis });
+    saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility });
     setSavedId(id);
     clearDraft("jeopardy");
     showToast(savedId ? "Изменения сохранены" : "Игра сохранена!");
@@ -245,7 +247,7 @@ function BuilderJeopardy() {
 
   const handleSaveAsCopy = (): string | null => {
     const id = newId();
-    saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags });
+    saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility: "private" });
     setSavedId(id);
     clearDraft("jeopardy");
     showToast("Создана копия");
@@ -442,6 +444,8 @@ function BuilderJeopardy() {
           <BuilderFabs
             kind="jeopardy"
             savedId={savedId}
+            visibility={visibility}
+            onVisibilityChange={setVisibility}
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
           />

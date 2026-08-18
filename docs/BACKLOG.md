@@ -80,6 +80,8 @@
 
 ### H3. Исключить потерю visibility при редактировании игры
 
+- **Статус реализации:** `DONE`; edit/create/save visibility исправлены, anonymous draft всегда `private` согласно D6.
+
 - **Проблема/цель:** visibility живёт одновременно в builder state и legacy `localStorage`; при edit/save есть риск заменить существующее значение default-значением (`private`/`link`) или отправить устаревшее значение.
 - **Почему важно:** публичная игра может внезапно стать приватной, либо приватный контент — открытым по ссылке.
 - **Затрагивает:** `frontend/src/components/builder-actions.tsx`, `frontend/src/lib/api.ts`, `backend/routes/games.py`, edit flows всех builders и `games.visibility`.
