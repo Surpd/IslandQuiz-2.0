@@ -113,7 +113,14 @@ jobs:
           PYTHONPYCACHEPREFIX="$compile_cache" "$venv_path/bin/python" -m compileall -q "$project_path/backend"
           systemctl restart "$systemd_unit"
           systemctl is-active --quiet "$systemd_unit"
-          local_health="$(curl --fail --silent --show-error --max-time 20 http://127.0.0.1:8000/)"
+          local_health=""
+          for attempt in $(seq 1 10); do
+            if local_health="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8000/)"; then
+              break
+            fi
+            sleep 2
+          done
+          test -n "$local_health"
           printf 'Local backend health: %s\n' "$local_health"
           deployed_sha="$(git -C "$project_path" rev-parse HEAD)"
           test "$deployed_sha" = "$target_sha"
