@@ -98,7 +98,7 @@
 - **Сложность:** XL.
 - **Самостоятельность:** нет — архитектурный выбор должен принять владелец.
 
-### H5. Зафиксировать безопасную topology для Telegram polling
+### H5. Зафиксировать безопасную topology для Telegram polling — RESOLVED
 
 - **Проблема/цель:** Telegram bot запускается task внутри FastAPI startup; несколько backend instances могут одновременно выполнять polling.
 - **Почему важно:** Telegram polling конфликтует между экземплярами, а login flow становится нестабильным или теряет события.
@@ -106,6 +106,8 @@
 - **Зависимости:** подтверждение числа workers/instances и решение: отдельный bot service, single worker или другой механизм доставки.
 - **Сложность:** M/L.
 - **Самостоятельность:** нет — требуется решение владельца и подтверждение VPS topology.
+- **Решение:** D7 подтверждает `islandquiz.service` на VPS с одним Uvicorn worker и одним backend instance. Startup запускает одну polling task на процесс, поэтому duplicate polling не возникает; отдельный bot service или кодовый guard не требуется.
+- **Проверка:** сверены `backend/main.py`, `backend/bot.py`, `backend/routes/telegram_auth.py` и зафиксированный systemd/Uvicorn `ExecStart`; Telegram login flow сохраняется.
 
 ### H6. Сделать production deployment повторяемым и проверяемым
 

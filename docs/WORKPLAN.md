@@ -165,14 +165,16 @@
 - **Проверки:** create/edit/fork для всех трёх visibility, anonymous draft, reload и multi-tab stale value regression; API payload assertions.
 - **Фактический результат:** server visibility стала источником истины для edit; stale localStorage больше не участвует в save; create/copy/fork и anonymous draft используют предсказуемое значение согласно D6.
 
-#### H5. Зафиксировать безопасную topology для Telegram polling — `BLOCKED`
+#### H5. Зафиксировать безопасную topology для Telegram polling — `DONE`
 
 - **Зависимости:** D7 и подтверждение числа workers/instances на VPS.
-- **Блокирующие D1–D9:** D7.
+- **Блокирующие D1–D9:** нет.
 - **Техническое исследование до решения:** да — сверить `main.py`, bot startup и systemd/Uvicorn факты.
 - **Файлы:** `backend/main.py`, `backend/bot.py`, `backend/routes/telegram_auth.py`, systemd/Uvicorn deployment.
 - **Готово, когда:** production запускает ровно допустимое число polling consumers, duplicate polling невозможен или явно предотвращён, login flow не теряет события.
 - **Проверки:** startup smoke, duplicate-instance test/guard, Telegram bot login smoke, systemd/Uvicorn configuration review.
+- **Фактический результат:** `main.py` создаёт ровно одну polling task на backend-процесс, `bot.py` содержит единственный `start_polling`, а D7 фиксирует один `islandquiz.service` instance с одним Uvicorn worker. Дополнительных polling consumers нет; Telegram login flow bot → `bot-login` → frontend → `complete` не изменён и topology не нарушает.
+- **Выполненные проверки:** точечный review startup/bot/auth цепочки и systemd/Uvicorn facts из D7; duplicate polling при утверждённой single-instance topology не возникает. Код не изменялся.
 
 #### H6. Сделать production deployment повторяемым и проверяемым — `BLOCKED`
 
