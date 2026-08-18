@@ -45,7 +45,7 @@
 
 Проблема простыми словами: фактическая production-схема, RLS и RPC не находятся в репозитории, поэтому нельзя безопасно добавлять nonce-хранилище, constraints или атомарные операции на предположениях.
 
-Вопрос владельцу: **можно ли предоставить read-only аудит production Supabase и кто утверждает изменения таблиц, политик, индексов, RPC и восстановление данных?**
+Вопрос владельцу: **кто утверждает изменения таблиц, политик, индексов, RPC и восстановление данных?** Read-only аудит production Supabase для C5 уже выполнен и зафиксирован в `docs/DATABASE.md`.
 
 Нужно для: C1, C5, M4, M6 и части H9. На первом этапе достаточно read-only доступа; это не означает немедленное изменение базы.
 
@@ -257,6 +257,24 @@
 - **Файлы:** Supabase PostgreSQL, backend queries, `ai_usage`, users/games/results/settings.
 - **Готово, когда:** индексы и constraints подтверждены фактической схемой, race-prone операции атомарны, миграции обратимы или имеют rollback.
 - **Проверки:** migration dry-run, constraint violation tests, concurrent usage/insert tests, query plan review, RLS regression.
+
+#### M10. Закрыть RLS и policy gaps после фиксации модели identity — `DEPENDENCY`
+
+- **Зависимости:** D5 и решение о Supabase JWT identity versus privileged backend client; затем owner/non-owner policy tests.
+- **Блокирующие D1–D9:** D5; C4 влияет на identity lifecycle.
+- **Техническое исследование до решения:** выполнено частично — gaps и текущие `auth.uid()` policies зафиксированы в `docs/DATABASE.md`; production DDL не выполнялся.
+- **Файлы:** Supabase RLS/policies, `backend/database.py`, auth identity и admin/results routes.
+- **Готово, когда:** каждая public application table имеет намеренно выбранный RLS режим и policies, а backend/frontend access tests подтверждают owner/non-owner/admin behavior.
+- **Проверки:** policy matrix, anon/authenticated/backend-role reads and writes, negative cross-user cases, security advisor; без изменения production до approval.
+
+#### M11. Согласовать referential integrity для result tables — `DEPENDENCY`
+
+- **Зависимости:** D3, H9 и решение о retention/cascade behavior; перед DDL нужен orphan-data audit.
+- **Блокирующие D1–D9:** D3 и D5.
+- **Техническое исследование до решения:** выполнено — result `game_id` links используются backend, но FK отсутствуют.
+- **Файлы:** `backend/routes/results.py`, `backend/routes/games.py`, result tables и Supabase constraints.
+- **Готово, когда:** выбранный restrict/cascade/history policy документирован, orphan rows обработаны безопасно, а constraint не ломает delete и result flows.
+- **Проверки:** orphan audit, delete-game behavior, result insert for all four formats, FK violation and rollback checks; DDL только после approval.
 
 #### M7. Добавить CI quality gates и безопасную проверку зависимостей — `BLOCKED`
 

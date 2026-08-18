@@ -202,9 +202,27 @@
 - **Проблема/цель:** после schema audit нужно проверить индексы для owner/visibility/results/created_at, unique Telegram/email, каскады и атомарные операции usage/visibility/result insert.
 - **Почему важно:** это уменьшит race conditions, ускорит library/results/admin и снизит риск дубликатов.
 - **Затрагивает:** Supabase PostgreSQL, backend queries, `ai_usage`, users/games/results/settings.
-- **Зависимости:** C5; нельзя проектировать SQL по legacy `md/DATABASE_STRUCTURE.md`.
+- **Зависимости:** C5; нельзя проектировать SQL по legacy `md/DATABASE_STRUCTURE.md`. C5 подтвердил duplicate unique indexes, mutable `search_path` у `increment_play_count` и отсутствие FK у result `game_id`; исправления требуют отдельного согласования.
 - **Сложность:** L.
 - **Самостоятельность:** нет — DDL/RPC и RLS изменения требуют согласования владельца.
+
+### M10. Закрыть RLS и policy gaps после фиксации модели identity
+
+- **Проблема/цель:** Supabase advisor подтвердил отключённый RLS на `settings`, `error_logs`, `ai_logs`, `ai_usage`, `feedback`, `password_resets`; `jeopardy_results` и `online_quiz_results` имеют RLS без policies. Существующие policies используют `auth.uid()`, а приложение — собственные JWT.
+- **Почему важно:** таблицы public schema могут быть доступны через PostgREST, а policies могут не ограничивать строки так, как предполагает backend.
+- **Затрагивает:** Supabase RLS/policies, `backend/database.py`, auth identity и admin/results routes.
+- **Зависимости:** D5 и решение о том, используется ли Supabase JWT identity или только privileged backend client; затем owner/non-owner policy tests.
+- **Сложность:** L.
+- **Самостоятельность:** нет — нельзя включать RLS или добавлять policies в production без согласования доступа.
+
+### M11. Согласовать referential integrity для result tables
+
+- **Проблема/цель:** `quiz_results.game_id`, `jeopardy_results.game_id`, `millionaire_results.game_id` и `online_quiz_results.game_id` используются кодом как связи, но FK на `games(id)` отсутствуют.
+- **Почему важно:** база не предотвращает orphan results после удаления игры.
+- **Затрагивает:** result routes, delete/fork game flows, Supabase constraints и возможное сохранение исторических результатов.
+- **Зависимости:** D3, H9 и решение о retention/cascade behavior; перед DDL нужен orphan-data audit.
+- **Сложность:** M.
+- **Самостоятельность:** нет — каскад, restrict или сохранение исторических результатов требует решения владельца.
 
 ### M7. Добавить CI quality gates и безопасную проверку зависимостей
 
