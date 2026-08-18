@@ -69,6 +69,10 @@ Backend ожидает переменные окружения. Код не за
 - Не публиковать service-role ключ, JWT secret или другие ключи в коде, документации, логах и commit history.
 - Комнаты не являются таблицей Supabase: `backend/routes/rooms.py` хранит их только в памяти backend-процесса.
 
+### Database context
+
+`docs/DATABASE.md` — документированный snapshot схемы Supabase. Agents MUST consult it before database-related changes. Если задача зависит от текущей production schema или snapshot может устареть, сначала проверить Supabase напрямую. Никогда не угадывать имена таблиц/колонок/связей и не изменять production schema или data без явного approval владельца.
+
 ## Authentication и Telegram
 
 - Email/password auth находится в `backend/routes/auth.py`; JWT передаётся как `Authorization: Bearer` и хранится frontend в `localStorage` под ключом `islandquiz.token`.

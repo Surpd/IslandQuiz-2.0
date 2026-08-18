@@ -213,14 +213,14 @@
 - **Готово, когда:** сервер независимо пересчитывает score из snapshot и ответов; подмена `correct`, `delta`, `score` или history не меняет итог.
 - **Проверки:** golden fixtures для Quiz/Jeopardy/Millionaire, tampered payloads, duplicate submit, online/standalone parity, old snapshot regression.
 
-#### C5. Аварийная проверка Supabase schema, RLS и ограничений — `BLOCKED`
+#### C5. Аварийная проверка Supabase schema, RLS и ограничений — `DONE`
 
-- **Зависимости:** D5 и read-only доступ к production Supabase; до доступа возможен только список проверок по коду.
+- **Зависимости:** D5 и read-only доступ к production Supabase; read-only аудит выполнен.
 - **Блокирующие D1–D9:** D5.
-- **Техническое исследование до решения:** частично — code-to-schema inventory сейчас, фактический audit нет.
+- **Техническое исследование до решения:** выполнено — production metadata audit и code-to-schema mapping.
 - **Файлы:** `backend/database.py`, все routers, `games.data`, users/results/AI/settings/log tables, Supabase policies и RPC.
-- **Готово, когда:** зафиксированы реальные таблицы, поля, nullable, keys, indexes, RLS и RPC; расхождения с routers оформлены как безопасные follow-up actions.
-- **Проверки:** read-only schema export, route/query mapping, RLS owner/non-owner checks, constraint/index/RPC inventory, smoke reads без изменения production.
+- **Готово, когда:** зафиксированы реальные таблицы, поля, nullable, keys, indexes, RLS и RPC; расхождения оформлены в `docs/DATABASE.md` без изменений production.
+- **Проверки:** read-only schema export, route/query mapping, RLS/policy inventory, constraint/index/RPC inventory; metadata reads без изменения production. RLS owner/non-owner behavior не выполнялся: это потребовало бы credentials/test actors и не нужно для документационного snapshot.
 
 #### H4. Не терять комнаты при restart и не допустить split-brain — `BLOCKED`
 
