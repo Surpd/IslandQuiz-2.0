@@ -24,16 +24,18 @@
 
 ## Broken / needs fix now
 
-### H11 — Quiz Builder AI generation (`DONE`, Terra / high)
+### H11 — Quiz Builder AI generation (`IN_PROGRESS`, Terra / high)
 
-Исправлены два пользовательских сбоя:
+`ae47585` устранил два frontend TypeError, но не завершил working flow: production UI smoke получил backend controlled errors `AI вернул некорректный квиз` и `AI вернул некорректные варианты`. H11 переоткрыт до подтверждения successful AI response через backend normalization и builder.
+
+Первоначально исправлены два пользовательских сбоя:
 
 - full quiz generation падает с `Cannot read properties of undefined (reading 'map')`;
 - per-question AI helper падает с `Cannot read properties of undefined (reading 'length')`.
 
 Frontend теперь нормализует success payload и переводит error/empty/malformed response в controlled UI error до `.map`/`.length`; legacy malformed QuizData не ломает builder. Jeopardy raw-response backend validation остаётся H8 follow-up.
 
-Завершённый scope H11: `ai-generate-quiz.tsx`, `ai-helper.tsx`, `ai-jeopardy-category.tsx`, `builder.quiz.tsx`, `api.ts` и проверка фактического backend AI contract. Canonical AI schema и `games.data` не менялись.
+Текущий scope H11: `ai-generate-quiz.tsx`, `ai-helper.tsx`, `ai-jeopardy-category.tsx`, `builder.quiz.tsx`, `api.ts`, `backend/routes/ai.py` и validator compatibility mapping. Canonical AI schema и `games.data` не меняются.
 
 ## Next 3–5 recommended tasks
 

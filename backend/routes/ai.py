@@ -30,6 +30,9 @@ from services.ai_prompts import (
 )
 
 from services.ai_validator import (
+    describe_ai_shape,
+    normalize_question,
+    normalize_quiz,
     validate_variants,
     validate_quiz,
 )
@@ -193,7 +196,10 @@ async def call_openai(prompt: str) -> str:
 # NORMALIZATION
 # ============================================================
 
-def normalize_variants(result) -> list:
+def normalize_variants(
+    result,
+    expected_type: str | None = None,
+) -> list:
     """
     Приводит разные варианты ответа AI
     к единому массиву variants.
@@ -241,9 +247,12 @@ def normalize_variants(result) -> list:
         "hard",
     ]
 
+    normalized_variants = []
+
     for i, variant in enumerate(variants):
 
         if not isinstance(variant, dict):
+            normalized_variants.append(variant)
             continue
 
         # ----------------------------------------------------
@@ -304,8 +313,14 @@ def normalize_variants(result) -> list:
 
                 variant["correctAnswer"] = ""
 
-      
-    return variants
+        normalized_variants.append(
+            normalize_question(
+                variant,
+                expected_type=expected_type,
+            )
+        )
+
+    return normalized_variants
 
 
 # ============================================================
@@ -432,6 +447,7 @@ def parse_ai_json(raw: str):
 def validate_question_variants(
     variants: list,
     expected_count: int = 3,
+    source=None,
 ):
     """
     Проверяет варианты через обычный Python validator.
@@ -455,6 +471,8 @@ def validate_question_variants(
         print(
             "[AI VALIDATION] Invalid variants:",
             validation.get("error"),
+            "shape:",
+            describe_ai_shape(source if source is not None else variants),
         )
 
         return {
@@ -462,6 +480,9 @@ def validate_question_variants(
             "error": validation.get(
                 "error",
                 "Invalid AI output",
+            ),
+            "diagnostic": describe_ai_shape(
+                source if source is not None else variants
             ),
         }
 
@@ -474,7 +495,11 @@ def validate_question_variants(
     }
 
 
-def validate_full_quiz(result, expected_count: int):
+def validate_full_quiz(
+    result,
+    expected_count: int,
+    source=None,
+):
     """
     Проверяет полный сгенерированный квиз.
 
@@ -499,6 +524,8 @@ def validate_full_quiz(result, expected_count: int):
         print(
             "[AI VALIDATION] Invalid quiz:",
             validation.get("error"),
+            "shape:",
+            describe_ai_shape(source if source is not None else result),
         )
 
         return {
@@ -506,6 +533,9 @@ def validate_full_quiz(result, expected_count: int):
             "error": validation.get(
                 "error",
                 "Invalid AI quiz",
+            ),
+            "diagnostic": describe_ai_shape(
+                source if source is not None else result
             ),
         }
 
@@ -772,13 +802,15 @@ async def generate_question(
             result = parse_ai_json(raw)
 
             variants = normalize_variants(
-                result
+                result,
+                expected_type=qtype,
             )
 
             validation = (
                 validate_question_variants(
                     variants,
                     expected_count=3,
+                    source=result,
                 )
             )
 
@@ -792,6 +824,9 @@ async def generate_question(
                     "details": validation[
                         "error"
                     ],
+                    "diagnostic": validation.get(
+                        "diagnostic"
+                    ),
                 }
 
             return {
@@ -842,13 +877,15 @@ async def generate_question(
         result = parse_ai_json(raw)
 
         variants = normalize_variants(
-            result
+            result,
+            expected_type=qtype,
         )
 
         validation = (
             validate_question_variants(
                 variants,
                 expected_count=3,
+                source=result,
             )
         )
 
@@ -862,6 +899,9 @@ async def generate_question(
                 "details": validation[
                     "error"
                 ],
+                "diagnostic": validation.get(
+                    "diagnostic"
+                ),
             }
 
         return {
@@ -895,6 +935,22 @@ async def improve_question(
 
     check_ai_limit(user)
 
+    format_to_type = {
+        "quiz-choice": "choice",
+        "quiz-bool": "bool",
+        "quiz-text": "text",
+        "quiz-matching": "matching",
+        "quiz-close": "close",
+        "quiz-ordering": "ordering",
+        "choice": "choice",
+        "bool": "bool",
+        "text": "text",
+        "matching": "matching",
+        "close": "close",
+        "ordering": "ordering",
+    }
+    qtype = format_to_type.get(input.format or "", "choice")
+
     prompt = improve_question_prompt(
         current_text=input.currentText,
         format_type=input.format,
@@ -923,13 +979,15 @@ async def improve_question(
         result = parse_ai_json(raw)
 
         variants = normalize_variants(
-            result
+            result,
+            expected_type=qtype,
         )
 
         validation = (
             validate_question_variants(
                 variants,
                 expected_count=3,
+                source=result,
             )
         )
 
@@ -943,6 +1001,9 @@ async def improve_question(
                 "details": validation[
                     "error"
                 ],
+                "diagnostic": validation.get(
+                    "diagnostic"
+                ),
             }
 
         return {
@@ -1036,13 +1097,16 @@ async def generate_quiz(
     try:
 
         result = parse_ai_json(raw)
+        normalized_result = normalize_quiz(result)
 
         # ----------------------------------------------------
         # BACKEND VALIDATION
         # ----------------------------------------------------
 
         validation = validate_full_quiz(
-            result, count
+            normalized_result,
+            count,
+            source=result,
         )
 
         if not validation["valid"]:
@@ -1055,6 +1119,9 @@ async def generate_quiz(
                 "details": validation[
                     "error"
                 ],
+                "diagnostic": validation.get(
+                    "diagnostic"
+                ),
             }
 
         return validation["quiz"]
@@ -1414,13 +1481,16 @@ async def generate_from_file(
     try:
 
         result = parse_ai_json(raw)
+        normalized_result = normalize_quiz(result)
 
         # ----------------------------------------------------
         # BACKEND VALIDATION
         # ----------------------------------------------------
 
         validation = validate_full_quiz(
-            result, count
+            normalized_result,
+            count,
+            source=result,
         )
 
         if not validation["valid"]:
@@ -1438,6 +1508,9 @@ async def generate_from_file(
                 "details": validation[
                     "error"
                 ],
+                "diagnostic": validation.get(
+                    "diagnostic"
+                ),
             }
 
         return validation["quiz"]
