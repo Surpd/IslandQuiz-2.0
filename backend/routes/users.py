@@ -1,12 +1,36 @@
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from datetime import datetime
 from database import supabase
 from routes.auth import get_current_user
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+DB_ERROR_DETAIL = "Ошибка базы данных"
+
+
+def _db_response(query):
+    try:
+        response = query.execute()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL) from exc
+    if response is None:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return response
+
+
+def _response_rows(response) -> list[dict]:
+    rows = getattr(response, "data", None)
+    if rows is None:
+        return []
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return rows
+
+
+def _db_rows(query) -> list[dict]:
+    return _response_rows(_db_response(query))
 
 
 class GameOut(BaseModel):
@@ -78,10 +102,10 @@ def update_me(
         updates["subject"] = input.subject
 
     if updates:
-        supabase.table("users").update(updates).eq("id", current_user["id"]).execute()
+        _db_rows(supabase.table("users").update(updates).eq("id", current_user["id"]))
 
-    res = supabase.table("users").select("*").eq("id", current_user["id"]).execute()
-    return UserOut(**res.data[0]) if res.data else None
+    rows = _db_rows(supabase.table("users").select("*").eq("id", current_user["id"]))
+    return UserOut(**rows[0]) if rows else None
 
 
 @router.delete("/me", status_code=204)
@@ -89,20 +113,19 @@ def delete_me(
     response: Response,
     current_user=Depends(get_current_user),
 ):
-    supabase.table("games").delete().eq("owner_id", current_user["id"]).execute()
-    supabase.table("users").delete().eq("id", current_user["id"]).execute()
+    _db_rows(supabase.table("games").delete().eq("owner_id", current_user["id"]))
+    _db_rows(supabase.table("users").delete().eq("id", current_user["id"]))
     response.status_code = 204
 
 
 @router.get("/{user_id}", response_model=Optional[PublicProfile])
 def get_user_profile(user_id: str, current_user=Depends(get_current_user)):
-    user_res = supabase.table("users").select("*").eq("id", user_id).execute()
-    if not user_res.data:
+    user_rows = _db_rows(supabase.table("users").select("*").eq("id", user_id))
+    if not user_rows:
         return None
-    user = user_res.data[0]
+    user = user_rows[0]
 
-    games_res = supabase.table("games").select("*").eq("owner_id", user_id).execute()
-    all_games = games_res.data or []
+    all_games = _db_rows(supabase.table("games").select("*").eq("owner_id", user_id))
 
     is_me = current_user and current_user["id"] == user_id
     visible = all_games if is_me else [g for g in all_games if g.get("visibility") == "public"]
@@ -111,6 +134,8 @@ def get_user_profile(user_id: str, current_user=Depends(get_current_user)):
     rating_sum = 0
     for g in all_games:
         if g.get("ratings_data"):
+            if not isinstance(g["ratings_data"], dict) or any(not isinstance(value, (int, float)) for value in g["ratings_data"].values()):
+                raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
             values = list(g["ratings_data"].values())
             if values:
                 total_ratings += len(values)
@@ -141,10 +166,9 @@ def get_user_games(
 ):
     query = supabase.table("games").select("*", count="exact").eq("owner_id", user_id).order("updated_at", desc=True)
     query = query.range(offset, offset + limit - 1)
-    res = query.execute()
-    
-    total = res.count if hasattr(res, 'count') else len(res.data or [])
-    all_games = res.data or []
+    response = _db_response(query)
+    all_games = _response_rows(response)
+    total = response.count if isinstance(getattr(response, "count", None), int) else len(all_games)
 
     is_me = current_user and current_user["id"] == user_id
     visible = all_games if is_me else [g for g in all_games if g.get("visibility") == "public"]
