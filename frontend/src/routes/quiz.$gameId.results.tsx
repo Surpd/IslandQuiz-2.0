@@ -165,7 +165,7 @@ function ResultsPage() {
 
         {rows.length > 0 ? (
           <>
-            <div className="mb-6 grid gap-3 sm:grid-cols-4">
+            <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
               <StatCard label="Прошли" value={String(stats.count)} />
               <StatCard label="Средний балл" value={String(stats.avgScore)} />
               <StatCard label="Лучший" value={String(stats.bestScore)} />
@@ -473,8 +473,8 @@ function PlayerCell({
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="surface-card p-4 text-center">
-      <div className="font-display text-3xl font-black text-primary">{value}</div>
+    <div className="surface-card p-3 text-center sm:p-4">
+      <div className="font-display text-2xl font-black text-primary sm:text-3xl">{value}</div>
       <div className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
   );

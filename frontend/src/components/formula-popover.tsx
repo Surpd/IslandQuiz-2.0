@@ -138,7 +138,7 @@ export function FormulaButton({
       {open && (
         <div
           ref={popRef}
-          className="absolute right-0 top-9 z-50 w-[320px] animate-fade-up rounded-2xl border border-border-strong bg-surface p-3 shadow-lift"
+          className="absolute left-1/2 top-9 z-50 w-[min(320px,calc(100vw-2rem))] -translate-x-1/2 animate-fade-up rounded-2xl border border-border-strong bg-surface p-3 shadow-lift sm:left-auto sm:right-0 sm:translate-x-0"
         >
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">

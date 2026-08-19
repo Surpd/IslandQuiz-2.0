@@ -215,7 +215,7 @@ export function PlayerV2Full({ data, gameId }: { data: QuizData; gameId?: string
         )}
 
         {phase === "done" && (
-          <div className="rounded-3xl border border-white/15 bg-white/5 p-12 text-center backdrop-blur-2xl">
+          <div className="rounded-3xl border border-white/15 bg-white/5 p-6 text-center backdrop-blur-2xl sm:p-12">
             <div className="text-xs uppercase tracking-[0.3em] text-[color:var(--pt-text-muted)]">
               {name || user?.name || "Игрок"} · итог
             </div>
@@ -569,14 +569,14 @@ function DropZone({ left, value }: { left: string; value?: string }) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-center gap-3 rounded-xl border-2 border-dashed p-3 transition-all ${
+      className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border-2 border-dashed p-3 transition-all sm:flex sm:gap-3 ${
         isOver ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-surface-strong)]" : "border-[color:var(--pt-border)]"
       }`}
     >
-      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{left}</span>
+      <span className="min-w-0 break-words text-sm font-semibold sm:flex-1">{left}</span>
       <span className="text-[color:var(--pt-text-muted)]">→</span>
       <span
-        className={`min-w-[40%] rounded-lg px-3 py-2 text-sm ${
+        className={`min-w-0 break-words rounded-lg px-3 py-2 text-left text-sm sm:min-w-[40%] ${
           value
             ? "bg-[color:var(--pt-accent)] font-bold text-black"
             : "bg-[color:var(--pt-surface-strong)] text-[color:var(--pt-text-muted)]"
@@ -599,7 +599,7 @@ function Draggable({ value }: { value: string }) {
       style={{
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
       }}
-      className={`cursor-grab rounded-xl border-2 border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3 text-sm font-semibold shadow-sm active:cursor-grabbing ${
+      className={`cursor-grab break-words rounded-xl border-2 border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3 text-sm font-semibold shadow-sm active:cursor-grabbing ${
         isDragging ? "opacity-50" : ""
       }`}
     >

@@ -900,9 +900,10 @@ function MatchingEditor({
   return (
     <div className="space-y-2">
       {pairs.map((p, i) => (
-        <div key={i} className="flex items-center gap-2">
+        <div key={i} className="flex items-start gap-2">
+          <div className="grid min-w-0 flex-1 gap-2 sm:flex sm:items-center">
           <input
-            className="input-base"
+            className="input-base min-w-0"
             placeholder="Слева"
             value={p.left}
             onChange={(e) => {
@@ -911,9 +912,9 @@ function MatchingEditor({
               setPairs(next);
             }}
           />
-          <span className="text-muted-foreground">→</span>
+          <span className="text-center text-muted-foreground sm:shrink-0">→</span>
           <input
-            className="input-base"
+            className="input-base min-w-0"
             placeholder="Справа"
             value={p.right}
             onChange={(e) => {
@@ -921,7 +922,8 @@ function MatchingEditor({
               next[i] = { ...next[i], right: e.target.value };
               setPairs(next);
             }}
-          />
+            />
+          </div>
           <button
             onClick={() => setPairs(pairs.filter((_, k) => k !== i))}
             className="rounded-lg p-2 text-muted-foreground hover:bg-danger-soft hover:text-danger"
