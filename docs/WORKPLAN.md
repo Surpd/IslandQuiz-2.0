@@ -278,7 +278,7 @@
 - **Файлы:** `backend/database.py`, затронутые routers/services, frontend API facade и error UI.
 - **Готово, когда:** empty/None/error от Supabase не превращаются в случайный 500 или частичное сохранение; frontend получает понятную стабильную ошибку.
 - **Проверки:** empty result, `None`, DB error, duplicate/constraint error, timeout и malformed response tests; backend syntax и frontend checks.
-- **Закрытые slices:** `games.py`, `admin.py` и `users.py`; локальные `_db_response`/`_db_rows` скрывают DB exceptions и malformed responses за стабильным 502, а empty/None rows сохраняют endpoint-specific semantics. `admin.py` также нормализует AI provider HTTP/JSON/shape failures в 502. `backend/tests/test_games.py`, `test_admin.py` и `test_users.py` покрывают edge cases. Остальные routers и общий error facade остаются вне текущего slice.
+- **Закрытые slices:** `games.py`, `admin.py`, `users.py` и `results.py`; локальные `_db_response`/`_db_rows` скрывают DB exceptions и malformed responses за стабильным 502, а empty/None rows сохраняют endpoint-specific semantics. `admin.py` также нормализует AI provider HTTP/JSON/shape failures в 502; `results.py` сохраняет filtering malformed result rows и controlled missing-result semantics. `backend/tests/test_games.py`, `test_admin.py`, `test_users.py` и `test_results.py` покрывают edge cases. Остальные routers и общий error facade остаются вне текущего slice.
 - **Проверка slice:** `python -m unittest discover -s tests -p 'test*.py'` — 60 passed; `py_compile` и `git diff --check` — passed.
 
 #### M5. Довести Jeopardy AI до уровня обычного Quiz — `DEPENDENCY`

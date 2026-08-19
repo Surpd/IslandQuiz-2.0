@@ -10,6 +10,28 @@ from routes.auth import get_current_user_optional, get_current_user
 from services.trusted_scoring import issue_snapshot_token, result_payload, score_jeopardy, score_millionaire, score_quiz, verify_snapshot_token
 
 router = APIRouter(prefix="/api", tags=["results"])
+DB_ERROR_DETAIL = "Ошибка базы данных"
+
+
+def _db_response(query):
+    try:
+        response = query.execute()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL) from exc
+    if response is None:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return response
+
+
+def _result_rows(response) -> list[dict]:
+    rows = getattr(response, "data", None)
+    if rows is None or not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _db_rows(query) -> list[dict]:
+    return _result_rows(_db_response(query))
 
 
 class QuizAnswer(BaseModel):
@@ -155,12 +177,10 @@ def _can_view_game(game_id: str, user: Optional[dict]) -> bool:
     """Проверяет, можно ли видеть игру (и её результаты)."""
     if not user:
         return False
-    game = supabase.table("games").select("owner_id,visibility").eq("id", game_id).execute()
-    if not isinstance(game.data, list) or not game.data:
+    game_rows = _db_rows(supabase.table("games").select("owner_id,visibility").eq("id", game_id))
+    if not game_rows:
         return False
-    g = game.data[0]
-    if not isinstance(g, dict):
-        return False
+    g = game_rows[0]
     if g.get("owner_id") == user.get("id") or user.get("role") == "admin":
         return True
     if g.get("visibility") in ("public", "link"):
@@ -170,15 +190,13 @@ def _can_view_game(game_id: str, user: Optional[dict]) -> bool:
 
 def _check_can_submit(game_id: str, expected_kind: str, user: Optional[dict]) -> dict:
     """Проверяет, можно ли отправить результат для игры. Возвращает игру или кидает HTTPException."""
-    game = supabase.table("games").select("*").eq("id", game_id).execute()
-    if not isinstance(game.data, list) or not game.data:
+    game_rows = _db_rows(supabase.table("games").select("*").eq("id", game_id))
+    if not game_rows:
         raise HTTPException(status_code=404, detail="Игра не найдена")
     
-    g = game.data[0]
+    g = game_rows[0]
     
     # Проверка типа игры
-    if not isinstance(g, dict):
-        raise HTTPException(status_code=404, detail="Игра не найдена")
     if g.get("kind") != expected_kind:
         raise HTTPException(status_code=400, detail=f"Неверный тип игры: ожидается {expected_kind}")
     
@@ -240,7 +258,7 @@ def get_quiz_results(gameId: str, user=Depends(get_current_user)):
     if not _can_view_game(gameId, user):
         raise HTTPException(status_code=403, detail="Нет доступа к результатам")
     
-    res = supabase.table("quiz_results").select("*").eq("game_id", gameId).order("finished_at", desc=True).execute()
+    rows = _db_rows(supabase.table("quiz_results").select("*").eq("game_id", gameId).order("finished_at", desc=True))
     return [
         QuizResultOut(
             id=r.get("id") or "", gameId=r.get("game_id") or "", userId=r.get("user_id"), playerName=r.get("player_name") or "",
@@ -248,8 +266,7 @@ def get_quiz_results(gameId: str, user=Depends(get_current_user)):
             correctCount=r.get("correct_count") or 0, totalQuestions=r.get("total_questions") or 0,
             timeSec=r.get("time_sec") or 0, finishedAt=r.get("finished_at") or "", answers=_result_fields(r.get("answers"), ("qId", "question", "given", "correctAnswer", "isCorrect", "earned", "points")),
         )
-        for r in (res.data or [])
-        if isinstance(r, dict)
+        for r in rows
     ]
 
 
@@ -263,7 +280,7 @@ def submit_quiz_result(gameId: str, payload: QuizResultInput, current_user=Depen
         raise HTTPException(status_code=400, detail=str(error))
 
     result_id = snapshot["attemptId"]
-    supabase.table("quiz_results").insert({
+    _db_rows(supabase.table("quiz_results").insert({
         "id": result_id, "game_id": gameId,
         "user_id": current_user["id"] if current_user else None,
         "player_name": payload.playerName.strip()[:100] or "Аноним",
@@ -271,7 +288,7 @@ def submit_quiz_result(gameId: str, payload: QuizResultInput, current_user=Depen
         "correct_count": totals["correctCount"], "total_questions": totals["totalQuestions"],
         "time_sec": max(0, payload.timeSec), "finished_at": datetime.now(timezone.utc).isoformat(),
         "answers": result_payload(snapshot, answers),
-    }).execute()
+    }))
     return {"ok": True, "id": result_id}
 
 
@@ -282,12 +299,11 @@ def get_jeopardy_results(gameId: str, user=Depends(get_current_user)):
     if not _can_view_game(gameId, user):
         raise HTTPException(status_code=403, detail="Нет доступа к результатам")
     
-    res = supabase.table("jeopardy_results").select("*").eq("game_id", gameId).order("played_at", desc=True).execute()
+    rows = _db_rows(supabase.table("jeopardy_results").select("*").eq("game_id", gameId).order("played_at", desc=True))
     return [
         JeopardyResultOut(id=r.get("id") or "", gameId=r.get("game_id") or "", playedAt=r.get("played_at") or "",
                           teams=_jeopardy_result_teams(r.get("teams")), winnerId=r.get("winner_id"), hasFinal=bool(r.get("has_final")))
-        for r in (res.data or [])
-        if isinstance(r, dict)
+        for r in rows
     ]
 
 
@@ -296,12 +312,10 @@ def get_jeopardy_result_detail(gameId: str, resultId: str, user=Depends(get_curr
     if not _can_view_game(gameId, user):
         raise HTTPException(status_code=403, detail="Нет доступа к результатам")
     
-    res = supabase.table("jeopardy_results").select("*").eq("id", resultId).eq("game_id", gameId).execute()
-    if not res.data:
+    rows = _db_rows(supabase.table("jeopardy_results").select("*").eq("id", resultId).eq("game_id", gameId))
+    if not rows:
         return None
-    r = res.data[0]
-    if not isinstance(r, dict):
-        return None
+    r = rows[0]
     return JeopardyResultOut(id=r.get("id") or "", gameId=r.get("game_id") or "", playedAt=r.get("played_at") or "",
                              teams=_jeopardy_result_teams(r.get("teams")), winnerId=r.get("winner_id"), hasFinal=bool(r.get("has_final")))
 
@@ -316,11 +330,11 @@ def submit_jeopardy_result(gameId: str, payload: JeopardyResultInput, current_us
         raise HTTPException(status_code=400, detail=str(error))
     winner = max(teams, key=lambda team: team["score"], default=None)
     result_id = snapshot["attemptId"]
-    supabase.table("jeopardy_results").insert({
+    _db_rows(supabase.table("jeopardy_results").insert({
         "id": result_id, "game_id": gameId, "played_at": datetime.now(timezone.utc).isoformat(),
         "teams": result_payload(snapshot, teams, decisions=decisions),
         "winner_id": winner["id"] if winner else None, "has_final": bool(decisions and any(decision["kind"] == "final" for decision in decisions)),
-    }).execute()
+    }))
     return {"ok": True, "id": result_id}
 
 
@@ -331,7 +345,7 @@ def get_millionaire_results(gameId: str, user=Depends(get_current_user)):
     if not _can_view_game(gameId, user):
         raise HTTPException(status_code=403, detail="Нет доступа к результатам")
     
-    res = supabase.table("millionaire_results").select("*").eq("game_id", gameId).order("finished_at", desc=True).execute()
+    rows = _db_rows(supabase.table("millionaire_results").select("*").eq("game_id", gameId).order("finished_at", desc=True))
     return [
         MillionaireResultOut(id=r.get("id") or "", gameId=r.get("game_id") or "", userId=r.get("user_id"),
                              playerName=r.get("player_name") or "", avatar=r.get("avatar"),
@@ -339,8 +353,7 @@ def get_millionaire_results(gameId: str, user=Depends(get_current_user)):
                              guaranteedAmount=r.get("guaranteed_amount") or 0, reachedCount=r.get("reached_count") or 0,
                              totalQuestions=r.get("total_questions") or 0, timeSec=r.get("time_sec") or 0,
                              finishedAt=r.get("finished_at") or "", answers=_result_fields(r.get("answers"), ("qIdx", "money", "question", "selectedIndex", "isCorrect")))
-        for r in (res.data or [])
-        if isinstance(r, dict)
+        for r in rows
     ]
 
 
@@ -353,7 +366,7 @@ def submit_millionaire_result(gameId: str, payload: MillionaireResultInput, curr
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     result_id = snapshot["attemptId"]
-    supabase.table("millionaire_results").insert({
+    _db_rows(supabase.table("millionaire_results").insert({
         "id": result_id, "game_id": gameId,
         "user_id": current_user["id"] if current_user else None,
         "player_name": payload.playerName.strip()[:100] or "Аноним", "outcome": totals["outcome"],
@@ -361,7 +374,7 @@ def submit_millionaire_result(gameId: str, payload: MillionaireResultInput, curr
         "reached_count": totals["reachedCount"], "total_questions": totals["totalQuestions"],
         "time_sec": max(0, payload.timeSec), "finished_at": datetime.now(timezone.utc).isoformat(),
         "answers": result_payload(snapshot, answers),
-    }).execute()
+    }))
     return {"ok": True, "id": result_id}
 
 
@@ -372,12 +385,11 @@ def get_online_results(gameId: str, user=Depends(get_current_user)):
     if not _can_view_game(gameId, user):
         raise HTTPException(status_code=403, detail="Нет доступа к результатам")
     
-    res = supabase.table("online_quiz_results").select("*").eq("game_id", gameId).order("played_at", desc=True).execute()
+    rows = _db_rows(supabase.table("online_quiz_results").select("*").eq("game_id", gameId).order("played_at", desc=True))
     return [
         OnlineQuizResultOut(id=r.get("id") or "", gameId=r.get("game_id") or "", roomCode=r.get("room_code") or "",
                             playedAt=r.get("played_at") or "", durationSec=r.get("duration_sec") or 0, players=_online_result_players(r.get("players")))
-        for r in (res.data or [])
-        if isinstance(r, dict)
+        for r in rows
     ]
 
 
@@ -391,29 +403,25 @@ def get_my_played_game_ids(user=Depends(get_current_user)):
     game_ids = set()
     user_id = user["id"]
     
-    quiz = supabase.table("quiz_results").select("game_id").eq("user_id", user_id).execute()
-    for r in (quiz.data or []):
-        if isinstance(r, dict) and r.get("game_id"):
+    quiz_rows = _db_rows(supabase.table("quiz_results").select("game_id").eq("user_id", user_id))
+    for r in quiz_rows:
+        if r.get("game_id"):
             game_ids.add(r.get("game_id"))
     
-    online = supabase.table("online_quiz_results").select("game_id, players").execute()
-    for r in (online.data or []):
-        if not isinstance(r, dict):
-            continue
+    online_rows = _db_rows(supabase.table("online_quiz_results").select("game_id, players"))
+    for r in online_rows:
         players = _result_items(r.get("players"))
         if any(p.get("userId") == user_id or p.get("user_id") == user_id for p in players):
             if r.get("game_id"):
                 game_ids.add(r.get("game_id"))
     
-    millionaire = supabase.table("millionaire_results").select("game_id").eq("user_id", user_id).execute()
-    for r in (millionaire.data or []):
-        if isinstance(r, dict) and r.get("game_id"):
+    millionaire_rows = _db_rows(supabase.table("millionaire_results").select("game_id").eq("user_id", user_id))
+    for r in millionaire_rows:
+        if r.get("game_id"):
             game_ids.add(r.get("game_id"))
     
-    jeopardy = supabase.table("jeopardy_results").select("game_id, teams").execute()
-    for r in (jeopardy.data or []):
-        if not isinstance(r, dict):
-            continue
+    jeopardy_rows = _db_rows(supabase.table("jeopardy_results").select("game_id, teams"))
+    for r in jeopardy_rows:
         teams = _result_items(r.get("teams"))
         if any(t.get("id") == user_id for t in teams):
             if r.get("game_id"):
@@ -430,29 +438,25 @@ def get_played_game_ids(user_id: str, user=Depends(get_current_user)):
     game_ids = set()
     target_user_id = user_id
     
-    quiz = supabase.table("quiz_results").select("game_id").eq("user_id", target_user_id).execute()
-    for r in (quiz.data or []):
-        if isinstance(r, dict) and r.get("game_id"):
+    quiz_rows = _db_rows(supabase.table("quiz_results").select("game_id").eq("user_id", target_user_id))
+    for r in quiz_rows:
+        if r.get("game_id"):
             game_ids.add(r.get("game_id"))
     
-    online = supabase.table("online_quiz_results").select("game_id, players").execute()
-    for r in (online.data or []):
-        if not isinstance(r, dict):
-            continue
+    online_rows = _db_rows(supabase.table("online_quiz_results").select("game_id, players"))
+    for r in online_rows:
         players = _result_items(r.get("players"))
         if any(p.get("userId") == target_user_id or p.get("user_id") == target_user_id for p in players):
             if r.get("game_id"):
                 game_ids.add(r.get("game_id"))
     
-    millionaire = supabase.table("millionaire_results").select("game_id").eq("user_id", target_user_id).execute()
-    for r in (millionaire.data or []):
-        if isinstance(r, dict) and r.get("game_id"):
+    millionaire_rows = _db_rows(supabase.table("millionaire_results").select("game_id").eq("user_id", target_user_id))
+    for r in millionaire_rows:
+        if r.get("game_id"):
             game_ids.add(r.get("game_id"))
     
-    jeopardy = supabase.table("jeopardy_results").select("game_id, teams").execute()
-    for r in (jeopardy.data or []):
-        if not isinstance(r, dict):
-            continue
+    jeopardy_rows = _db_rows(supabase.table("jeopardy_results").select("game_id, teams"))
+    for r in jeopardy_rows:
         teams = _result_items(r.get("teams"))
         if any(t.get("id") == target_user_id for t in teams):
             if r.get("game_id"):
