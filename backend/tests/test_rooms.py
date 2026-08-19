@@ -121,6 +121,43 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(state["hostId"], "spoofed-host")
         self.assertNotIn("_credentials", state)
 
+    async def test_large_snapshot_room_allows_guest_join(self):
+        large_data = {
+            "config": {"defaultTime": 30},
+            "questions": [
+                {
+                    "id": f"q-{index}",
+                    "type": "choice",
+                    "q": "Question " + ("x" * 120),
+                    "options": ["A" * 40, "B" * 40, "C" * 40, "D" * 40],
+                    "answer": "A",
+                    "points": 100,
+                    "time": 30,
+                }
+                for index in range(100)
+            ],
+        }
+        token = issue_snapshot_token("game-1", "quiz", large_data)[1]
+        host = FakeWebSocket([json.dumps({
+            "action": "create_room",
+            "gameKind": "quiz",
+            "gameId": "game-1",
+            "snapshotToken": token,
+        })])
+
+        await rooms_route.room_websocket(host, "ROOM1")
+
+        guest = FakeWebSocket([json.dumps({
+            "action": "join",
+            "player": {"nickname": "Large Quiz Guest", "avatar": ""},
+        })])
+        await rooms_route.room_websocket(guest, "ROOM1")
+
+        self.assertIn("ROOM1", rooms_route.rooms)
+        identity = next(message for message in guest.sent if message["type"] == "room_identity")
+        self.assertEqual(identity["role"], "player")
+        self.assertTrue(any(player["nickname"] == "Large Quiz Guest" for player in rooms_route.rooms["ROOM1"]["players"]))
+
     async def test_guest_join_ignores_client_player_id_and_issues_identity(self):
         rooms_route.rooms["ROOM1"] = room_fixture()
         websocket = FakeWebSocket([json.dumps({

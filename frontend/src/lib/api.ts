@@ -758,12 +758,20 @@ export async function createRoom(gameKind: GameKind, gameId: string) {
   const code = String(Math.floor(1000 + Math.random() * 9000));
   const conn = ensureRoomConn(code);
   await conn.openPromise;
-  await sendAndWaitState(code, {
+  const creation = waitRoomMessage(
+    code,
+    (m) => m.type === "error" || (m.type === "room_state" && !!m.state),
+  );
+  sendRoom(code, {
     action: "create_room",
     gameKind,
     gameId,
     snapshotToken: snapshot.snapshotToken,
   });
+  const message = await creation;
+  if (message.type === "error") {
+    throw new Error(message.error || "Не удалось создать комнату");
+  }
   return { code, room_url: `/room/${code}` };
 }
 

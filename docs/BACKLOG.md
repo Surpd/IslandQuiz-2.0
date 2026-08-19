@@ -173,7 +173,7 @@
 
 ### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation
 
-- **Статус:** `DONE`; backend и frontend validation закрывают room message size, phases, IDs, bounds, timer/answer/bet limits и duplicate/replay actions для Quiz и Jeopardy. Добавлены invalid и valid state-transition regressions.
+- **Статус:** `DONE`; backend и frontend validation закрывают room message size, phases, IDs, bounds, timer/answer/bet limits и duplicate/replay actions для Quiz и Jeopardy. Для `create_room` оставлен отдельный bounded limit под signed snapshot, обычные actions сохраняют 16 KiB limit; добавлен regression large snapshot create → guest join.
 - **Проблема/цель:** действия room могут передавать произвольные значения `delta`, timestamps, IDs, индексы и phase-related fields; нет единой schema validation и понятных ошибок для invalid state.
 - **Почему важно:** даже после базовой авторизации malformed/replayed actions могут ломать состояние или вызывать исключения.
 - **Затрагивает:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, Quiz/Jeopardy room components, reconnect/cache.
