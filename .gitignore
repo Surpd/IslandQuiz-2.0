@@ -34,3 +34,7 @@ backend/*.db
 
 # Cursor
 .cursor/
+
+# Playwright
+playwright-report/
+test-results/
