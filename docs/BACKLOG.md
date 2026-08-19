@@ -226,13 +226,15 @@
 
 ### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API
 
-- **Статус:** `IN_PROGRESS`; завершены targeted `games.py`, `admin.py`, `users.py`, `results.py` и `feedback.py` slices без изменения schema, business rules или production data. Остальные routers/API error facade требуют следующих slices.
+- **Статус:** `DONE`; targeted backend router slices завершены без изменения schema, business rules, API success contracts или production data.
 - **Проблема/цель:** прямые обращения роутов к `res.data`, `data[0]` и полям разных таблиц требуют единой проверки ошибок, `None` и пустых результатов.
 - **Почему важно:** редкие ошибки БД/неполная запись превращаются в 500, частичное сохранение или неясную ошибку пользователю.
 - **Затрагивает:** `backend/database.py`, все затронутые routers/services, frontend API facade и error UI.
 - **Зависимости:** C5; определить mapping Supabase errors в стабильные HTTP errors и logging policy.
 - **Сложность:** L.
 - **Самостоятельность:** да после schema audit, без изменения бизнес-правил.
+- **Решение:** локальные DB/API normalization helpers добавлены в `games.py`, `admin.py`, `users.py`, `results.py`, `feedback.py`, `ai.py`, `auth.py` и `telegram_auth.py`; room result persistence отправляет controlled WebSocket error при exception/`None`/empty response. Добавлены regression tests для DB exceptions, `None`, empty, malformed rows, provider failures и duplicate/constraint semantics.
+- **Проверки:** backend regression — 80 passed; Python compile и `git diff --check` — passed. Frontend contract не менялся.
 
 ### M5. Довести Jeopardy AI до уровня валидации обычного Quiz
 

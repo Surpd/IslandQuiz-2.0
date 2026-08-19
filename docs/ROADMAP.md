@@ -26,6 +26,7 @@
 - **H7 / DONE:** baseline critical regression suite вырос с 16 до 35 backend tests и покрывает текущие auth, Telegram, visibility/results, AI и room contracts без изменения security architecture.
 - **H9 / DONE:** единый result access matrix закрывает owner/non-owner/admin/private/public/link paths; Jeopardy owner submit и cross-user played-game access исправлены, malformed result rows и PII filtering покрыты regression tests.
 - **H10 / DONE:** WebSocket room actions валидируют phase, shape, IDs, bounds, timers, payload limits и replay/duplicate actions для Quiz и Jeopardy; frontend facade фильтрует недопустимые actions до отправки.
+- **M4 / DONE:** backend routers нормализуют Supabase/API exceptions, `None`, empty и malformed responses; provider failures и room result persistence возвращают controlled errors, добавлены 80 regression tests.
 - **CODEX_MODEL_GUIDE:** для задач добавлен выбор Luna/Terra/Sol с условиями escalation.
 
 ## Broken / needs fix now
@@ -45,9 +46,9 @@ Frontend теперь нормализует success payload и переводи
 
 ## Next 3–5 recommended tasks
 
-1. **M4 — единая обработка ошибок и пустых ответов Supabase/API** — **Terra / medium**. H9 закрыл result-reader slice; остальные routers требуют отдельной targeted inventory.
-2. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
-3. **M7/M9 — CI quality gates и monitoring** — **Terra / medium**. После стабилизации room protocol и deployment baseline.
+1. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
+2. **M7/M9 — CI quality gates и monitoring** — **Terra / medium**. После стабилизации room protocol и deployment baseline.
+3. **M5 — Jeopardy AI validation** — **Terra / medium**. После закрепления canonical AI contract.
 
 Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
 

@@ -270,7 +270,7 @@
 - **Готово, когда:** выбранная topology не теряет или явно корректно завершает комнату при restart и не допускает расходящихся состояний между workers.
 - **Проверки:** restart test, two-worker test, concurrent actions/version conflict, TTL cleanup, reconnect and result finalization.
 
-#### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API — `IN_PROGRESS`
+#### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API — `DONE`
 
 - **Зависимости:** C5; сначала карта реальных ошибок и полей, затем стабильный HTTP error mapping.
 - **Блокирующие D1–D9:** нет; C5 и read-only schema audit уже выполнены.
@@ -278,8 +278,8 @@
 - **Файлы:** `backend/database.py`, затронутые routers/services, frontend API facade и error UI.
 - **Готово, когда:** empty/None/error от Supabase не превращаются в случайный 500 или частичное сохранение; frontend получает понятную стабильную ошибку.
 - **Проверки:** empty result, `None`, DB error, duplicate/constraint error, timeout и malformed response tests; backend syntax и frontend checks.
-- **Закрытые slices:** `games.py`, `admin.py`, `users.py`, `results.py` и `feedback.py`; локальные DB wrappers скрывают exceptions/None за стабильным 502, а endpoint-specific empty semantics сохраняются. `admin.py` также нормализует AI provider HTTP/JSON/shape failures; `results.py` сохраняет filtering malformed result rows. Regression tests покрывают все закрытые slices. Остальные routers и общий error facade остаются вне текущего slice.
-- **Проверка slice:** `python -m unittest discover -s tests -p 'test*.py'` — 60 passed; `py_compile` и `git diff --check` — passed.
+- **Результат:** targeted wrappers завершены в `games.py`, `admin.py`, `users.py`, `results.py`, `feedback.py`, `ai.py`, `auth.py` и `telegram_auth.py`; `rooms.py` возвращает стабильное WebSocket error-событие при сбое сохранения результата. Exceptions, `None`, empty и malformed DB/API responses не проходят как случайные 500, а endpoint-specific empty semantics и успешные flows сохранены.
+- **Проверка:** `python -m unittest discover -s tests -p 'test*.py'` — 80 passed; `python -m compileall -q routes services tests` и `git diff --check` — passed. Frontend не затронут, API contract не изменён, поэтому TypeScript/build checks не требовались.
 
 #### M5. Довести Jeopardy AI до уровня обычного Quiz — `DEPENDENCY`
 

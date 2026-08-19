@@ -17,6 +17,7 @@ room_cleanup_tasks: dict[str, asyncio.Task] = {}
 ROOM_RECONNECT_GRACE_SECONDS = 60
 MAX_ROOM_MESSAGE_BYTES = 16 * 1024
 MAX_ANSWER_LENGTH = 2000
+ROOM_RESULT_DB_ERROR = "Не удалось сохранить результат комнаты"
 
 HOST_ACTIONS = {
     "start", "reveal", "leaderboard", "next_question", "finish", "restart", "kick", "adjust_score",
@@ -205,9 +206,16 @@ def _kahoot_score(correct: bool, elapsed_ms: int, total_ms: int, streak_before: 
     return 1000 + round(500 * ratio) + (0 if streak_after <= 1 else min(400, (streak_after - 1) * 100)), streak_after
 
 
-def _persist_room_result(room: dict) -> None:
+def _room_db_insert(query):
+    try:
+        return query.execute()
+    except Exception:
+        return None
+
+
+def _persist_room_result(room: dict) -> bool:
     if room.get("_resultSaved"):
-        return
+        return True
     from database import supabase
     from services.trusted_scoring import result_payload
 
@@ -223,23 +231,28 @@ def _persist_room_result(room: dict) -> None:
                 "totalQuestions": len(questions), "maxScore": sum(max(0, int(question.get("points") or 0)) for question in questions if isinstance(question, dict)),
                 "answers": answers,
             })
-        supabase.table("online_quiz_results").insert({
+        response = _room_db_insert(supabase.table("online_quiz_results").insert({
             "id": str(uuid.uuid4()), "game_id": room["gameId"], "room_code": room["code"],
             "played_at": datetime.now(timezone.utc).isoformat(),
             "duration_sec": max(0, int((time.time() * 1000 - room["createdAt"]) / 1000)),
             "players": result_payload(snapshot, players),
-        }).execute()
+        }))
     elif room["gameKind"] == "jeopardy":
         j = room["jeopardy"]
         teams = [{"id": player["id"], "name": player["nickname"], "score": player.get("score", 0), "correct": player.get("jCorrect", 0), "wrong": player.get("jWrong", 0)} for player in room["players"]]
         winner = max(teams, key=lambda team: team["score"], default=None)
-        supabase.table("jeopardy_results").insert({
+        response = _room_db_insert(supabase.table("jeopardy_results").insert({
             "id": str(uuid.uuid4()), "game_id": room["gameId"],
             "played_at": datetime.now(timezone.utc).isoformat(),
             "teams": result_payload(snapshot, teams, decisions=j.get("decisions", [])),
             "winner_id": winner["id"] if winner else None, "has_final": bool(j.get("finalBets")),
-        }).execute()
+        }))
+    else:
+        return False
+    if response is None or not isinstance(getattr(response, "data", None), list) or not response.data:
+        return False
     room["_resultSaved"] = True
+    return True
 
 
 async def send_error(websocket: WebSocket, error: str):
@@ -513,7 +526,8 @@ async def room_websocket(websocket: WebSocket, code: str):
             elif action == "finish":
                 if code in rooms:
                     rooms[code]["status"] = "finished"
-                    _persist_room_result(rooms[code])
+                    if not _persist_room_result(rooms[code]):
+                        await send_error(websocket, ROOM_RESULT_DB_ERROR)
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "restart":
@@ -813,7 +827,8 @@ async def room_websocket(websocket: WebSocket, code: str):
                 if code in rooms and "jeopardy" in rooms[code]:
                     rooms[code]["jeopardy"]["phase"] = "podium"
                     rooms[code]["status"] = "finished"
-                    _persist_room_result(rooms[code])
+                    if not _persist_room_result(rooms[code]):
+                        await send_error(websocket, ROOM_RESULT_DB_ERROR)
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "jeopardy_adjust_score":

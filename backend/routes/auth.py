@@ -16,6 +16,24 @@ from limiter import limiter
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+DB_ERROR_DETAIL = "Ошибка базы данных"
+
+
+def _db_response(query):
+    try:
+        response = query.execute()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL) from exc
+    if response is None:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return response
+
+
+def _db_rows(query) -> list[dict]:
+    rows = getattr(_db_response(query), "data", None)
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
 
 
 # ============================================================
@@ -177,18 +195,17 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    res = (
+    rows = _db_rows(
         supabase
         .table("users")
         .select("*")
         .eq("id", str(user_id))
-        .execute()
     )
 
-    if not res.data:
+    if not rows:
         raise credentials_exception
 
-    user = res.data[0]
+    user = rows[0]
 
     if user.get("banned"):
         raise HTTPException(
@@ -204,19 +221,16 @@ def link_email(
     input: LinkEmailInput,
     current_user=Depends(get_current_user),
 ):
-    existing = (
-        supabase.table("users").select("id").eq("email", str(input.email).lower()).execute()
-    )
-    if existing.data and existing.data[0]["id"] != current_user["id"]:
+    existing_rows = _db_rows(supabase.table("users").select("id").eq("email", str(input.email).lower()))
+    if existing_rows and existing_rows[0]["id"] != current_user["id"]:
         raise HTTPException(status_code=409, detail="Этот email уже используется")
 
-    res = (
+    rows = _db_rows(
         supabase.table("users")
         .update({"email": str(input.email).lower(), "password_hash": hash_password(input.password)})
         .eq("id", current_user["id"])
-        .execute()
     )
-    return {"ok": True, "user": UserOut(**res.data[0]) if res.data else None}
+    return {"ok": True, "user": UserOut(**rows[0]) if rows else None}
 
 
 def get_current_user_optional(
@@ -231,18 +245,17 @@ def get_current_user_optional(
     except JWTError:
         return None
 
-    res = (
+    rows = _db_rows(
         supabase
         .table("users")
         .select("*")
         .eq("id", str(user_id))
-        .execute()
     )
 
-    if not res.data:
+    if not rows:
         return None
 
-    user = res.data[0]
+    user = rows[0]
 
     if user.get("banned"):
         return None
@@ -265,15 +278,14 @@ def register(
 ):
     email = input.email.strip().lower()
 
-    res = (
+    existing_rows = _db_rows(
         supabase
         .table("users")
         .select("id")
         .eq("email", email)
-        .execute()
     )
 
-    if res.data:
+    if existing_rows:
         return {
             "ok": False,
             "error": "Пользователь с таким email уже существует",
@@ -289,20 +301,16 @@ def register(
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    inserted = (
+    inserted_rows = _db_rows(
         supabase
         .table("users")
         .insert(user)
-        .execute()
     )
 
-    if not inserted.data:
-        raise HTTPException(
-            status_code=500,
-            detail="Не удалось создать пользователя",
-        )
+    if not inserted_rows:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
 
-    saved_user = inserted.data[0]
+    saved_user = inserted_rows[0]
 
     token = create_access_token(user_id)
 
@@ -328,21 +336,20 @@ def login(
 ):
     email = input.email.strip().lower()
 
-    res = (
+    rows = _db_rows(
         supabase
         .table("users")
         .select("*")
         .eq("email", email)
-        .execute()
     )
 
-    if not res.data:
+    if not rows:
         return {
             "ok": False,
             "error": "Неверный email или пароль",
         }
 
-    user = res.data[0]
+    user = rows[0]
 
     password_hash = user.get("password_hash")
 
@@ -431,26 +438,19 @@ def update_me(
         updates["subject"] = subject
 
     if updates:
-        (
-            supabase
-            .table("users")
-            .update(updates)
-            .eq("id", current_user["id"])
-            .execute()
-        )
+        _db_rows(supabase.table("users").update(updates).eq("id", current_user["id"]))
 
-    res = (
+    rows = _db_rows(
         supabase
         .table("users")
         .select("*")
         .eq("id", current_user["id"])
-        .execute()
     )
 
-    if not res.data:
+    if not rows:
         return None
 
-    return UserOut(**res.data[0])
+    return UserOut(**rows[0])
 
 
 # ============================================================
@@ -465,19 +465,18 @@ def forgot_password(
 ):
     email = email.strip().lower()
 
-    user = (
+    user_rows = _db_rows(
         supabase
         .table("users")
         .select("*")
         .eq("email", email)
-        .execute()
     )
 
-    if not user.data:
+    if not user_rows:
         return {"ok": True}
 
     # Telegram-only аккаунтам без email пароль не сбрасываем.
-    if not user.data[0].get("password_hash"):
+    if not user_rows[0].get("password_hash"):
         return {"ok": True}
 
     token = str(uuid.uuid4())
@@ -487,16 +486,11 @@ def forgot_password(
         + timedelta(hours=1)
     ).isoformat()
 
-    (
-        supabase
-        .table("password_resets")
-        .insert({
+    _db_rows(supabase.table("password_resets").insert({
             "email": email,
             "token": token,
             "expires_at": expires,
-        })
-        .execute()
-    )
+        }))
 
     from services.email import send_reset_email
 
@@ -524,33 +518,26 @@ def reset_password(
             "error": "Пароль должен быть не менее 6 символов"
         }
 
-    reset = (
+    reset_rows = _db_rows(
         supabase
         .table("password_resets")
         .select("*")
         .eq("token", token)
-        .execute()
     )
 
-    if not reset.data:
+    if not reset_rows:
         return {
             "error": "Недействительная ссылка"
         }
 
-    record = reset.data[0]
+    record = reset_rows[0]
 
     expires_at = datetime.fromisoformat(
         record["expires_at"]
     )
 
     if expires_at < datetime.now(timezone.utc):
-        (
-            supabase
-            .table("password_resets")
-            .delete()
-            .eq("token", token)
-            .execute()
-        )
+        _db_rows(supabase.table("password_resets").delete().eq("token", token))
 
         return {
             "error": "Срок действия ссылки истёк"
@@ -558,22 +545,10 @@ def reset_password(
 
     hashed = hash_password(password)
 
-    (
-        supabase
-        .table("users")
-        .update({
+    _db_rows(supabase.table("users").update({
             "password_hash": hashed
-        })
-        .eq("email", record["email"])
-        .execute()
-    )
+        }).eq("email", record["email"]))
 
-    (
-        supabase
-        .table("password_resets")
-        .delete()
-        .eq("token", token)
-        .execute()
-    )
+    _db_rows(supabase.table("password_resets").delete().eq("token", token))
 
     return {"ok": True}
