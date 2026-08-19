@@ -238,6 +238,7 @@
 
 ### M5. Довести Jeopardy AI до уровня валидации обычного Quiz
 
+- **Статус реализации:** `DONE`. Canonical H8 implementation валидирует Jeopardy categories и questions server-side: 5 уникальных categories, непустые required fields, точное соответствие unique `points` списку `emptySlots` и controlled invalid-response error до builder. Frontend facade и builder сохраняют defensive shape/slot checks; DB/schema не менялись.
 - **Проблема/цель:** категории и Jeopardy questions после JSON parse проверяются слабее, чем обычные Quiz variants.
 - **Почему важно:** builder может получить missing points/question/answer или неверное количество slots и сломать игру уже после генерации.
 - **Затрагивает:** `backend/routes/ai.py`, `ai_prompts.py`, `ai_validator.py`, Jeopardy AI components и builder mapping.
@@ -274,12 +275,15 @@
 
 ### M7. Добавить CI quality gates и безопасную проверку зависимостей
 
+- **Статус реализации:** `DONE`. Добавлен отдельный GitHub CI на PR/push в `main`: frontend clean install/typecheck/build и production dependency audit, backend compile/tests и `pip-audit`, а также hygiene gate для whitespace, secrets и отслеживаемых artifacts. Branch protection намеренно не настраивался; красный CI означает unsafe release, а merge-blocking остаётся follow-up.
 - **Проблема/цель:** typecheck уже красный; нет автоматического обязательного набора lint/build/backend syntax/tests и проверки уязвимых зависимостей.
 - **Почему важно:** broken frontend или несовместимые Python/npm зависимости могут попасть в production.
 - **Затрагивает:** frontend scripts, backend requirements, CI/repository settings, deployment checklist.
 - **Зависимости:** H1 и H7; решение о CI provider и минимально допустимых gates.
 - **Сложность:** M.
 - **Самостоятельность:** частично; CI policy и branch protection подтверждает владелец.
+- **Accepted risk (owner-approved, temporary):** `xlsx@0.18.5` остаётся direct runtime dependency для Excel import/export. CI явно выводит, но не блокирует только advisories `GHSA-4r6h-8v6p-xvw6` и `GHSA-5pgg-2g8v-p4x9`, поскольку upstream fix отсутствует; все остальные high/critical findings продолжают fail gate.
+- **Follow-up:** отдельная задача — заменить или изолировать `xlsx`, сохранив Excel import/export и устранив известные high advisories.
 
 ### M8. Обновить документацию и удалить устаревшие operational утверждения
 
@@ -292,6 +296,7 @@
 
 ### M9. Укрепить мониторинг, health checks и audit logging
 
+- **Safe local slice:** HTTP responses получают `X-Request-ID`; 5xx и unhandled failures пишут sanitized structured signal с route template, method, status и duration, а health endpoint возвращает machine-readable `status: ok`. Raw answers, emails, names, tokens и secrets не логируются этим slice. External monitoring/alerts, production config, database retention и PII policy не менялись и остаются за отдельным owner decision.
 - **Проблема/цель:** есть health endpoint и таблицы logs, но нет подтверждённого production smoke-check, alerting, correlation ID, метрик WebSocket/AI/Supabase и контроля утечки secrets в логах.
 - **Почему важно:** ошибки deployment, polling, AI и комнат будут обнаруживаться только по жалобам пользователей.
 - **Затрагивает:** `backend/main.py`, error/AI logs, VPS/Cloudflare/UptimeRobot, admin logs UI, deployment docs.

@@ -281,14 +281,11 @@
 - **Результат:** targeted wrappers завершены в `games.py`, `admin.py`, `users.py`, `results.py`, `feedback.py`, `ai.py`, `auth.py` и `telegram_auth.py`; `rooms.py` возвращает стабильное WebSocket error-событие при сбое сохранения результата. Exceptions, `None`, empty и malformed DB/API responses не проходят как случайные 500, а endpoint-specific empty semantics и успешные flows сохранены.
 - **Проверка:** `python -m unittest discover -s tests -p 'test*.py'` — 80 passed; `python -m compileall -q routes services tests` и `git diff --check` — passed. Frontend не затронут, API contract не изменён, поэтому TypeScript/build checks не требовались.
 
-#### M5. Довести Jeopardy AI до уровня обычного Quiz — `DEPENDENCY`
+#### M5. Довести Jeopardy AI до уровня обычного Quiz — `DONE`
 
-- **Зависимости:** H8 и D9; утвердить required fields, points, difficulty и slot count.
-- **Блокирующие D1–D9:** нет; остаётся зависимость от H8.
-- **Техническое исследование до решения:** да — собрать реальные Jeopardy response shapes и builder assumptions.
-- **Файлы:** `backend/routes/ai.py`, `backend/services/ai_prompts.py`, `backend/services/ai_validator.py`, Jeopardy AI components и builder mapping.
-- **Готово, когда:** invalid category/question JSON отклоняется до builder, valid response имеет точное число slots и допустимые points.
-- **Проверки:** missing fields, wrong points/difficulty/count, malformed JSON, valid category/question fixtures, frontend no-crash mapping.
+- **Зависимости:** H8 и D9 выполнены; canonical schema зафиксирована в `docs/AI.md`.
+- **Фактический результат:** реализация H8 (`cc2be63`) уже добавила Jeopardy validators и подключила их к обоим AI endpoints. Категории требуют ровно 5 уникальных непустых `name`/`description`; вопросы требуют непустые `difficulty`/`q`/`a`, ровно один объект на каждый `emptySlots` и уникальные points, точно соответствующие этим slots. Невалидный output возвращается как controlled `502` до builder; frontend повторно проверяет shape и mapping применяет вопросы только к совпадающим пустым slots.
+- **Проверки:** targeted `test_ai_validator.py` покрывает valid/duplicate categories и valid/wrong points slots; полный backend suite после H8 — 80 tests passed. DB/schema и `games.data` не менялись.
 
 #### M6. Ввести индексы, constraints и безопасные RPC по фактической схеме — `BLOCKED`
 
@@ -317,14 +314,14 @@
 - **Готово, когда:** выбранный restrict/cascade/history policy документирован, orphan rows обработаны безопасно, а constraint не ломает delete и result flows.
 - **Проверки:** orphan audit, delete-game behavior, result insert for all four formats, FK violation and rollback checks; DDL только после approval.
 
-#### M7. Добавить CI quality gates и безопасную проверку зависимостей — `DEPENDENCY`
+#### M7. Добавить CI quality gates и безопасную проверку зависимостей — `DONE`
 
 - **Зависимости:** H1 и H7; нужен минимальный release/branch policy из D7.
-- **Блокирующие D1–D9:** нет; остаются H1/H7 и release implementation.
-- **Техническое исследование до решения:** да — перечислить команды, duration и секреты, необходимые для CI.
-- **Файлы:** frontend scripts, backend requirements, CI/repository settings, deployment checklist.
-- **Готово, когда:** clean checkout автоматически запускает lint, typecheck, build, backend syntax/tests и dependency audit; failing gate блокирует release согласно policy.
-- **Проверки:** CI на clean checkout, intentional failure cases, lockfile/dependency audit, secrets scan, artifact build.
+- **Блокирующие D1–D9:** нет; H1/H7 и минимальный release policy из D7 выполнены. Branch protection намеренно вынесен в follow-up по решению владельца.
+- **Фактический результат:** `.github/workflows/ci.yml` запускается на `pull_request` и `push` в `main`. Frontend gate выполняет `npm ci`, TypeScript и production build; backend — install, compile и 80 isolated tests. Отдельный hygiene job отвергает whitespace errors, secrets и отслеживаемые cache/build artifacts; dependency audit использует узкий `frontend/scripts/check-npm-audit.mjs` (owner-approved no-fix advisories только для `xlsx`) и `pip-audit`. `backend-deploy.yml` не изменялся.
+- **Граница policy:** GitHub branch protection не настраивался по решению владельца. Красный CI явно маркирует release unsafe; обязательное merge-blocking остаётся отдельным follow-up.
+- **Проверки:** локально прошли hygiene scan, backend compile и 82 tests, frontend `npm ci`, `npx tsc --noEmit` и production build; audit report подтвердил только два allowlisted `xlsx` advisories без upstream fix, а fixable dependency versions обновлены. `pip-audit` локально нестабилен в Windows cache/process environment; GitHub CI остаётся source of truth.
+- **Cloudflare follow-up:** после deploy smoke `npm@10.9.2` обнаружил lockfile drift (`nitro` требовал `lru-cache@11.5.2`). Lockfile пересинхронизирован npm 10.9.2; clean install тем же npm теперь проходит.
 
 #### M9. Укрепить monitoring, health checks и audit logging — `DEPENDENCY`
 
@@ -334,6 +331,7 @@
 - **Файлы:** `backend/main.py`, error/AI logs, VPS/Cloudflare/UptimeRobot, admin logs UI, deployment docs.
 - **Готово, когда:** deployment, Telegram, AI, Supabase и WS failures имеют обнаруживаемый сигнал без записи secrets/лишней PII.
 - **Проверки:** health/alert smoke, log redaction, correlation ID propagation, failed dependency simulation, retention check.
+- **Safe local slice (2026-08-19):** добавлены request correlation ID (`X-Request-ID`), sanitized structured logs только для 5xx/unhandled HTTP failures и machine-readable local health payload `{status: "ok", ...}`. Логи используют route template, method, status и duration без raw request path/body/query, ответов, email, player names, tokens или secrets. Внешний monitoring, alerting, VPS/Cloudflare config, database audit-log writes и retention policy не менялись; они остаются dependency на отдельное решение владельца.
 
 #### P1. Восстановление онлайн-игры после disconnect — `BLOCKED`
 
