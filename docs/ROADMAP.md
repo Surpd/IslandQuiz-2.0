@@ -7,6 +7,7 @@
 - Основные frontend baseline/contracts уже приведены в рабочее состояние: H1, H2, H3, H8 и C4 отмечены `DONE`.
 - Supabase production snapshot и deployment topology документированы; H5 и C5 закрыты.
 - Backend deployment automation H6 закрыта: GitHub Actions публикует exact SHA на VPS, проверяет syntax/systemd/local health и SHA. Documentation-only и frontend-only push не запускают backend deploy.
+- Добавлена минимальная Playwright E2E foundation: `cd frontend; npm run test:e2e` проверяет mocked login → Quiz Builder → save → Library → reopen → offline player → answer/finish flow. Реальные backend/Supabase, Telegram, AI, online rooms, permissions и production results остаются непокрыты.
 - Cloudflare public check остаётся diagnostic warning: `403` от edge не означает failure backend deployment.
 - Rollback capability через `workflow_dispatch(target_sha)` существует, но полный controlled rehearsal ещё не проведён.
 - Codex model routing зафиксирован в `docs/CODEX_MODEL_GUIDE.md` и связан с процессом через `AGENTS.md`.
@@ -40,7 +41,7 @@ Frontend теперь нормализует success payload и переводи
 
 ## Next 3–5 recommended tasks
 
-1. **H7 — Добавить критические API/room/AI tests** — **Terra / high**. Зафиксировать full quiz и per-question regression cases.
+1. **H7 — Добавить критические API/room/AI tests и расширить E2E** — **Terra / high**. Добавлены backend AI route regression tests; остаются реальные/интеграционные проверки auth, permissions, results, дополнительных AI flows и rooms.
 2. **C2 — Server-side authorization WebSocket-комнат** — **Sol / high**. Главный security blocker онлайн-режима.
 3. **C3 — Server-side scoring и trusted results** — **Sol / high**. Закрыть целостность результатов после C2.
 

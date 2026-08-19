@@ -102,10 +102,10 @@
 - **Зависимости:** утверждённые контракты C1–C5, H2 и H3; test doubles/fixtures для Supabase и WebSocket.
 - **Блокирующие D1–D9:** нет; ожидаемое security-поведение уточняется по утверждённым контрактам.
 - **Техническое исследование до решения:** да — определить test runner, fixtures, границы mock и минимальный CI command.
-- **Текущее состояние:** добавлена минимальная Playwright foundation (`cd frontend; npm run test:e2e`) с mocked login → Quiz Builder → save → Library → reopen → offline player → answer/finish smoke flow. Добавлен backend unittest для полного quiz room lifecycle и очистки in-memory room при disconnect. Это не закрывает реальные backend/Supabase, Telegram, AI, permissions или production result checks.
+- **Текущее состояние:** добавлена минимальная Playwright foundation (`cd frontend; npm run test:e2e`) с mocked login → Quiz Builder → save → Library → reopen → offline player → answer/finish smoke flow. Добавлены backend unittest для полного quiz room lifecycle и cleanup после disconnect, а также AI route contract checks для full Quiz, variants и controlled provider/malformed JSON errors. Это не закрывает реальные backend/Supabase, Telegram, permissions или production result checks.
 - **Файлы:** `backend/routes/*`, `backend/services/*`, `frontend/src/lib/api.ts`, room clients и новые backend/frontend test fixtures.
 - **Готово, когда:** критические auth, Telegram replay, permissions, results, visibility, AI и WebSocket transitions имеют воспроизводимые проверки.
-- **Проверки:** backend test command — `cd backend; python -m unittest discover -s tests -p 'test*.py'`; frontend smoke — `cd frontend; npm run test:e2e`. Негативные случаи с `None`, пустыми ответами Supabase, invalid JSON и malformed actions; отсутствие секретов в fixtures и логах. H7.0 подтверждена; оставшаяся работа: auth/Telegram replay, permissions, results/visibility, AI API и дополнительные WebSocket transitions.
+- **Проверки:** backend test command — `cd backend; python -m unittest discover -s tests -p 'test*.py'`; frontend smoke — `cd frontend; npm run test:e2e`. Негативные случаи с `None`, пустыми ответами Supabase, invalid JSON и malformed actions; отсутствие секретов в fixtures и логах. H7.0 и AI route slice подтверждены; оставшаяся работа: auth/Telegram replay, permissions, results/visibility, дополнительные AI endpoint/file cases и дополнительные WebSocket transitions.
 
 #### H8. Согласовать фактический AI contract и документацию — `DONE`
 
