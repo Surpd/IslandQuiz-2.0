@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whitespace errors
+        run: git diff --check "${{ github.event.before || github.event.pull_request.base.sha }}" "${{ github.sha }}"
+
+      - name: Reject secrets and generated artifacts
+        run: |
+          set -euo pipefail
+          forbidden_paths="$(git ls-files | grep -E '(^|/)(\.env(\..*)?$|node_modules/|dist/|build/|coverage/|__pycache__/|\.pytest_cache/|.*\.pyc$)' || true)"
+          if [ -n "$forbidden_paths" ]; then
+            printf 'Forbidden tracked files:\n%s\n' "$forbidden_paths"
+            exit 1
+          fi
+          if git grep -nIE '(sk-(proj-)?[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{36}|AKIA[A-Z0-9]{16})' -- . ':!frontend/package-lock.json'; then
+            echo 'Possible credential detected in tracked source.'
+            exit 1
+          fi
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m compileall -q .
+      - run: python -m unittest discover -s tests -p 'test*.py'
+      - run: python -m pip install pip-audit
+      - run: pip-audit -r requirements.txt

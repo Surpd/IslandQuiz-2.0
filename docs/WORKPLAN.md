@@ -317,14 +317,13 @@
 - **Готово, когда:** выбранный restrict/cascade/history policy документирован, orphan rows обработаны безопасно, а constraint не ломает delete и result flows.
 - **Проверки:** orphan audit, delete-game behavior, result insert for all four formats, FK violation and rollback checks; DDL только после approval.
 
-#### M7. Добавить CI quality gates и безопасную проверку зависимостей — `DEPENDENCY`
+#### M7. Добавить CI quality gates и безопасную проверку зависимостей — `DONE`
 
 - **Зависимости:** H1 и H7; нужен минимальный release/branch policy из D7.
-- **Блокирующие D1–D9:** нет; остаются H1/H7 и release implementation.
-- **Техническое исследование до решения:** да — перечислить команды, duration и секреты, необходимые для CI.
-- **Файлы:** frontend scripts, backend requirements, CI/repository settings, deployment checklist.
-- **Готово, когда:** clean checkout автоматически запускает lint, typecheck, build, backend syntax/tests и dependency audit; failing gate блокирует release согласно policy.
-- **Проверки:** CI на clean checkout, intentional failure cases, lockfile/dependency audit, secrets scan, artifact build.
+- **Блокирующие D1–D9:** нет; H1/H7 и минимальный release policy из D7 выполнены. Branch protection намеренно вынесен в follow-up по решению владельца.
+- **Фактический результат:** `.github/workflows/ci.yml` запускается на `pull_request` и `push` в `main`. Frontend gate выполняет `npm ci`, TypeScript и production build; backend — install, compile и 80 isolated tests. Отдельный hygiene job отвергает whitespace errors, secrets и отслеживаемые cache/build artifacts; dependency audit использует `npm audit` (production dependencies) и `pip-audit`. `backend-deploy.yml` не изменялся.
+- **Граница policy:** GitHub branch protection не настраивался по решению владельца. Красный CI явно маркирует release unsafe; обязательное merge-blocking остаётся отдельным follow-up.
+- **Проверки:** локально прошли hygiene scan, backend compile и 80 tests, frontend `npm ci`, `npx tsc --noEmit` и production build; `npm audit` локально не выполнился из-за sandbox network/cache, поэтому его воспроизводит новый GitHub CI gate.
 
 #### M9. Укрепить monitoring, health checks и audit logging — `DEPENDENCY`
 

@@ -274,6 +274,7 @@
 
 ### M7. Добавить CI quality gates и безопасную проверку зависимостей
 
+- **Статус реализации:** `DONE`. Добавлен отдельный GitHub CI на PR/push в `main`: frontend clean install/typecheck/build и production `npm audit`, backend compile/tests и `pip-audit`, а также hygiene gate для whitespace, secrets и отслеживаемых artifacts. Branch protection намеренно не настраивался; красный CI означает unsafe release, а merge-blocking остаётся follow-up.
 - **Проблема/цель:** typecheck уже красный; нет автоматического обязательного набора lint/build/backend syntax/tests и проверки уязвимых зависимостей.
 - **Почему важно:** broken frontend или несовместимые Python/npm зависимости могут попасть в production.
 - **Затрагивает:** frontend scripts, backend requirements, CI/repository settings, deployment checklist.
