@@ -134,8 +134,10 @@
 
 ### H7. Добавить автоматические проверки критических API и room flows
 
+- **Статус реализации:** `IN_PROGRESS`. Добавлен изолированный backend unittest для quiz room lifecycle и cleanup после disconnect; полный набор критических API/permission/AI/room проверок ещё не завершён.
 - **Проблема/цель:** в репозитории нет backend test suite; отсутствуют системные проверки auth, Telegram replay, permissions, results, visibility, AI contracts и WebSocket state transitions.
 - **Почему важно:** изменения в связанных frontend/backend слоях легко ломают security и сохранение данных незаметно.
+- **Текущее состояние:** минимальная Playwright foundation уже добавлена: `cd frontend; npm run test:e2e` проверяет mocked login → Quiz Builder → save → Library → reopen → offline player → answer/finish flow. H7.0 добавляет backend room lifecycle unittest; полный запуск backend-тестов: `cd backend; python -m unittest discover -s tests -p 'test*.py'`. H7 остаётся незавершённой: реальные backend/Supabase, Telegram, AI, permissions и production result persistence пока не покрыты.
 - **Затрагивает:** `backend/routes/*`, `backend/services/*`, `frontend/src/lib/api.ts`, room clients и Supabase test doubles/fixtures.
 - **Зависимости:** C1–C5 и H2–H3 для утверждённых контрактов; выбор test DB/mocks и CI environment.
 - **Сложность:** XL.
