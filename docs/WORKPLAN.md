@@ -318,9 +318,9 @@
 
 - **Зависимости:** H1 и H7; нужен минимальный release/branch policy из D7.
 - **Блокирующие D1–D9:** нет; H1/H7 и минимальный release policy из D7 выполнены. Branch protection намеренно вынесен в follow-up по решению владельца.
-- **Фактический результат:** `.github/workflows/ci.yml` запускается на `pull_request` и `push` в `main`. Frontend gate выполняет `npm ci`, TypeScript и production build; backend — install, compile и 80 isolated tests. Отдельный hygiene job отвергает whitespace errors, secrets и отслеживаемые cache/build artifacts; dependency audit использует `npm audit` (production dependencies) и `pip-audit`. `backend-deploy.yml` не изменялся.
+- **Фактический результат:** `.github/workflows/ci.yml` запускается на `pull_request` и `push` в `main`. Frontend gate выполняет `npm ci`, TypeScript и production build; backend — install, compile и 80 isolated tests. Отдельный hygiene job отвергает whitespace errors, secrets и отслеживаемые cache/build artifacts; dependency audit использует узкий `frontend/scripts/check-npm-audit.mjs` (owner-approved no-fix advisories только для `xlsx`) и `pip-audit`. `backend-deploy.yml` не изменялся.
 - **Граница policy:** GitHub branch protection не настраивался по решению владельца. Красный CI явно маркирует release unsafe; обязательное merge-blocking остаётся отдельным follow-up.
-- **Проверки:** локально прошли hygiene scan, backend compile и 80 tests, frontend `npm ci`, `npx tsc --noEmit` и production build; `npm audit` локально не выполнился из-за sandbox network/cache, поэтому его воспроизводит новый GitHub CI gate.
+- **Проверки:** локально прошли hygiene scan, backend compile и 82 tests, frontend `npm ci`, `npx tsc --noEmit` и production build; audit report подтвердил только два allowlisted `xlsx` advisories без upstream fix, а fixable dependency versions обновлены. `pip-audit` локально нестабилен в Windows cache/process environment; GitHub CI остаётся source of truth.
 
 #### M9. Укрепить monitoring, health checks и audit logging — `DEPENDENCY`
 

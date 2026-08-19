@@ -27,7 +27,7 @@
 - **H9 / DONE:** единый result access matrix закрывает owner/non-owner/admin/private/public/link paths; Jeopardy owner submit и cross-user played-game access исправлены, malformed result rows и PII filtering покрыты regression tests.
 - **H10 / DONE:** WebSocket room actions валидируют phase, shape, IDs, bounds, timers, payload limits и replay/duplicate actions для Quiz и Jeopardy; frontend facade фильтрует недопустимые actions до отправки.
 - **M4 / DONE:** backend routers нормализуют Supabase/API exceptions, `None`, empty и malformed responses; provider failures и room result persistence возвращают controlled errors, добавлены 80 regression tests.
-- **M7 / DONE:** отдельный GitHub CI на PR/push в `main` выполняет frontend clean install/typecheck/build, backend compile/tests, dependency audit и hygiene check без изменения production deploy workflow. Branch protection остаётся отдельным follow-up.
+- **M7 / DONE:** отдельный GitHub CI на PR/push в `main` выполняет frontend clean install/typecheck/build, backend compile/tests, dependency audit и hygiene check без изменения production deploy workflow. Только owner-approved advisories `GHSA-4r6h-8v6p-xvw6` и `GHSA-5pgg-2g8v-p4x9` для `xlsx@0.18.5` временно allowlisted с видимым warning; остальные high/critical findings блокируют gate. Branch protection остаётся отдельным follow-up.
 - **CODEX_MODEL_GUIDE:** для задач добавлен выбор Luna/Terra/Sol с условиями escalation.
 
 ## Broken / needs fix now
@@ -50,6 +50,7 @@ Frontend теперь нормализует success payload и переводи
 1. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
 2. **M9 — monitoring** — **Terra / medium**. Safe local/backend-only slice не требует внешнего monitoring.
 3. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
+4. **M7 follow-up — заменить или изолировать `xlsx`** — убрать owner-approved accepted risk, сохранив Excel import/export.
 
 Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
 

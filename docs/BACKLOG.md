@@ -275,13 +275,15 @@
 
 ### M7. Добавить CI quality gates и безопасную проверку зависимостей
 
-- **Статус реализации:** `DONE`. Добавлен отдельный GitHub CI на PR/push в `main`: frontend clean install/typecheck/build и production `npm audit`, backend compile/tests и `pip-audit`, а также hygiene gate для whitespace, secrets и отслеживаемых artifacts. Branch protection намеренно не настраивался; красный CI означает unsafe release, а merge-blocking остаётся follow-up.
+- **Статус реализации:** `DONE`. Добавлен отдельный GitHub CI на PR/push в `main`: frontend clean install/typecheck/build и production dependency audit, backend compile/tests и `pip-audit`, а также hygiene gate для whitespace, secrets и отслеживаемых artifacts. Branch protection намеренно не настраивался; красный CI означает unsafe release, а merge-blocking остаётся follow-up.
 - **Проблема/цель:** typecheck уже красный; нет автоматического обязательного набора lint/build/backend syntax/tests и проверки уязвимых зависимостей.
 - **Почему важно:** broken frontend или несовместимые Python/npm зависимости могут попасть в production.
 - **Затрагивает:** frontend scripts, backend requirements, CI/repository settings, deployment checklist.
 - **Зависимости:** H1 и H7; решение о CI provider и минимально допустимых gates.
 - **Сложность:** M.
 - **Самостоятельность:** частично; CI policy и branch protection подтверждает владелец.
+- **Accepted risk (owner-approved, temporary):** `xlsx@0.18.5` остаётся direct runtime dependency для Excel import/export. CI явно выводит, но не блокирует только advisories `GHSA-4r6h-8v6p-xvw6` и `GHSA-5pgg-2g8v-p4x9`, поскольку upstream fix отсутствует; все остальные high/critical findings продолжают fail gate.
+- **Follow-up:** отдельная задача — заменить или изолировать `xlsx`, сохранив Excel import/export и устранив известные high advisories.
 
 ### M8. Обновить документацию и удалить устаревшие operational утверждения
 
