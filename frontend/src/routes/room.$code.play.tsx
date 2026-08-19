@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Hourglass, Trophy, Timer, Volume2, VolumeX, Users, Flame, Check, X } from "lucide-react";
 import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
-import { QuizQuestionCard, checkQuizAnswer } from "@/components/quiz-question-card";
+import { QuizQuestionCard } from "@/components/quiz-question-card";
 import { JeopardyRoomPlayer } from "@/components/jeopardy-room-player";
 import { subscribeRoom, loadGame, submitAnswer, type RoomState } from "@/lib/api";
 import { sfx, isMuted, toggleMute } from "@/lib/sounds";
@@ -172,15 +172,7 @@ function StudentPlay() {
     if (timeout && (question.type === "close" || question.type === "ordering")) {
       effectiveValue = "[]";
     }
-    const correct = timeout || !effectiveValue ? false : checkQuizAnswer(question, effectiveValue);
-    const total = (question.time || 30) * 1000;
-    const timeMs = state.questionStartAt
-      ? Math.min(total, Date.now() - state.questionStartAt)
-      : total;
     await submitAnswer(code, me.playerId, {
-      correct,
-      timeMs,
-      totalMs: total,
       given: effectiveValue,
     });
   };

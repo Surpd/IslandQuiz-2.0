@@ -1,10 +1,24 @@
 import copy
 import json
+import os
 import unittest
 
 from fastapi import WebSocketDisconnect
 
 from routes import rooms as rooms_route
+from services.trusted_scoring import issue_snapshot_token
+
+
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-for-unit-tests-only-123456")
+
+QUIZ_SNAPSHOT_DATA = {
+    "config": {"defaultTime": 30},
+    "questions": [{"id": "q1", "type": "choice", "q": "Capital?", "answer": "Paris", "points": 100, "time": 30}],
+}
+
+
+def snapshot_token():
+    return issue_snapshot_token("game-1", "quiz", QUIZ_SNAPSHOT_DATA)[1]
 
 
 class FakeWebSocket:
@@ -41,6 +55,7 @@ def room_fixture():
         ],
         "fastestPlayerId": None,
         "createdAt": 1,
+        "_snapshot": issue_snapshot_token("game-1", "quiz", QUIZ_SNAPSHOT_DATA)[0],
         "_credentials": {
             "host-token": {"role": "host", "playerId": None},
             "player-1-token": {"role": "player", "playerId": "player-1"},
@@ -69,6 +84,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             "action": "create_room",
             "gameKind": "quiz",
             "gameId": "game-1",
+            "snapshotToken": snapshot_token(),
             "hostId": "spoofed-host",
             "createdAt": 0,
         })])
@@ -103,6 +119,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             "action": "create_room",
             "gameKind": "quiz",
             "gameId": "game-1",
+            "snapshotToken": snapshot_token(),
         })])
         await rooms_route.room_websocket(host_create, "ROOM1")
         host_credential = next(message["credential"] for message in host_create.sent if message["type"] == "room_identity")
@@ -119,9 +136,9 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
 
         player_answer = FakeWebSocket([json.dumps({
             "action": "answer",
-            "correct": True,
-            "delta": 100,
-            "streak": 1,
+            "correct": False,
+            "delta": 999999,
+            "streak": 100,
             "given": "Paris",
         })], credential=guest_identity["credential"])
         await rooms_route.room_websocket(player_answer, "ROOM1")
@@ -129,7 +146,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         state = [message["state"] for message in player_answer.sent if message["type"] == "room_state"][-1]
         self.assertEqual(state["status"], "active")
         self.assertEqual(state["players"][0]["id"], guest_identity["playerId"])
-        self.assertEqual(state["players"][0]["score"], 100)
+        self.assertEqual(state["players"][0]["score"], 1500)
 
     async def test_player_cannot_answer_for_another_player(self):
         rooms_route.rooms["ROOM1"] = room_fixture()
@@ -146,7 +163,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
 
         state = [message["state"] for message in websocket.sent if message["type"] == "room_state"][-1]
         players = {player["id"]: player for player in state["players"]}
-        self.assertEqual(players["player-1"]["score"], 100)
+        self.assertEqual(players["player-1"]["score"], 1500)
         self.assertEqual(players["player-2"]["score"], 0)
 
     async def test_host_actions_require_host_credential(self):

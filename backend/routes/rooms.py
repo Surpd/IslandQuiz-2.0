@@ -4,6 +4,7 @@ import secrets
 import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from services.trusted_scoring import quiz_answer_is_correct, verify_snapshot_token
 
 router = APIRouter(tags=["rooms"])
 
@@ -26,7 +27,15 @@ PLAYER_ACTIONS = {"answer", "jeopardy_buzz", "jeopardy_buzz_answer", "jeopardy_f
 
 def public_room_state(room: dict) -> dict:
     """Never expose in-memory room credentials in a state broadcast."""
-    return {key: value for key, value in room.items() if key != "_credentials"}
+    return {key: value for key, value in room.items() if key not in {"_credentials", "_snapshot"}}
+
+
+def _kahoot_score(correct: bool, elapsed_ms: int, total_ms: int, streak_before: int) -> tuple[int, int]:
+    if not correct:
+        return 0, 0
+    ratio = max(0, 1 - elapsed_ms / max(1, total_ms))
+    streak_after = streak_before + 1
+    return 1000 + round(500 * ratio) + (0 if streak_after <= 1 else min(400, (streak_after - 1) * 100)), streak_after
 
 
 async def send_error(websocket: WebSocket, error: str):
@@ -125,6 +134,11 @@ async def room_websocket(websocket: WebSocket, code: str):
                 if game_kind not in {"quiz", "jeopardy", "millionaire"} or not isinstance(game_id, str) or not game_id:
                     await send_error(websocket, "Некорректные параметры комнаты")
                     continue
+                try:
+                    snapshot = verify_snapshot_token(data.get("snapshotToken"), game_id, game_kind)
+                except ValueError as error:
+                    await send_error(websocket, str(error))
+                    continue
                 rooms[code] = {
                     "code": code,
                     "gameKind": game_kind,
@@ -137,6 +151,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                     "fastestPlayerId": None,
                     "createdAt": int(time.time() * 1000),
                     "_credentials": {},
+                    "_snapshot": snapshot,
                 }
                 credential, identity = issue_credential(rooms[code], "host")
                 await websocket.send_json({"type": "room_identity", "credential": credential, "role": "host"})
@@ -211,7 +226,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                     continue
                 rooms[code]["status"] = "active"
                 rooms[code]["questionIdx"] = 0
-                rooms[code]["questionStartAt"] = data.get("questionStartAt")
+                rooms[code]["questionStartAt"] = int(time.time() * 1000)
                 for p in rooms[code]["players"]:
                     p["score"] = 0
                     p["streak"] = 0
@@ -226,17 +241,28 @@ async def room_websocket(websocket: WebSocket, code: str):
                     # Не даём ответить дважды на один вопрос
                     if player.get("lastAnswer") and player["lastAnswer"].get("questionIdx") == rooms[code].get("questionIdx"):
                         continue
-                    # C2 bridge: identity is server-verified, but scoring payload is legacy until C3.
-                    # C3 must recompute correct/delta/streak from a versioned game snapshot.
+                    questions = rooms[code]["_snapshot"]["data"].get("questions", [])
+                    question_idx = rooms[code].get("questionIdx", 0)
+                    question = questions[question_idx] if isinstance(questions, list) and question_idx < len(questions) else None
+                    if not isinstance(question, dict):
+                        await send_error(websocket, "Вопрос комнаты не найден")
+                        continue
+                    given = data.get("given", "")
+                    given = given if isinstance(given, str) else ""
+                    total_ms = max(1, int(question.get("time") or 30) * 1000)
+                    started_at = rooms[code].get("questionStartAt") or int(time.time() * 1000)
+                    elapsed_ms = max(0, min(total_ms, int(time.time() * 1000) - started_at))
+                    correct = quiz_answer_is_correct(question, given)
+                    delta, streak = _kahoot_score(correct, elapsed_ms, total_ms, int(player.get("streak", 0)))
                     player["lastAnswer"] = {
-                        "questionIdx": rooms[code].get("questionIdx", 0),
-                        "correct": data.get("correct"),
-                        "delta": data.get("delta", 0),
-                        "timeMs": data.get("timeMs", 0),
-                        "given": data.get("given", ""),
+                        "questionIdx": question_idx,
+                        "correct": correct,
+                        "delta": delta,
+                        "timeMs": elapsed_ms,
+                        "given": given,
                     }
-                    player["score"] = (player.get("score", 0) + data.get("delta", 0))
-                    player["streak"] = data.get("streak", 0)
+                    player["score"] = player.get("score", 0) + delta
+                    player["streak"] = streak
                     # Добавить в историю
                     if "answerHistory" not in player:
                         player["answerHistory"] = []
@@ -265,7 +291,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                     continue
                 rooms[code]["questionIdx"] += 1
                 rooms[code]["status"] = "active"
-                rooms[code]["questionStartAt"] = data.get("questionStartAt")
+                rooms[code]["questionStartAt"] = int(time.time() * 1000)
                 rooms[code]["fastestPlayerId"] = None
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 

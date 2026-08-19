@@ -7,29 +7,25 @@ from pydantic import BaseModel
 
 from database import supabase
 from routes.auth import get_current_user_optional, get_current_user
+from services.trusted_scoring import issue_snapshot_token, result_payload, score_quiz, verify_snapshot_token
 
 router = APIRouter(prefix="/api", tags=["results"])
 
 
 class QuizAnswer(BaseModel):
     qId: str
-    question: str
-    given: str
-    correctAnswer: str
-    isCorrect: bool
-    earned: int
-    points: int
+    given: str = ""
 
 
 class QuizResultInput(BaseModel):
-    gameId: str
     playerName: str
-    score: int
-    maxScore: int
-    correctCount: int
-    totalQuestions: int
-    timeSec: int
+    timeSec: int = 0
+    snapshotToken: str
     answers: List[QuizAnswer]
+
+
+class SnapshotRequest(BaseModel):
+    kind: str
 
 
 class QuizResultOut(BaseModel):
@@ -185,6 +181,22 @@ def _check_can_submit(game_id: str, expected_kind: str, user: Optional[dict]) ->
     return g
 
 
+def _result_items(payload):
+    if isinstance(payload, dict) and payload.get("schema") == "islandquiz.result.v2":
+        return payload.get("items") or []
+    return payload or []
+
+
+@router.post("/games/{gameId}/play-snapshot", response_model=dict)
+def create_play_snapshot(gameId: str, payload: SnapshotRequest, current_user=Depends(get_current_user_optional)):
+    game = _check_can_submit(gameId, payload.kind, current_user)
+    data = game.get("data")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Некорректные данные игры")
+    snapshot, token = issue_snapshot_token(gameId, payload.kind, data)
+    return {"data": data, "version": snapshot["version"], "snapshotToken": token}
+
+
 # ---------- Quiz Results ----------
 
 @router.get("/quiz/{gameId}/results", response_model=List[QuizResultOut])
@@ -198,7 +210,7 @@ def get_quiz_results(gameId: str, user=Depends(get_current_user)):
             id=r["id"], gameId=r["game_id"], userId=r.get("user_id"), playerName=r["player_name"],
             avatar=r.get("avatar"), score=r["score"], maxScore=r["max_score"],
             correctCount=r["correct_count"], totalQuestions=r["total_questions"],
-            timeSec=r["time_sec"], finishedAt=r["finished_at"], answers=r.get("answers"),
+            timeSec=r["time_sec"], finishedAt=r["finished_at"], answers=_result_items(r.get("answers")),
         )
         for r in (res.data or [])
     ]
@@ -207,15 +219,21 @@ def get_quiz_results(gameId: str, user=Depends(get_current_user)):
 @router.post("/quiz/{gameId}/results", response_model=dict)
 def submit_quiz_result(gameId: str, payload: QuizResultInput, current_user=Depends(get_current_user_optional)):
     _check_can_submit(gameId, "quiz", current_user)
-    
-    result_id = str(uuid.uuid4())
+    try:
+        snapshot = verify_snapshot_token(payload.snapshotToken, gameId, "quiz")
+        totals, answers = score_quiz(snapshot["data"], [answer.model_dump() for answer in payload.answers])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    result_id = snapshot["attemptId"]
     supabase.table("quiz_results").insert({
         "id": result_id, "game_id": gameId,
         "user_id": current_user["id"] if current_user else None,
-        "player_name": payload.playerName, "score": payload.score, "max_score": payload.maxScore,
-        "correct_count": payload.correctCount, "total_questions": payload.totalQuestions,
-        "time_sec": payload.timeSec, "finished_at": datetime.now(timezone.utc).isoformat(),
-        "answers": [a.model_dump() for a in payload.answers],
+        "player_name": payload.playerName.strip()[:100] or "Аноним",
+        "score": totals["score"], "max_score": totals["maxScore"],
+        "correct_count": totals["correctCount"], "total_questions": totals["totalQuestions"],
+        "time_sec": max(0, payload.timeSec), "finished_at": datetime.now(timezone.utc).isoformat(),
+        "answers": result_payload(snapshot, answers),
     }).execute()
     return {"ok": True, "id": result_id}
 

@@ -437,7 +437,20 @@ export async function getResults(gameId: string) {
   return Array.isArray(list) ? list.map(mapQuizResult) : [];
 }
 
-export async function submitResult(payload: Omit<QuizResult, "id" | "finishedAt">) {
+export async function createPlaySnapshot<T>(kind: GameKind, gameId: string) {
+  return apiFetch(`/api/games/${gameId}/play-snapshot`, {
+    method: "POST",
+    body: JSON.stringify({ kind }),
+  }) as Promise<{ data: T; version: string; snapshotToken: string }>;
+}
+
+export async function submitResult(payload: {
+  gameId: string;
+  playerName: string;
+  timeSec: number;
+  snapshotToken: string;
+  answers: { qId: string; given: string }[];
+}) {
   return apiFetch(`/api/quiz/${payload.gameId}/results`, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -726,6 +739,7 @@ export function subscribeRoom(code: string, handler: (s: RoomState) => void) {
 }
 
 export async function createRoom(gameKind: GameKind, gameId: string) {
+  const snapshot = await createPlaySnapshot(gameKind, gameId);
   const code = String(Math.floor(1000 + Math.random() * 9000));
   const conn = ensureRoomConn(code);
   await conn.openPromise;
@@ -733,6 +747,7 @@ export async function createRoom(gameKind: GameKind, gameId: string) {
     action: "create_room",
     gameKind,
     gameId,
+    snapshotToken: snapshot.snapshotToken,
   });
   return { code, room_url: `/room/${code}` };
 }
@@ -896,7 +911,7 @@ export function computeKahootScore(opts: {
 export async function submitAnswer(
   code: string,
   playerId: string,
-  payload: { correct: boolean; timeMs: number; totalMs: number; given?: string },
+  payload: { given?: string },
 ) {
   const s = roomConns.get(code)?.state;
   if (!s) return { correct: false, score: 0 };
@@ -905,23 +920,14 @@ export async function submitAnswer(
   if (p.lastAnswer?.questionIdx === s.questionIdx) {
     return { correct: p.lastAnswer.correct, score: p.score };
   }
-  const { delta, streakAfter } = computeKahootScore({
-    correct: payload.correct,
-    timeMs: payload.timeMs,
-    totalMs: payload.totalMs,
-    streakBefore: p.streak,
-  });
   await sendAndWaitState(code, {
     action: "answer",
-    correct: payload.correct,
-    delta,
-    streak: streakAfter,
-    timeMs: payload.timeMs,
     given: payload.given ?? "",
   });
   const after = roomConns.get(code)?.state;
   const player = after?.players.find((pl) => pl.id === playerId);
-  return { correct: payload.correct, score: player?.score ?? p.score + delta, delta };
+  const answer = player?.lastAnswer;
+  return { correct: answer?.correct ?? false, score: player?.score ?? p.score, delta: answer?.delta ?? 0 };
 }
 
 export async function getOnlineResults(gameId: string): Promise<OnlineQuizResult[]> {

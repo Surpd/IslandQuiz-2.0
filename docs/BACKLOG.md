@@ -33,6 +33,7 @@
 
 ### C3. Перенести расчёт результата на доверенную сторону
 
+- **Статус:** `IN_PROGRESS`. Для текущей реализации snapshot/version сохраняются в existing result JSON без production migration; нормализованная snapshot table остаётся target design P2/M11.
 - **Проблема/цель:** одиночный player считает ответы и score на frontend; room actions и result payload также передают `correct`, `delta`, `score` и историю от клиента. Нужен независимый пересчёт по game snapshot и правилам конкретного формата.
 - **Почему важно:** иначе пользователь может отправить завышенный результат, а сохранённая статистика и leaderboard не являются доказательством прохождения.
 - **Затрагивает:** players всех трёх форматов, `backend/routes/results.py`, `backend/routes/rooms.py`, `games.data`, `frontend/src/lib/api.ts`, таблицы результатов и online rooms.
