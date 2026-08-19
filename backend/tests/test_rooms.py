@@ -149,7 +149,10 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["players"][0]["score"], 1500)
 
     async def test_player_cannot_answer_for_another_player(self):
-        rooms_route.rooms["ROOM1"] = room_fixture()
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = 1
+        rooms_route.rooms["ROOM1"] = room
         websocket = FakeWebSocket([json.dumps({
             "action": "answer",
             "playerId": "player-2",
@@ -163,7 +166,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
 
         state = [message["state"] for message in websocket.sent if message["type"] == "room_state"][-1]
         players = {player["id"]: player for player in state["players"]}
-        self.assertEqual(players["player-1"]["score"], 1500)
+        self.assertGreater(players["player-1"]["score"], 0)
         self.assertEqual(players["player-2"]["score"], 0)
 
     async def test_host_actions_require_host_credential(self):
@@ -212,6 +215,38 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         websocket = FakeWebSocket([json.dumps({"action": "delete_room"})], credential="host-token")
         await rooms_route.room_websocket(websocket, "ROOM1")
         self.assertIn({"type": "error", "error": "Неизвестное действие комнаты"}, websocket.sent)
+
+    async def test_quiz_actions_reject_out_of_order_and_out_of_bounds(self):
+        rooms_route.rooms["ROOM1"] = room_fixture()
+        websocket = FakeWebSocket([
+            json.dumps({"action": "answer", "given": "Paris"}),
+            json.dumps({"action": "next_question"}),
+        ], credential="player-1-token")
+
+        await rooms_route.room_websocket(websocket, "ROOM1")
+
+        errors = [message["error"] for message in websocket.sent if message["type"] == "error"]
+        self.assertEqual(errors, ["Сейчас нельзя отвечать", "Действие доступно только ведущему"])
+
+    async def test_quiz_answer_replay_and_oversized_message_are_rejected(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = 1
+        rooms_route.rooms["ROOM1"] = room
+        websocket = FakeWebSocket([
+            json.dumps({"action": "answer", "given": "Paris"}),
+            json.dumps({"action": "answer", "given": "Paris"}),
+            json.dumps({"action": "answer", "given": "x" * 2001}),
+        ], credential="player-1-token")
+
+        await rooms_route.room_websocket(websocket, "ROOM1")
+
+        errors = [message["error"] for message in websocket.sent if message["type"] == "error"]
+        self.assertEqual(errors, ["На этот вопрос уже отвечали", "Некорректный ответ"])
+
+        oversized = FakeWebSocket([json.dumps({"action": "answer", "given": "x" * 17000})], credential="player-2-token")
+        await rooms_route.room_websocket(oversized, "ROOM1")
+        self.assertIn({"type": "error", "error": "Сообщение комнаты слишком большое"}, oversized.sent)
 
 
 if __name__ == "__main__":

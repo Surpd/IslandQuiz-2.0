@@ -11,6 +11,7 @@
 - Cloudflare public check остаётся diagnostic warning: `403` от edge не означает failure backend deployment.
 - Rollback capability через `workflow_dispatch(target_sha)` существует, но полный controlled rehearsal ещё не проведён.
 - Codex model routing зафиксирован в `docs/CODEX_MODEL_GUIDE.md` и связан с процессом через `AGENTS.md`.
+- H10 начат ограниченным backend Quiz protocol-validation slice; Jeopardy/frontend validation и полная state-machine regression ещё не закрыты.
 
 ## Recently completed
 
@@ -43,7 +44,7 @@ Frontend теперь нормализует success payload и переводи
 
 ## Next 3–5 recommended tasks
 
-1. **H10 — protocol validation WebSocket-комнат** — **Sol / high**. Дополнить C2 проверкой shape, phase, bounds и replay/out-of-order actions.
+1. **H10 — protocol validation WebSocket-комнат** — **Sol / high**. Backend Quiz slice начат; дополнить Jeopardy/frontend shape, phase, bounds и replay/out-of-order validation.
 2. **M4 — единая обработка ошибок и пустых ответов Supabase/API** — **Terra / medium**. H9 закрыл result-reader slice; остальные routers требуют отдельной targeted inventory.
 3. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
 

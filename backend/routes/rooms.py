@@ -15,6 +15,8 @@ rooms: dict[str, dict] = {}
 connections: dict[str, list[WebSocket]] = {}
 room_cleanup_tasks: dict[str, asyncio.Task] = {}
 ROOM_RECONNECT_GRACE_SECONDS = 60
+MAX_ROOM_MESSAGE_BYTES = 16 * 1024
+MAX_ANSWER_LENGTH = 2000
 
 HOST_ACTIONS = {
     "start", "reveal", "leaderboard", "next_question", "finish", "restart", "kick", "adjust_score",
@@ -25,6 +27,55 @@ HOST_ACTIONS = {
     "jeopardy_finish", "jeopardy_adjust_score",
 }
 PLAYER_ACTIONS = {"answer", "jeopardy_buzz", "jeopardy_buzz_answer", "jeopardy_final_bet", "jeopardy_final_answer"}
+
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def validate_quiz_action(room: dict, action: str, data: dict, identity: dict | None) -> str | None:
+    """Reject malformed or out-of-order Quiz actions before mutating room state."""
+    if room.get("gameKind") != "quiz":
+        return None
+
+    status = room.get("status")
+    questions = room.get("_snapshot", {}).get("data", {}).get("questions", [])
+    question_idx = room.get("questionIdx")
+    question_count = len(questions) if isinstance(questions, list) else 0
+
+    if action == "start" and status != "waiting":
+        return "Игру можно начать только из лобби"
+    if action == "answer":
+        if status != "active":
+            return "Сейчас нельзя отвечать"
+        if not _is_int(question_idx) or question_idx < 0 or question_idx >= question_count:
+            return "Вопрос комнаты не найден"
+        given = data.get("given", "")
+        if not isinstance(given, str) or len(given) > MAX_ANSWER_LENGTH:
+            return "Некорректный ответ"
+        player_id = identity.get("playerId") if identity else None
+        player = next((p for p in room.get("players", []) if p.get("id") == player_id), None)
+        if player and (player.get("lastAnswer") or {}).get("questionIdx") == question_idx:
+            return "На этот вопрос уже отвечали"
+    elif action == "reveal" and status != "active":
+        return "Ответы можно открыть только во время вопроса"
+    elif action == "leaderboard" and status != "reveal":
+        return "Таблицу лидеров можно открыть после ответов"
+    elif action == "next_question":
+        if status != "leaderboard":
+            return "Следующий вопрос недоступен на этой фазе"
+        if not _is_int(question_idx) or question_idx + 1 >= question_count:
+            return "Следующего вопроса нет"
+    elif action == "finish" and status not in {"active", "reveal", "leaderboard"}:
+        return "Игру нельзя завершить на этой фазе"
+    elif action == "restart" and status != "finished":
+        return "Перезапуск доступен после завершения игры"
+    elif action == "kick":
+        player_id = data.get("playerId")
+        if not isinstance(player_id, str) or not any(p.get("id") == player_id for p in room.get("players", [])):
+            return "Игрок комнаты не найден"
+
+    return None
 
 
 def public_room_state(room: dict) -> dict:
@@ -141,6 +192,9 @@ async def room_websocket(websocket: WebSocket, code: str):
     try:
         while True:
             raw = await websocket.receive_text()
+            if len(raw.encode("utf-8")) > MAX_ROOM_MESSAGE_BYTES:
+                await send_error(websocket, "Сообщение комнаты слишком большое")
+                continue
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
@@ -261,7 +315,12 @@ async def room_websocket(websocket: WebSocket, code: str):
                 await send_error(websocket, "Неизвестное действие комнаты")
                 continue
 
-            elif action == "start":
+            validation_error = validate_quiz_action(rooms[code], action, data, identity)
+            if validation_error:
+                await send_error(websocket, validation_error)
+                continue
+
+            if action == "start":
                 if code not in rooms:
                     continue
                 rooms[code]["status"] = "active"

@@ -173,6 +173,7 @@
 
 ### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation
 
+- **Статус:** `IN_PROGRESS`; backend Quiz lifecycle slice закрывает message size, phase, question bounds, answer length и replay validation. Jeopardy/frontend protocol validation и полная state-machine regression остаются.
 - **Проблема/цель:** действия room могут передавать произвольные значения `delta`, timestamps, IDs, индексы и phase-related fields; нет единой schema validation и понятных ошибок для invalid state.
 - **Почему важно:** даже после базовой авторизации malformed/replayed actions могут ломать состояние или вызывать исключения.
 - **Затрагивает:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, Quiz/Jeopardy room components, reconnect/cache.
