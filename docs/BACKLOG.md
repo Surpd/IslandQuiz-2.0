@@ -171,7 +171,7 @@
 
 ### H11. Починить end-to-end AI generation в Quiz Builder
 
-- **Статус:** `IN_PROGRESS`; `ae47585` устранил frontend TypeError, но production Groq response подтвердил root cause: configured `llama-3.3-70b-versatile` недоступна текущему key (`model_not_found`). Strict validation gate из `6f6b3d6` лишь маскировал provider error; H11 использует configurable `GROQ_MODEL`, Groq JSON mode и controlled 502 для provider/parser failures, а canonical backend validation остаётся H8 scope.
+- **Статус:** `DONE`; `ae47585` устранил frontend TypeError, а production Groq response подтвердил root cause: configured `llama-3.3-70b-versatile` была недоступна текущему key (`model_not_found`). H11 использует configurable `GROQ_MODEL`, Groq JSON mode и controlled 502 для provider/parser failures. Production smoke подтвердил full Quiz, per-question/helper, matching, Jeopardy categories/questions и save/open/play path. Canonical backend validation остаётся H8 scope.
 - **Проблема/цель:** full quiz generation падает с `Cannot read properties of undefined (reading 'map')`, а per-question AI helper — с `Cannot read properties of undefined (reading 'length')`. Нужно восстановить полный flow от AI response до builder state, а не скрыть TypeError защитной проверкой.
 - **Почему важно:** основная AI-функция Quiz Builder сейчас не работает и блокирует нормальную демонстрацию и практическое использование продукта.
 - **Затрагивает:** `frontend/src/components/ai-generate-quiz.tsx`, `frontend/src/components/ai-helper.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/src/lib/api.ts`, `backend/routes/ai.py` и mapping в builder.
@@ -181,7 +181,7 @@
 - **Проверки:** authenticated Quiz Builder smoke, full generation, per-question helper для нескольких question types, invalid/empty/error response fixtures, `npx tsc --noEmit`, targeted lint/build и сохранение сгенерированной игры.
 - **Сложность:** L.
 - **Самостоятельность:** да в рамках текущего API contract; если потребуется менять canonical AI schema или `games.data`, остановиться и вынести решение в H8.
-- **Текущая работа:** error/empty/malformed payload отклоняется в `api.ts` до использования в UI; full/file Quiz и helpers больше не блокируются strict server validator. H11 не будет закрыт до successful UI smoke; server-side AI validator не добавляется — H8 follow-up.
+- **Результат:** error/empty/malformed payload отклоняется до использования в UI; full/file Quiz и helpers больше не блокируются strict server validator. Transient Groq `429 rate_limit_exceeded` возвращается controlled 502 и не блокирует H11; отдельные UX, retry/monitoring contract checks — H8/H7/M9 follow-up.
 
 ## 🟡 Medium
 

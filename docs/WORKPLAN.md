@@ -116,7 +116,7 @@
 - **Готово, когда:** один contract описывает input, success и error для всех AI endpoints; prompt, validator, mapping и документация согласованы.
 - **Проверки:** fixtures для valid/invalid Quiz и Jeopardy responses, count/type/difficulty validation, improve/file flows; backend syntax/import, frontend `tsc`, lint, build.
 
-#### H11. Починить end-to-end AI generation в Quiz Builder — `IN_PROGRESS`
+#### H11. Починить end-to-end AI generation в Quiz Builder — `DONE`
 
 - **Приоритет:** главный practical blocker для working product/demo.
 - **Проблема:** full quiz generation падает с `Cannot read properties of undefined (reading 'map')`; per-question AI helper падает с `Cannot read properties of undefined (reading 'length')`.
@@ -127,8 +127,8 @@
 - **Готово, когда:** full quiz и per-question generation работают для валидного ответа, empty/incomplete response и API error; вопросы корректно попадают в builder; TypeError не возникает и не скрывается.
 - **Проверки:** authenticated Quiz Builder smoke, full generation, helper для нескольких question types, invalid/empty/error fixtures, `npx tsc --noEmit`, targeted lint/build и сохранение результата.
 - **Граница scope:** если потребуется менять canonical AI schema или `games.data`, остановиться и обновить зависимость H8; не начинать архитектурное изменение в H11.
-- **Фактический результат:** production Groq response подтвердил root cause: configured `llama-3.3-70b-versatile` больше недоступна текущему key (`model_not_found`). Strict backend validation из `6f6b3d6` маскировал provider error как invalid Quiz/variants, но не был первопричиной. Qwen JSON-mode probe с full prompt вернул valid `{title, questions}` с 10 вопросами; H11 использует `response_format: json_object`, configurable `GROQ_MODEL` и controlled 502 для provider/parser failures. Successful authenticated smoke, сохранение и play остаются обязательными.
-- **Проверки:** current-key Groq model listing; Qwen JSON-mode probes для full Quiz (10 questions) и helper (3 variants); Python syntax, `npx tsc --noEmit`, `npm run build`, `git diff --check`. `npm run lint` не проходит на существующем общем Prettier/ESLint baseline (2145 problems), не исправлявшемся в H11.
+- **Фактический результат:** production Groq response подтвердил root cause: configured `llama-3.3-70b-versatile` больше недоступна текущему key (`model_not_found`). Strict backend validation из `6f6b3d6` маскировал provider error как invalid Quiz/variants, но не был первопричиной. H11 использует `response_format: json_object`, configurable `GROQ_MODEL` и controlled 502 для provider/parser failures. Production smoke подтвердил full Quiz, per-question/helper, matching, Jeopardy categories/questions и save/open/play path.
+- **Проверки:** current-key Groq model listing; Qwen JSON-mode probes для full Quiz (10 questions) и helper (3 variants); Python syntax, `npx tsc --noEmit`, `npm run build`, `git diff --check`; production UI smoke: generate-quiz, generate-question, Jeopardy categories/questions, save/open/play. `npm run lint` не проходит на существующем общем Prettier/ESLint baseline (2145 problems), не исправлявшемся в H11. Transient Groq `429 rate_limit_exceeded` корректно стал 502; UX/monitoring policy для rate limits остаётся H8/H7/M9 follow-up.
 
 #### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation — `DEPENDENCY`
 
