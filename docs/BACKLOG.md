@@ -238,6 +238,7 @@
 
 ### M5. Довести Jeopardy AI до уровня валидации обычного Quiz
 
+- **Статус реализации:** `DONE`. Canonical H8 implementation валидирует Jeopardy categories и questions server-side: 5 уникальных categories, непустые required fields, точное соответствие unique `points` списку `emptySlots` и controlled invalid-response error до builder. Frontend facade и builder сохраняют defensive shape/slot checks; DB/schema не менялись.
 - **Проблема/цель:** категории и Jeopardy questions после JSON parse проверяются слабее, чем обычные Quiz variants.
 - **Почему важно:** builder может получить missing points/question/answer или неверное количество slots и сломать игру уже после генерации.
 - **Затрагивает:** `backend/routes/ai.py`, `ai_prompts.py`, `ai_validator.py`, Jeopardy AI components и builder mapping.

@@ -281,14 +281,11 @@
 - **Результат:** targeted wrappers завершены в `games.py`, `admin.py`, `users.py`, `results.py`, `feedback.py`, `ai.py`, `auth.py` и `telegram_auth.py`; `rooms.py` возвращает стабильное WebSocket error-событие при сбое сохранения результата. Exceptions, `None`, empty и malformed DB/API responses не проходят как случайные 500, а endpoint-specific empty semantics и успешные flows сохранены.
 - **Проверка:** `python -m unittest discover -s tests -p 'test*.py'` — 80 passed; `python -m compileall -q routes services tests` и `git diff --check` — passed. Frontend не затронут, API contract не изменён, поэтому TypeScript/build checks не требовались.
 
-#### M5. Довести Jeopardy AI до уровня обычного Quiz — `DEPENDENCY`
+#### M5. Довести Jeopardy AI до уровня обычного Quiz — `DONE`
 
-- **Зависимости:** H8 и D9; утвердить required fields, points, difficulty и slot count.
-- **Блокирующие D1–D9:** нет; остаётся зависимость от H8.
-- **Техническое исследование до решения:** да — собрать реальные Jeopardy response shapes и builder assumptions.
-- **Файлы:** `backend/routes/ai.py`, `backend/services/ai_prompts.py`, `backend/services/ai_validator.py`, Jeopardy AI components и builder mapping.
-- **Готово, когда:** invalid category/question JSON отклоняется до builder, valid response имеет точное число slots и допустимые points.
-- **Проверки:** missing fields, wrong points/difficulty/count, malformed JSON, valid category/question fixtures, frontend no-crash mapping.
+- **Зависимости:** H8 и D9 выполнены; canonical schema зафиксирована в `docs/AI.md`.
+- **Фактический результат:** реализация H8 (`cc2be63`) уже добавила Jeopardy validators и подключила их к обоим AI endpoints. Категории требуют ровно 5 уникальных непустых `name`/`description`; вопросы требуют непустые `difficulty`/`q`/`a`, ровно один объект на каждый `emptySlots` и уникальные points, точно соответствующие этим slots. Невалидный output возвращается как controlled `502` до builder; frontend повторно проверяет shape и mapping применяет вопросы только к совпадающим пустым slots.
+- **Проверки:** targeted `test_ai_validator.py` покрывает valid/duplicate categories и valid/wrong points slots; полный backend suite после H8 — 80 tests passed. DB/schema и `games.data` не менялись.
 
 #### M6. Ввести индексы, constraints и безопасные RPC по фактической схеме — `BLOCKED`
 

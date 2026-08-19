@@ -49,7 +49,7 @@ Frontend теперь нормализует success payload и переводи
 
 1. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
 2. **M9 — monitoring** — **Terra / medium**. Safe local/backend-only slice не требует внешнего monitoring.
-3. **M5 — Jeopardy AI validation** — **Terra / medium**. После закрепления canonical AI contract.
+3. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
 
 Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
 
