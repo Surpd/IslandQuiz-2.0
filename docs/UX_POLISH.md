@@ -17,7 +17,7 @@
 ## Slices
 
 1. **Shared mobile shell** — bottom navigation для home/library/builder/profile и единый footer. DONE.
-2. **Library mobile pass** — компактный вертикальный список карточек, tabs/search/filter controls.
+2. **Library mobile pass** — компактный вертикальный список карточек, tabs/search/filter controls. DONE.
 3. **Quiz builder/player mobile polish** — formula panel, длинные ответы и matching/pairs, компактные result stats. DONE.
 4. **Jeopardy builder mobile mode** — tile/grid presentation for narrow screens.
 5. **Profile mobile actions** — проверить перенос кнопок и поля на 360–430px.
@@ -35,11 +35,12 @@ Mobile остаётся компактной responsive-адаптацией т�
 - Убран дублирующий footer на главной: теперь footer рендерится только из root layout.
 - Builder floating actions подняты выше mobile navigation.
 - Formula panel, длинные ответы, matching/pairs и result stats получили первый mobile polish slice.
+- Library получила вертикальный mobile list, горизонтально прокручиваемые tabs/tag filters, компактный search/sort row и actions Играть / Редактировать / ⋯.
 
 ## Остаётся
 
-- Library cards/list mobile pass.
 - Более компактная mobile toolbar/navigation в Builder.
+- Дальнейшая проверка Library actions и реальных 360–430px screenshots после подключения browser runtime.
 - Jeopardy tile/grid mode, Profile/Admin pass и feedback delivery check.
 
 ## Mobile target
