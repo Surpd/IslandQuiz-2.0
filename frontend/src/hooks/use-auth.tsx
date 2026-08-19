@@ -12,6 +12,8 @@ import {
   type User,
 } from "@/lib/api";
 
+const AUTH_EXPIRED_EVENT = "islandquiz:auth-expired";
+
 interface AuthValue {
   user: User | null;
   isLoading: boolean;
@@ -37,9 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const handleAuthExpired = () => setUser(null);
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     getMe()
       .then((u) => setUser(u))
       .finally(() => setLoading(false));
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
   }, []);
 
   const value = useMemo<AuthValue>(

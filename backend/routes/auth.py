@@ -28,7 +28,7 @@ if not SECRET_KEY:
     raise RuntimeError("JWT_SECRET environment variable is required")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 pwd_context = CryptContext(
     schemes=["bcrypt"],
@@ -139,6 +139,22 @@ def create_access_token(user_id: str) -> str:
     )
 
 
+def decode_access_token(token: str) -> str:
+    if not isinstance(token, str) or not token:
+        raise JWTError("Invalid access token")
+
+    payload = jwt.decode(
+        token,
+        SECRET_KEY,
+        algorithms=[ALGORITHM],
+        options={"require": ["sub", "exp"]},
+    )
+    user_id = payload.get("sub")
+    if not isinstance(user_id, str) or not user_id:
+        raise JWTError("Invalid subject")
+    return user_id
+
+
 # ============================================================
 # Current user
 # ============================================================
@@ -156,16 +172,7 @@ def get_current_user(
         raise credentials_exception
 
     try:
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-        )
-
-        user_id = payload.get("sub")
-
-        if not user_id:
-            raise credentials_exception
+        user_id = decode_access_token(token)
 
     except JWTError:
         raise credentials_exception
@@ -219,16 +226,7 @@ def get_current_user_optional(
         return None
 
     try:
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-        )
-
-        user_id = payload.get("sub")
-
-        if not user_id:
-            return None
+        user_id = decode_access_token(token)
 
     except JWTError:
         return None

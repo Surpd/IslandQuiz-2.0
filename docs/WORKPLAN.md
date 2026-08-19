@@ -213,7 +213,7 @@
 - **Готово, когда:** workflow вручную публикует предыдущий подтверждённый SHA, проходят exact SHA/systemd/local health checks, затем workflow возвращает актуальный SHA с теми же проверками.
 - **Проверки:** два ручных `workflow_dispatch`; Cloudflare URL остаётся diagnostic и не блокирует backend rollback.
 
-#### H9. Ввести единый контроль доступа к результатам и online results — `DEPENDENCY`
+#### H9. Ввести единый контроль доступа к результатам и online results — `DONE`
 
 - **Зависимости:** D6, D5 и аудит identity/production schema; затем единая matrix owner/non-owner/admin/public/link.
 - **Блокирующие D1–D9:** нет; остаются identity/schema audit и authorization matrix.
@@ -222,6 +222,8 @@
 - **Готово, когда:** один принцип доступа действует одинаково для Quiz, Jeopardy, Millionaire и online results; userId из клиента не расширяет права.
 - **Проверки:** owner/non-owner/admin/anonymous/link tests, cross-user ID tampering, PII exposure checks, empty/error Supabase responses.
 - **H7 handoff:** текущие `submit_jeopardy_result` и `submit_online_result` вызывают private-game check без текущего owner identity, поэтому private owner submit получает `403`; baseline regression test фиксирует это поведение. Исправление и единая matrix доступа — scope H9, не H7.
+- **Фактический результат:** единый application-level access helper применяется ко всем result readers; admin видит private results, owner/non-owner/private/public/link matrix покрыта endpoint-level tests, Jeopardy submit получает current user, а `/played-games/{user_id}` блокирует cross-user ID tampering. Result rows и nested teams/players проходят None/malformed normalization; online players и Jeopardy teams отдаются только разрешёнными полями.
+- **Проверки завершения:** `python -m unittest discover -s tests -p 'test*.py'` — 51 passed; Python compile и `git diff --check` — passed. Reviewer reports выявили и закрыли nested PII/malformed-game риски, но финальный reviewer PASS не получен; после последних исправлений выполнен manual security fallback review по diff и тестам: PASS для заявленного H9 scope. Production DB/RLS не изменялись.
 
 После закрытия D1/D2/D3/D5/D6/D7 C4 закрыта, а C4.1 остаётся отдельной зависимой задачей; H3 и H5 можно запускать, H6 завершена, C2 также готова к реализации. C1 требует отдельного approval для production storage/migration. H9 переходит в подготовку после завершения identity/schema audit. C3, H10, M5 и P3 больше не заблокированы решениями, но зависят от C2, H8 и соответствующих контрактов.
 

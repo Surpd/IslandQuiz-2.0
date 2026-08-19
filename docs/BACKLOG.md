@@ -162,6 +162,7 @@
 
 ### H9. Ввести единый контроль доступа к результатам и online results
 
+- **Статус:** `DONE`. Закрыты admin/private result view, owner identity для Jeopardy submit, cross-user tampering в `/played-games/{user_id}`, endpoint-level access matrix, nested PII filtering и PII/malformed-row regression tests; production DB/RLS не изменялись.
 - **Проблема/цель:** доступ к результатам реализован отдельными endpoint-ветками и разными payload; нужно проверить owner/admin/public/link semantics, userId filters и доступ к online player data.
 - **Почему важно:** результаты могут раскрывать персональные данные или быть недоступны законному владельцу; разрозненная authorization логика создаёт обходы.
 - **Затрагивает:** `backend/routes/results.py`, `backend/routes/games.py`, frontend results/dashboard/profile routes, `quiz_results`, `jeopardy_results`, `millionaire_results`, `online_quiz_results`.
