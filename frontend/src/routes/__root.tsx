@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "../hooks/use-auth";
+import { MobileBottomNav } from "../components/mobile-bottom-nav";
 
 function NotFoundComponent() {
   return (
@@ -131,13 +132,18 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const { pathname } = useLocation();
   const hideFooter = pathname === "/login" || pathname === "/register" || pathname.startsWith("/profile");
+  const showMobileNav =
+    pathname === "/" ||
+    pathname.startsWith("/library") ||
+    pathname.startsWith("/builder") ||
+    pathname.startsWith("/profile");
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Outlet />
         {!hideFooter && (
-          <footer className="border-t border-border py-10">
+          <footer className={`border-t border-border py-10 ${showMobileNav ? "pb-24 md:pb-10" : ""}`}>
             <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 md:flex-row">
               <div className="flex items-center gap-2">
                 <div className="grid h-6 w-6 place-items-center rounded bg-foreground text-white">
@@ -145,7 +151,9 @@ function RootComponent() {
                 </div>
                 <span className="font-display text-sm font-bold">IslandQuiz</span>
               </div>
-              <nav className="flex items-center gap-6 text-xs text-muted-foreground">
+              <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+                <Link to="/faq" className="hover:text-foreground">FAQ</Link>
+                <Link to="/support" className="hover:text-foreground">Поддержать</Link>
                 <Link to="/privacy" className="hover:text-foreground">Конфиденциальность</Link>
                 <Link to="/terms" className="hover:text-foreground">Условия использования</Link>
               </nav>
@@ -153,6 +161,7 @@ function RootComponent() {
             </div>
           </footer>
         )}
+        {showMobileNav && <MobileBottomNav />}
       </AuthProvider>
     </QueryClientProvider>
   );

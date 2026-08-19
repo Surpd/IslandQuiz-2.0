@@ -16,12 +16,31 @@
 
 ## Slices
 
-1. **Quiz builder/player mobile polish** — formula panel, длинные ответы и matching/pairs, компактные result stats. Первый slice для demo flow.
-2. **Profile mobile actions** — проверить перенос кнопок и поля на 360–430px.
-3. **Admin usability** — search users/games и понятное отображение ban/status.
-4. **Admin AI lab** — привести limits/logs/test UI к понятным состояниям.
-5. **Jeopardy builder mobile mode** — tile/grid presentation for narrow screens.
-6. **FAQ and feedback follow-up** — структурировать FAQ; отдельно проверить feedback delivery, confirmation и spam protection.
+1. **Shared mobile shell** — bottom navigation для home/library/builder/profile и единый footer. DONE.
+2. **Library mobile pass** — компактный вертикальный список карточек, tabs/search/filter controls.
+3. **Quiz builder/player mobile polish** — formula panel, длинные ответы и matching/pairs, компактные result stats. DONE.
+4. **Jeopardy builder mobile mode** — tile/grid presentation for narrow screens.
+5. **Profile mobile actions** — проверить перенос кнопок и поля на 360–430px.
+6. **Admin usability** — search users/games и понятное отображение ban/status.
+7. **Admin AI lab** — привести limits/logs/test UI к понятным состояниям.
+8. **FAQ and feedback follow-up** — структурировать FAQ; отдельно проверить feedback delivery, confirmation и spam protection.
+
+## Mobile UX direction
+
+Mobile остаётся компактной responsive-адаптацией текущего IslandQuiz: используются существующие design tokens, шрифты, радиусы, карточки и акцентные цвета. Desktop сохраняет полноценное рабочее пространство учителя; mobile получает bottom navigation и более плотную компоновку только на узких экранах.
+
+## Уже сделано
+
+- Shared mobile bottom navigation для Главной, Библиотеки, Создать и Профиля.
+- Убран дублирующий footer на главной: теперь footer рендерится только из root layout.
+- Builder floating actions подняты выше mobile navigation.
+- Formula panel, длинные ответы, matching/pairs и result stats получили первый mobile polish slice.
+
+## Остаётся
+
+- Library cards/list mobile pass.
+- Более компактная mobile toolbar/navigation в Builder.
+- Jeopardy tile/grid mode, Profile/Admin pass и feedback delivery check.
 
 ## Mobile target
 
