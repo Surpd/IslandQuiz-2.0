@@ -1,4 +1,5 @@
 import copy
+import asyncio
 import json
 import os
 import unittest
@@ -44,6 +45,31 @@ class FakeWebSocket:
             return next(self.messages)
         except StopIteration as exc:
             raise WebSocketDisconnect() from exc
+
+
+class LiveFakeWebSocket:
+    def __init__(self, credential=None):
+        self.incoming = asyncio.Queue()
+        self.sent = []
+        self.query_params = {"credential": credential} if credential else {}
+
+    async def accept(self):
+        return None
+
+    async def send_json(self, message):
+        self.sent.append(copy.deepcopy(message))
+
+    async def receive_text(self):
+        message = await self.incoming.get()
+        if message is None:
+            raise WebSocketDisconnect()
+        return message
+
+    async def send(self, message):
+        await self.incoming.put(json.dumps(message))
+
+    async def disconnect(self):
+        await self.incoming.put(None)
 
 
 def room_fixture():
@@ -157,6 +183,59 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         identity = next(message for message in guest.sent if message["type"] == "room_identity")
         self.assertEqual(identity["role"], "player")
         self.assertTrue(any(player["nickname"] == "Large Quiz Guest" for player in rooms_route.rooms["ROOM1"]["players"]))
+
+    async def test_large_snapshot_create_and_join_keep_both_sockets_connected(self):
+        large_data = {
+            "config": {"defaultTime": 30},
+            "questions": [
+                {
+                    "id": f"q-{index}",
+                    "type": "choice",
+                    "q": "Question " + ("x" * 120),
+                    "options": ["A" * 40, "B" * 40, "C" * 40, "D" * 40],
+                    "answer": "A",
+                    "points": 100,
+                    "time": 30,
+                }
+                for index in range(100)
+            ],
+        }
+        token = issue_snapshot_token("game-1", "quiz", large_data)[1]
+        host = LiveFakeWebSocket()
+        guest = LiveFakeWebSocket()
+        host_task = asyncio.create_task(rooms_route.room_websocket(host, "ROOM1"))
+        guest_task = asyncio.create_task(rooms_route.room_websocket(guest, "ROOM1"))
+        try:
+            await host.send({
+                "action": "create_room",
+                "gameKind": "quiz",
+                "gameId": "game-1",
+                "snapshotToken": token,
+            })
+            await asyncio.sleep(0)
+            await guest.send({
+                "action": "join",
+                "player": {"nickname": "Live Guest", "avatar": ""},
+            })
+            await asyncio.sleep(0)
+
+            states = [
+                message["state"]
+                for socket in (host, guest)
+                for message in socket.sent
+                if message["type"] == "room_state"
+            ]
+            self.assertTrue(states)
+            self.assertTrue(all("_snapshot" not in state for state in states))
+            self.assertTrue(all(len(json.dumps(state).encode("utf-8")) <= rooms_route.MAX_ROOM_MESSAGE_BYTES for state in states))
+            self.assertTrue(any(message["type"] == "room_identity" and message["role"] == "player" for message in guest.sent))
+            self.assertTrue(any(player["nickname"] == "Live Guest" for player in rooms_route.rooms["ROOM1"]["players"]))
+            self.assertFalse(host_task.done())
+            self.assertFalse(guest_task.done())
+        finally:
+            await host.disconnect()
+            await guest.disconnect()
+            await asyncio.gather(host_task, guest_task)
 
     async def test_guest_join_ignores_client_player_id_and_issues_identity(self):
         rooms_route.rooms["ROOM1"] = room_fixture()

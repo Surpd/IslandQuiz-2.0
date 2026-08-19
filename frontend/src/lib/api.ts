@@ -586,6 +586,7 @@ type RoomConn = {
   handlers: Set<(s: RoomState) => void>;
   onceWaiters: Set<(msg: RoomMessage) => void>;
   state: RoomState | null;
+  available: boolean;
   openPromise: Promise<void>;
 };
 
@@ -641,7 +642,7 @@ function ensureRoomConn(code: string): RoomConn {
     resolveOpen = resolve;
   });
 
-  const conn: RoomConn = { ws, handlers, onceWaiters, state: null, openPromise };
+  const conn: RoomConn = { ws, handlers, onceWaiters, state: null, available: false, openPromise };
 
   ws.onopen = () => {
     reconnectAttempts[code] = 0;
@@ -653,9 +654,11 @@ function ensureRoomConn(code: string): RoomConn {
       const msg = JSON.parse(ev.data as string) as RoomMessage;
       if (msg.type === "room_identity") storeRoomCredential(code, msg);
       if (msg.type === "room_state" && msg.state) {
+        conn.available = true;
         conn.state = msg.state;
         handlers.forEach((h) => h(msg.state!));
       }
+      if (msg.type === "room_available") conn.available = true;
       onceWaiters.forEach((w) => w(msg));
     } catch {
       /* ignore malformed */
@@ -775,12 +778,18 @@ export async function createRoom(gameKind: GameKind, gameId: string) {
   return { code, room_url: `/room/${code}` };
 }
 
+const MAX_ROOM_AVATAR_BYTES = 2 * 1024;
+
+function roomAvatar(avatar: string): string {
+  return new TextEncoder().encode(avatar).byteLength <= MAX_ROOM_AVATAR_BYTES ? avatar : "";
+}
+
 export async function joinRoom(code: string, nickname: string, avatar: string) {
   const conn = ensureRoomConn(code);
   await conn.openPromise;
   // Unbound sockets receive room_available, while identified sockets receive room_state.
-  let roomAvailable = Boolean(conn.state);
-  if (!conn.state) {
+  let roomAvailable = conn.available;
+  if (!roomAvailable) {
     const initial = await waitRoomMessage(
       code,
       (m) => m.type === "room_state" || m.type === "room_available",
@@ -796,7 +805,7 @@ export async function joinRoom(code: string, nickname: string, avatar: string) {
     code,
     (m) => m.type === "error" || (m.type === "room_state" && !!m.state),
   );
-  sendRoom(code, { action: "join", player: { nickname, avatar } });
+  sendRoom(code, { action: "join", player: { nickname, avatar: roomAvatar(avatar) } });
   try {
     const msg = await errorWait;
     if (msg.type === "error") {
