@@ -14,7 +14,6 @@ from fastapi import (
     File,
     Form,
     Request,
-    HTTPException,
 )
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -28,6 +27,12 @@ from services.ai_prompts import (
     generate_quiz_prompt,
     generate_jeopardy_categories_prompt,
     generate_jeopardy_questions_prompt,
+)
+from services.ai_validator import (
+    validate_jeopardy_categories,
+    validate_jeopardy_questions,
+    validate_quiz,
+    validate_variants,
 )
 
 from limiter import limiter
@@ -143,6 +148,7 @@ async def call_openai(prompt: str) -> str:
                 return json.dumps({
                     "error": "Groq API error",
                     "status_code": response.status_code,
+                    "code": "ai_provider_error",
                 })
 
             try:
@@ -153,6 +159,7 @@ async def call_openai(prompt: str) -> str:
 
                 return json.dumps({
                     "error": "Invalid response from Groq",
+                    "code": "invalid_provider_response",
                 })
 
             if (
@@ -166,6 +173,7 @@ async def call_openai(prompt: str) -> str:
 
                 return json.dumps({
                     "error": "Empty response from AI",
+                    "code": "empty_ai_response",
                 })
 
             message = data["choices"][0].get(
@@ -187,6 +195,7 @@ async def call_openai(prompt: str) -> str:
                 return json.dumps({
                     "error": "AI returned empty content",
                     "diagnostic": ai_output_diagnostic(content),
+                    "code": "empty_ai_response",
                 })
 
             return content
@@ -196,6 +205,7 @@ async def call_openai(prompt: str) -> str:
 
         return json.dumps({
             "error": "AI request timeout",
+            "code": "ai_provider_timeout",
         })
 
     except httpx.RequestError:
@@ -203,6 +213,7 @@ async def call_openai(prompt: str) -> str:
 
         return json.dumps({
             "error": "AI connection error",
+            "code": "ai_provider_connection_error",
         })
 
     except Exception:
@@ -210,6 +221,7 @@ async def call_openai(prompt: str) -> str:
 
         return json.dumps({
             "error": "Unexpected AI error",
+            "code": "ai_provider_error",
         })
 
 
@@ -489,13 +501,25 @@ def ai_failure(
     return JSONResponse(status_code=502, content=content)
 
 
+def ai_client_error(error: str, code: str, status_code: int = 400) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"error": error, "code": code})
+
+
 def ai_error_response(result: dict) -> JSONResponse:
     code = result.get("code")
     diagnostic = result.get("diagnostic")
     return ai_failure(
         result["error"],
         diagnostic if isinstance(diagnostic, dict) else None,
-        code if isinstance(code, str) else None,
+        code if isinstance(code, str) else "ai_provider_error",
+    )
+
+
+def invalid_ai_response(error: str) -> JSONResponse:
+    return ai_failure(
+        "AI returned an invalid response",
+        code="invalid_ai_response",
+        diagnostic={"validation_error": error},
     )
 
 
@@ -591,19 +615,19 @@ def check_ai_limit(user):
 
     if count >= daily_limit:
 
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                "Лимит AI-запросов исчерпан "
-                f"({daily_limit}/день). "
-                "Повысьте тариф до Premium."
-            ),
+        return ai_client_error(
+            "Лимит AI-запросов исчерпан "
+            f"({daily_limit}/день). "
+            "Повысьте тариф до Premium.",
+            "ai_daily_limit_exceeded",
+            429,
         )
 
     increment_ai_count(
         user["id"],
         "ai_request",
     )
+    return None
 
 
 # ============================================================
@@ -690,7 +714,9 @@ async def generate_question(
     user=Depends(get_current_user),
 ):
 
-    check_ai_limit(user)
+    limit_error = check_ai_limit(user)
+    if limit_error:
+        return limit_error
 
     qtype = input.type or "choice"
 
@@ -750,11 +776,7 @@ async def generate_question(
             not raw
             or not raw.strip()
         ):
-            return {
-                "error": (
-                    "Empty response from AI"
-                ),
-            }
+            return ai_failure("Empty response from AI", code="empty_ai_response")
 
         try:
 
@@ -766,15 +788,19 @@ async def generate_question(
             variants = normalize_variants(
                 result
             )
+            validation = validate_variants(variants, expected_count=3)
+            if not validation["valid"]:
+                return invalid_ai_response(validation["error"])
 
             return {
-                "variants": variants,
+                "variants": validation["variants"],
             }
 
         except json.JSONDecodeError as error:
             return ai_failure(
                 "AI returned invalid JSON",
                 getattr(error, "ai_diagnostic", None),
+                "invalid_ai_json",
             )
 
     # --------------------------------------------------------
@@ -801,11 +827,7 @@ async def generate_question(
         not raw
         or not raw.strip()
     ):
-        return {
-            "error": (
-                "Empty response from AI"
-            ),
-        }
+        return ai_failure("Empty response from AI", code="empty_ai_response")
 
     try:
 
@@ -817,15 +839,19 @@ async def generate_question(
         variants = normalize_variants(
             result
         )
+        validation = validate_variants(variants, expected_count=3)
+        if not validation["valid"]:
+            return invalid_ai_response(validation["error"])
 
         return {
-            "variants": variants,
+            "variants": validation["variants"],
         }
 
     except json.JSONDecodeError as error:
         return ai_failure(
             "AI returned invalid JSON",
             getattr(error, "ai_diagnostic", None),
+            "invalid_ai_json",
         )
 
 
@@ -844,7 +870,9 @@ async def improve_question(
     user=Depends(get_current_user),
 ):
 
-    check_ai_limit(user)
+    limit_error = check_ai_limit(user)
+    if limit_error:
+        return limit_error
 
     prompt = improve_question_prompt(
         current_text=input.currentText,
@@ -863,11 +891,7 @@ async def improve_question(
         not raw
         or not raw.strip()
     ):
-        return {
-            "error": (
-                "Empty response from AI"
-            ),
-        }
+        return ai_failure("Empty response from AI", code="empty_ai_response")
 
     try:
 
@@ -879,15 +903,19 @@ async def improve_question(
         variants = normalize_variants(
             result
         )
+        validation = validate_variants(variants, expected_count=3)
+        if not validation["valid"]:
+            return invalid_ai_response(validation["error"])
 
         return {
-            "variants": variants,
+            "variants": validation["variants"],
         }
 
     except json.JSONDecodeError as error:
         return ai_failure(
             "AI returned invalid JSON",
             getattr(error, "ai_diagnostic", None),
+            "invalid_ai_json",
         )
 
 
@@ -906,7 +934,9 @@ async def generate_quiz(
     user=Depends(get_current_user),
 ):
 
-    check_ai_limit(user)
+    limit_error = check_ai_limit(user)
+    if limit_error:
+        return limit_error
 
     # --------------------------------------------------------
     # Count
@@ -958,24 +988,23 @@ async def generate_quiz(
         not raw
         or not raw.strip()
     ):
-
-        return {
-            "error": (
-                "Empty response from AI"
-            ),
-        }
+        return ai_failure("Empty response from AI", code="empty_ai_response")
 
     try:
 
         result = parse_ai_json(raw)
         if is_ai_error(result):
             return ai_error_response(result)
-        return result
+        validation = validate_quiz(result, expected_count=count)
+        if not validation["valid"]:
+            return invalid_ai_response(validation["error"])
+        return validation["quiz"]
 
     except json.JSONDecodeError as error:
         return ai_failure(
             "AI returned invalid JSON",
             getattr(error, "ai_diagnostic", None),
+            "invalid_ai_json",
         )
 
 
@@ -994,7 +1023,9 @@ async def generate_jeopardy_categories(
     user=Depends(get_current_user),
 ):
 
-    check_ai_limit(user)
+    limit_error = check_ai_limit(user)
+    if limit_error:
+        return limit_error
 
     prompt = (
         generate_jeopardy_categories_prompt(
@@ -1012,24 +1043,25 @@ async def generate_jeopardy_categories(
         not raw
         or not raw.strip()
     ):
-
-        return {
-            "error": (
-                "Empty response from AI"
-            ),
-        }
+        return ai_failure("Empty response from AI", code="empty_ai_response")
 
     try:
 
         result = parse_ai_json(raw)
         if is_ai_error(result):
             return ai_error_response(result)
-        return result
+        if not isinstance(result, dict):
+            return invalid_ai_response("Jeopardy response must be an object")
+        validation = validate_jeopardy_categories(result.get("categories"))
+        if not validation["valid"]:
+            return invalid_ai_response(validation["error"])
+        return {"categories": validation["categories"]}
 
     except json.JSONDecodeError as error:
         return ai_failure(
             "AI returned invalid JSON",
             getattr(error, "ai_diagnostic", None),
+            "invalid_ai_json",
         )
 
 
@@ -1048,7 +1080,9 @@ async def generate_jeopardy_questions(
     user=Depends(get_current_user),
 ):
 
-    check_ai_limit(user)
+    limit_error = check_ai_limit(user)
+    if limit_error:
+        return limit_error
 
     prompt = (
         generate_jeopardy_questions_prompt(
@@ -1064,24 +1098,28 @@ async def generate_jeopardy_questions(
         not raw
         or not raw.strip()
     ):
-
-        return {
-            "error": (
-                "Empty response from AI"
-            ),
-        }
+        return ai_failure("Empty response from AI", code="empty_ai_response")
 
     try:
 
         result = parse_ai_json(raw)
         if is_ai_error(result):
             return ai_error_response(result)
-        return result
+        if not isinstance(result, dict):
+            return invalid_ai_response("Jeopardy response must be an object")
+        validation = validate_jeopardy_questions(
+            result.get("questions"),
+            input.emptySlots,
+        )
+        if not validation["valid"]:
+            return invalid_ai_response(validation["error"])
+        return {"questions": validation["questions"]}
 
     except json.JSONDecodeError as error:
         return ai_failure(
             "AI returned invalid JSON",
             getattr(error, "ai_diagnostic", None),
+            "invalid_ai_json",
         )
 
 
@@ -1102,7 +1140,9 @@ async def generate_from_file(
     user=Depends(get_current_user),
 ):
 
-    check_ai_limit(user)
+    limit_error = check_ai_limit(user)
+    if limit_error:
+        return limit_error
 
     # --------------------------------------------------------
     # FILE SIZE
@@ -1111,13 +1151,10 @@ async def generate_from_file(
     content = await file.read()
 
     if len(content) > 10 * 1024 * 1024:
-
-        return {
-            "error": (
-                "Файл слишком большой. "
-                "Максимальный размер: 10 МБ."
-            ),
-        }
+        return ai_client_error(
+            "Файл слишком большой. Максимальный размер: 10 МБ.",
+            "file_too_large",
+        )
 
     # --------------------------------------------------------
     # EXTENSION
@@ -1139,14 +1176,10 @@ async def generate_from_file(
     if not filename.endswith(
         allowed_extensions
     ):
-
-        return {
-            "error": (
-                "Неподдерживаемый формат. "
-                "Поддерживаются: "
-                "PDF, DOCX, TXT, MD."
-            ),
-        }
+        return ai_client_error(
+            "Неподдерживаемый формат. Поддерживаются: PDF, DOCX, TXT, MD.",
+            "unsupported_file_format",
+        )
 
     # --------------------------------------------------------
     # MIME
@@ -1168,15 +1201,10 @@ async def generate_from_file(
         and file.content_type
         not in allowed_mime
     ):
-
-        return {
-            "error": (
-                "Неподдерживаемый тип файла: "
-                f"{file.content_type}. "
-                "Разрешены: "
-                "PDF, DOCX, TXT, MD."
-            ),
-        }
+        return ai_client_error(
+            "Неподдерживаемый тип файла. Разрешены: PDF, DOCX, TXT, MD.",
+            "unsupported_file_type",
+        )
 
     # --------------------------------------------------------
     # EXTRACT TEXT
@@ -1230,13 +1258,10 @@ async def generate_from_file(
             )
 
     except UnicodeDecodeError:
-
-        return {
-            "error": (
-                "Не удалось прочитать файл "
-                "в кодировке UTF-8."
-            ),
-        }
+        return ai_client_error(
+            "Не удалось прочитать файл в кодировке UTF-8.",
+            "file_decode_error",
+        )
 
     except Exception as e:
 
@@ -1245,24 +1270,14 @@ async def generate_from_file(
             str(e),
         )
 
-        return {
-            "error": (
-                "Ошибка чтения файла: "
-                f"{str(e)}"
-            ),
-        }
+        return ai_client_error("Не удалось прочитать файл.", "file_extraction_error")
 
     # --------------------------------------------------------
     # EMPTY TEXT
     # --------------------------------------------------------
 
     if not text.strip():
-
-        return {
-            "error": (
-                "Не удалось извлечь текст."
-            ),
-        }
+        return ai_client_error("Не удалось извлечь текст.", "empty_file_text")
 
     # --------------------------------------------------------
     # TEXT LIMIT
@@ -1320,22 +1335,21 @@ async def generate_from_file(
         not raw
         or not raw.strip()
     ):
-
-        return {
-            "error": (
-                "AI не ответил"
-            ),
-        }
+        return ai_failure("Empty response from AI", code="empty_ai_response")
 
     try:
 
         result = parse_ai_json(raw)
         if is_ai_error(result):
             return ai_error_response(result)
-        return result
+        validation = validate_quiz(result, expected_count=count)
+        if not validation["valid"]:
+            return invalid_ai_response(validation["error"])
+        return validation["quiz"]
 
     except json.JSONDecodeError as error:
         return ai_failure(
             "AI returned invalid JSON",
             getattr(error, "ai_diagnostic", None),
+            "invalid_ai_json",
         )

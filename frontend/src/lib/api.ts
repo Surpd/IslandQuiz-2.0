@@ -1309,7 +1309,7 @@ export async function generateQuestion(input: {
     method: "POST",
     body: JSON.stringify(input),
   }), "варианты вопроса");
-  if (!Array.isArray(response.variants) || response.variants.length === 0) {
+  if (!Array.isArray(response.variants) || response.variants.length !== 3) {
     throw new Error("AI не вернул варианты вопроса.");
   }
   return { variants: response.variants.map(normalizeGeneratedQuestion) };
@@ -1324,11 +1324,12 @@ export async function generateQuiz(input: {
   title: string;
   questions: GeneratedQuizQuestion[];
 }> {
+  const expectedCount = Math.min(20, Math.max(5, input.count ?? 10));
   const response = requireAIResponse(await apiFetch("/api/ai/generate-quiz", {
     method: "POST",
     body: JSON.stringify(input),
   }), "квиз");
-  if (!Array.isArray(response.questions) || response.questions.length === 0) {
+  if (!Array.isArray(response.questions) || response.questions.length !== expectedCount) {
     throw new Error("AI не вернул вопросы квиза.");
   }
   return {
@@ -1343,6 +1344,7 @@ export async function generateQuizFromFile(input: {
   difficulty: QuizDifficulty;
   wishes?: string;
 }): Promise<{ title: string; questions: GeneratedQuizQuestion[] }> {
+  const expectedCount = Math.min(20, Math.max(5, input.count));
   const formData = new FormData();
   formData.append("file", input.file);
   formData.append("count", String(input.count));
@@ -1353,7 +1355,7 @@ export async function generateQuizFromFile(input: {
     await uploadAIFile("/api/ai/generate-from-file", formData),
     "квиз",
   );
-  if (!Array.isArray(response.questions) || response.questions.length === 0) {
+  if (!Array.isArray(response.questions) || response.questions.length !== expectedCount) {
     throw new Error("AI не вернул вопросы квиза.");
   }
   return {
@@ -1370,7 +1372,7 @@ export async function generateJeopardyCategories(input: {
     method: "POST",
     body: JSON.stringify(input),
   }), "категории Jeopardy");
-  if (!Array.isArray(response.categories) || response.categories.length === 0) {
+  if (!Array.isArray(response.categories) || response.categories.length !== 5) {
     throw new Error("AI не вернул категории Jeopardy.");
   }
   return {
@@ -1406,7 +1408,7 @@ export async function generateJeopardyQuestions(input: {
       seenPoints.add(points);
       return {
         points,
-        difficulty: typeof value.difficulty === "string" ? value.difficulty : "",
+        difficulty: requireNonEmptyString(value.difficulty, "question.difficulty"),
         q: requireNonEmptyString(value.q, "question.q"),
         a: requireNonEmptyString(value.a, "question.a"),
       };

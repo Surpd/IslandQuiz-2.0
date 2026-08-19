@@ -1041,7 +1041,7 @@ def generate_jeopardy_categories_prompt(
 
 «{topic}»
 
-Создай 3 категории.
+Создай 5 категорий.
 
 Требования:
 
@@ -1067,6 +1067,14 @@ def generate_jeopardy_categories_prompt(
 
 {{
   "categories": [
+    {{
+      "name": "Название",
+      "description": "Описание"
+    }},
+    {{
+      "name": "Название",
+      "description": "Описание"
+    }},
     {{
       "name": "Название",
       "description": "Описание"

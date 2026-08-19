@@ -4,7 +4,7 @@
 
 ## Current state
 
-- Основные frontend baseline/contracts уже приведены в рабочее состояние: H1, H2, H3 и C4 отмечены `DONE`.
+- Основные frontend baseline/contracts уже приведены в рабочее состояние: H1, H2, H3, H8 и C4 отмечены `DONE`.
 - Supabase production snapshot и deployment topology документированы; H5 и C5 закрыты.
 - Backend deployment automation H6 закрыта: GitHub Actions публикует exact SHA на VPS, проверяет syntax/systemd/local health и SHA. Documentation-only и frontend-only push не запускают backend deploy.
 - Cloudflare public check остаётся diagnostic warning: `403` от edge не означает failure backend deployment.
@@ -20,6 +20,7 @@
 - **H5 / DONE:** подтверждена single-instance Telegram polling topology.
 - **C5 / DONE:** выполнен read-only Supabase schema/RLS/RPC snapshot.
 - **H6 / DONE:** backend deployment automation работает; rollback rehearsal вынесен в H6.1.
+- **H8 / DONE:** canonical AI contract закреплён для Quiz, file и Jeopardy; provider/output failures имеют controlled error envelope.
 - **CODEX_MODEL_GUIDE:** для задач добавлен выбор Luna/Terra/Sol с условиями escalation.
 
 ## Broken / needs fix now
@@ -39,10 +40,9 @@ Frontend теперь нормализует success payload и переводи
 
 ## Next 3–5 recommended tasks
 
-1. **H8 — Согласовать AI contract и документацию** — **Terra / high**. Закрепить response shapes, включая server-side Jeopardy validation.
-2. **H7 — Добавить критические API/room/AI tests** — **Terra / high**. Зафиксировать full quiz и per-question regression cases.
-3. **C2 — Server-side authorization WebSocket-комнат** — **Sol / high**. Главный security blocker онлайн-режима.
-4. **C3 — Server-side scoring и trusted results** — **Sol / high**. Закрыть целостность результатов после C2.
+1. **H7 — Добавить критические API/room/AI tests** — **Terra / high**. Зафиксировать full quiz и per-question regression cases.
+2. **C2 — Server-side authorization WebSocket-комнат** — **Sol / high**. Главный security blocker онлайн-режима.
+3. **C3 — Server-side scoring и trusted results** — **Sol / high**. Закрыть целостность результатов после C2.
 
 Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
 
@@ -66,4 +66,4 @@ Frontend теперь нормализует success payload и переводи
 
 ## Working formula
 
-Сначала закрыть H11 → закрепить contract H8 → добавить regression coverage H7 → затем двигаться к C2/C3. Для обычных docs/process изменений использовать Luna; для AI/frontend integration — Terra; для auth/security/rooms/DB — Sol. Подробные правила выбора находятся в `docs/CODEX_MODEL_GUIDE.md`.
+H11 и H8 закрыты; далее добавить regression coverage H7 и затем двигаться к C2/C3. Для обычных docs/process изменений использовать Luna; для AI/frontend integration — Terra; для auth/security/rooms/DB — Sol. Подробные правила выбора находятся в `docs/CODEX_MODEL_GUIDE.md`.

@@ -106,15 +106,17 @@
 - **Готово, когда:** критические auth, Telegram replay, permissions, results, visibility, AI и WebSocket transitions имеют воспроизводимые проверки.
 - **Проверки:** один локальный командный запуск всех тестов; негативные случаи с `None`, пустыми ответами Supabase, invalid JSON и malformed actions; отсутствие секретов в fixtures и логах.
 
-#### H8. Согласовать фактический AI contract и документацию — `DEPENDENCY`
+#### H8. Согласовать фактический AI contract и документацию — `DONE`
 
-- **Зависимости:** инвентаризация текущих shapes для Quiz, Jeopardy, improve и file flows; решение canonical JSON schema/error format.
+- **Зависимости:** canonical schema/error format подтверждены владельцем: Quiz helper/improve — ровно 3 `variants`; full/file Quiz — `{title, questions}` ровно по запрошенному count; Jeopardy — 5 категорий и вопросы ровно по `emptySlots` без дублей; ошибки AI — `{error, code?}`, provider/empty/invalid output — controlled `502`. Будущие generation preferences должны расширять input без изменения текущих success shapes.
 - **H11 handoff:** Jeopardy endpoints пока возвращают raw parsed JSON без backend validator; H11 добавил frontend guard и controlled error, а server-side schema/error normalization остаётся scope H8.
 - **Блокирующие D1–D9:** нет; техническая сверка и дальнейшая реализация зависят от contract tables.
 - **Техническое исследование до решения:** да — сравнить `ai.py`, prompts, validator, `api.ts`, builders и `docs/AI.md`.
 - **Файлы:** `backend/routes/ai.py`, `backend/services/ai_prompts.py`, `backend/services/ai_validator.py`, `frontend/src/lib/api.ts`, AI components/builders, `docs/AI.md`, `md/AI_LOGIC.md`.
 - **Готово, когда:** один contract описывает input, success и error для всех AI endpoints; prompt, validator, mapping и документация согласованы.
 - **Проверки:** fixtures для valid/invalid Quiz и Jeopardy responses, count/type/difficulty validation, improve/file flows; backend syntax/import, frontend `tsc`, lint, build.
+- **Фактический результат:** canonical response/error schema подтверждена владельцем и применена server-side. Quiz helper/improve возвращают ровно 3 валидных variants; full/file Quiz — точное число валидных questions; Jeopardy — 5 уникальных категорий и вопросы ровно по `emptySlots`. Provider/output errors используют controlled `{error, code?}`; generation preferences остаются расширяемым future input без изменения текущих success shapes.
+- **Проверки завершения:** `python -m unittest discover -s backend/tests -p test_ai_validator.py` (5 tests), Python syntax, `npx tsc --noEmit`, `npm run build`, `git diff --check` — успешно. `npm run lint` не проходит на pre-existing Prettier/ESLint baseline (2 135 messages), без новых H8-specific ошибок.
 
 #### H11. Починить end-to-end AI generation в Quiz Builder — `DONE`
 

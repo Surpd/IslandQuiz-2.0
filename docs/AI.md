@@ -1,6 +1,6 @@
 # IslandQuiz — AI architecture
 
-Статус: фактическое описание текущего backend/frontend AI flow на 2026-08-18.
+Статус: canonical AI contract на 2026-08-19.
 
 ## Provider and entry point
 
@@ -33,7 +33,7 @@ Frontend передаёт параметры в `frontend/src/lib/api.ts`; promp
 
 Если `currentText` заполнен, endpoint использует improve prompt. Иначе создаёт новые варианты.
 
-Фактический успешный ответ:
+Успешный ответ всегда содержит ровно 3 структурно валидных варианта:
 
 ```json
 {
@@ -62,7 +62,7 @@ Frontend передаёт параметры в `frontend/src/lib/api.ts`; promp
 - `reroll?`;
 - `difficulty?`.
 
-Ответ также имеет форму `{ "variants": [...] }` с тремя вариантами.
+Ответ также имеет форму `{ "variants": [...] }` с ровно тремя валидными вариантами.
 
 ### `POST /api/ai/generate-quiz`
 
@@ -73,7 +73,9 @@ Frontend передаёт параметры в `frontend/src/lib/api.ts`; promp
 - `difficulty?`;
 - `wishes?`.
 
-`count` ограничивается backend диапазоном 5–20. Успешный ответ — объект с `title` и `questions`, где questions используют поля `type`, `difficulty`, `question` и type-specific fields.
+`count` ограничивается backend диапазоном 5–20. Успешный ответ — объект с `title` и ровно запрошенным после этого ограничения количеством вопросов; вопросы используют поля `type`, `difficulty`, `question` и type-specific fields.
+
+Текущий input использует общие `count` и `difficulty`, но это не ограничение продуктовой модели: последующее расширение может добавить отдельный объект generation preferences для типов вопросов, пропорций/количества по типам, mix сложности и дополнительных constraints. Такое расширение не должно менять текущие success shapes.
 
 ### `POST /api/ai/generate-jeopardy-categories`
 
@@ -89,6 +91,8 @@ Frontend передаёт параметры в `frontend/src/lib/api.ts`; promp
 }
 ```
 
+Успешный ответ содержит ровно 5 категорий с непустыми уникальными `name` и непустыми `description`.
+
 ### `POST /api/ai/generate-jeopardy-questions`
 
 Вход: `category`, `emptySlots`, `wishes?`.
@@ -103,6 +107,8 @@ Frontend передаёт параметры в `frontend/src/lib/api.ts`; promp
 }
 ```
 
+Успешный ответ содержит ровно по одному вопросу на каждый `emptySlots`; `points` не дублируются и точно соответствуют запрошенным слотам. Поля `difficulty`, `q` и `a` обязательны и непусты.
+
 ### `POST /api/ai/generate-from-file`
 
 Multipart form fields:
@@ -112,7 +118,7 @@ Multipart form fields:
 - `difficulty`, default `mixed`;
 - `wishes`, default empty string.
 
-Успешный ответ имеет тот же формат, что и `generate-quiz`: `{title, questions}`.
+Успешный ответ имеет тот же формат, что и `generate-quiz`: `{title, questions}` с ровно запрошенным (после ограничения 5–20) количеством вопросов.
 
 ## Prompt architecture
 
@@ -132,10 +138,11 @@ Prompt требует JSON, разнообразные вопросы, есте�
 1. Groq response принимается как text.
 2. `clean_json` удаляет Markdown code fences и лишний текст.
 3. `parse_ai_json` вызывает `json.loads`.
-4. `normalize_variants` приводит разные top-level формы к `variants` и добавляет `correctAnswer` для совместимости.
-5. Frontend проверяет success/error shape до обращения к arrays и показывает controlled error для empty/malformed payload.
+4. `normalize_variants` приводит legacy top-level формы к `variants` и добавляет `correctAnswer` для совместимости.
+5. Backend валидирует canonical success shape: 3 variants, requested Quiz count, 5 Jeopardy categories или точные Jeopardy slots.
+6. Frontend повторно проверяет success shape до обращения к arrays и показывает controlled error для empty/malformed payload.
 
-`backend/services/ai_validator.py` содержит структуру validator для отдельного H8 contract work, но H11 не применяет его как server-side gate к текущим AI success responses.
+`backend/services/ai_validator.py` — server-side gate для всех AI success responses.
 
 Validator проверяет:
 
@@ -149,7 +156,7 @@ Validator проверяет:
 
 Валидатор не проверяет истинность фактов.
 
-Jeopardy categories/questions сейчас после JSON parse возвращаются без такого же глубокого структурного validator pipeline.
+Jeopardy validator проверяет 5 уникальных категорий, а также набор вопросов, точно соответствующий `emptySlots` без повторяющихся points.
 
 ## Limits and failures
 
@@ -168,7 +175,7 @@ Usage записывается в `ai_usage`. Счётчик увеличива�
 
 Если `OPENAI_API_KEY` отсутствует, backend возвращает mock JSON, который не является полноценной генерацией и, как правило, не проходит дальнейшую валидацию.
 
-Ошибки Groq, timeout, пустой response и invalid JSON превращаются в controlled JSON error с HTTP `502`. Для provider code `model_not_found` backend возвращает controlled configuration error. Parser diagnostics содержат только type, length и leading shape output; key, полный prompt и raw AI response не логируются.
+Ошибки провайдера, timeout, пустой/некорректный output и invalid JSON превращаются в controlled HTTP `502` с `{ "error": string, "code": string }`. Ошибки файла и дневной лимит используют тот же envelope с соответствующим HTTP status. Для provider code `model_not_found` backend возвращает controlled configuration error. Parser diagnostics содержат только type, length и leading shape output; key, полный prompt и raw AI response не логируются.
 
 ## File processing limits
 

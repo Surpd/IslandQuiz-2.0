@@ -400,3 +400,72 @@ def validate_quiz(
         "valid": True,
         "quiz": quiz,
     }
+
+
+def validate_jeopardy_categories(categories: Any) -> dict:
+    if not isinstance(categories, list):
+        return _error("categories must be a list")
+
+    if len(categories) != 5:
+        return _error(f"Expected 5 categories, got {len(categories)}")
+
+    names = set()
+    valid_categories = []
+    for index, category in enumerate(categories):
+        if not isinstance(category, dict):
+            return _error(f"Category {index + 1} must be an object")
+
+        name = category.get("name")
+        description = category.get("description")
+        if not isinstance(name, str) or not name.strip():
+            return _error(f"Category {index + 1} name is empty")
+        if not isinstance(description, str) or not description.strip():
+            return _error(f"Category {index + 1} description is empty")
+
+        normalized_name = name.strip().lower()
+        if normalized_name in names:
+            return _error("Jeopardy category names must be unique")
+        names.add(normalized_name)
+        valid_categories.append(category)
+
+    return {"valid": True, "categories": valid_categories}
+
+
+def validate_jeopardy_questions(questions: Any, expected_slots: Any) -> dict:
+    if not isinstance(expected_slots, list) or not expected_slots:
+        return _error("emptySlots must be a non-empty list")
+    if len(expected_slots) != len(set(expected_slots)):
+        return _error("emptySlots must not contain duplicates")
+    if not all(isinstance(slot, int) and not isinstance(slot, bool) for slot in expected_slots):
+        return _error("emptySlots must contain integer point values")
+    if not isinstance(questions, list):
+        return _error("questions must be a list")
+    if len(questions) != len(expected_slots):
+        return _error(f"Expected {len(expected_slots)} questions, got {len(questions)}")
+
+    expected_points = set(expected_slots)
+    seen_points = set()
+    valid_questions = []
+    for index, question in enumerate(questions):
+        if not isinstance(question, dict):
+            return _error(f"Question {index + 1} must be an object")
+
+        points = question.get("points")
+        difficulty = question.get("difficulty")
+        text = question.get("q")
+        answer = question.get("a")
+        if not isinstance(points, int) or isinstance(points, bool):
+            return _error(f"Question {index + 1} points must be an integer")
+        if points not in expected_points or points in seen_points:
+            return _error("Jeopardy question points must match unique emptySlots")
+        if not isinstance(difficulty, str) or not difficulty.strip():
+            return _error(f"Question {index + 1} difficulty is empty")
+        if not isinstance(text, str) or not text.strip():
+            return _error(f"Question {index + 1} text is empty")
+        if not isinstance(answer, str) or not answer.strip():
+            return _error(f"Question {index + 1} answer is empty")
+
+        seen_points.add(points)
+        valid_questions.append(question)
+
+    return {"valid": True, "questions": valid_questions}

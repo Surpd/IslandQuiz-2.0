@@ -143,6 +143,8 @@
 
 ### H8. Согласовать фактический AI contract и документацию
 
+- **Статус реализации:** `DONE`. Canonical schema закрепляет 3 Quiz variants, точный Quiz count, 5 уникальных Jeopardy categories и Jeopardy questions точно по `emptySlots`; malformed/provider output возвращается как controlled `{error, code?}`. Добавлены server-side validators и минимальные contract fixtures. Future generation preferences будут расширять input без изменения текущих success shapes.
+
 - **Проблема/цель:** старый `md/AI_LOGIC.md` описывает один объект `question/options/correct`, а фактический API возвращает `{variants: [...]}` и поддерживает improve/file flows; frontend mapping и backend validator должны быть единым контрактом.
 - **Почему важно:** рассинхронизация ломает AI buttons, builders и дальнейшее изменение prompt/validator.
 - **Затрагивает:** `backend/routes/ai.py`, `backend/services/ai_prompts.py`, `backend/services/ai_validator.py`, `frontend/src/lib/api.ts`, AI components/builders, `docs/AI.md`, legacy `md/AI_LOGIC.md`.
