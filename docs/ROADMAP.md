@@ -26,7 +26,7 @@
 
 ### H11 — Quiz Builder AI generation (`IN_PROGRESS`, Terra / high)
 
-`ae47585` устранил два frontend TypeError, но не завершил working flow: production Groq response показал `model_not_found` для configured `llama-3.3-70b-versatile`. Strict gates из `6f6b3d6` маскировали provider error как invalid Quiz/variants; H11 возвращает endpoint response flow, использует configurable `GROQ_MODEL` и ждёт production confirmation.
+`ae47585` устранил два frontend TypeError, но не завершил working flow: production Groq response показал `model_not_found` для configured `llama-3.3-70b-versatile`. Strict gates из `6f6b3d6` маскировали provider error как invalid Quiz/variants; H11 возвращает endpoint response flow, использует configurable `GROQ_MODEL`, Groq JSON mode и ждёт production confirmation.
 
 Первоначально исправлены два пользовательских сбоя:
 

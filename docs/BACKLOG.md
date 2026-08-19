@@ -171,7 +171,7 @@
 
 ### H11. Починить end-to-end AI generation в Quiz Builder
 
-- **Статус:** `IN_PROGRESS`; `ae47585` устранил frontend TypeError, но production Groq response подтвердил root cause: configured `llama-3.3-70b-versatile` недоступна текущему key (`model_not_found`). Strict validation gate из `6f6b3d6` лишь маскировал provider error; H11 возвращает прежний response flow и вводит configurable `GROQ_MODEL`, а canonical backend validation остаётся H8 scope.
+- **Статус:** `IN_PROGRESS`; `ae47585` устранил frontend TypeError, но production Groq response подтвердил root cause: configured `llama-3.3-70b-versatile` недоступна текущему key (`model_not_found`). Strict validation gate из `6f6b3d6` лишь маскировал provider error; H11 использует configurable `GROQ_MODEL`, Groq JSON mode и controlled 502 для provider/parser failures, а canonical backend validation остаётся H8 scope.
 - **Проблема/цель:** full quiz generation падает с `Cannot read properties of undefined (reading 'map')`, а per-question AI helper — с `Cannot read properties of undefined (reading 'length')`. Нужно восстановить полный flow от AI response до builder state, а не скрыть TypeError защитной проверкой.
 - **Почему важно:** основная AI-функция Quiz Builder сейчас не работает и блокирует нормальную демонстрацию и практическое использование продукта.
 - **Затрагивает:** `frontend/src/components/ai-generate-quiz.tsx`, `frontend/src/components/ai-helper.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/src/lib/api.ts`, `backend/routes/ai.py` и mapping в builder.

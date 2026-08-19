@@ -13,6 +13,7 @@ https://api.groq.com/openai/v1/chat/completions
 Ключ берётся из `OPENAI_API_KEY`. Модель берётся из `GROQ_MODEL`; если variable не задан, backend использует `qwen/qwen3.6-27b`.
 
 Frontend передаёт параметры в `frontend/src/lib/api.ts`; prompts и модель формируются на backend.
+Для Quiz/Jeopardy generation backend запрашивает Groq JSON mode (`response_format: json_object`) и отключает reasoning output (`reasoning_effort: none`), чтобы `message.content` содержал JSON, а не prose/reasoning.
 
 ## Endpoints
 
@@ -167,7 +168,7 @@ Usage записывается в `ai_usage`. Счётчик увеличива�
 
 Если `OPENAI_API_KEY` отсутствует, backend возвращает mock JSON, который не является полноценной генерацией и, как правило, не проходит дальнейшую валидацию.
 
-Ошибки Groq, timeout, пустой response и invalid JSON превращаются в JSON-ответы с `error`. Для provider code `model_not_found` backend возвращает controlled configuration error и не логирует key, полный prompt или raw AI response.
+Ошибки Groq, timeout, пустой response и invalid JSON превращаются в controlled JSON error с HTTP `502`. Для provider code `model_not_found` backend возвращает controlled configuration error. Parser diagnostics содержат только type, length и leading shape output; key, полный prompt и raw AI response не логируются.
 
 ## File processing limits
 

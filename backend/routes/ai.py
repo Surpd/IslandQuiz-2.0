@@ -16,6 +16,7 @@ from fastapi import (
     Request,
     HTTPException,
 )
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -98,6 +99,10 @@ async def call_openai(prompt: str) -> str:
                         }
                     ],
                     "temperature": 0.7,
+                    "response_format": {
+                        "type": "json_object",
+                    },
+                    "reasoning_effort": "none",
                 },
             )
 
@@ -170,13 +175,18 @@ async def call_openai(prompt: str) -> str:
 
             content = message.get("content")
 
-            if not content:
+            if (
+                not isinstance(content, str)
+                or not content.strip()
+            ):
                 print(
-                    "[AI] Empty message content",
+                    "[AI] Empty message content:",
+                    ai_output_diagnostic(content),
                 )
 
                 return json.dumps({
-                    "error": "Empty AI content",
+                    "error": "AI returned empty content",
+                    "diagnostic": ai_output_diagnostic(content),
                 })
 
             return content
@@ -425,12 +435,68 @@ def parse_ai_json(raw: str):
 
     except json.JSONDecodeError as e:
 
+        diagnostic = ai_output_diagnostic(raw)
+        setattr(e, "ai_diagnostic", diagnostic)
+
         print(
             "[AI] JSON parse error:",
             str(e),
+            "diagnostic:",
+            diagnostic,
         )
 
         raise
+
+
+def ai_output_diagnostic(raw) -> dict:
+    if not isinstance(raw, str):
+        return {
+            "output_type": type(raw).__name__,
+            "length": 0,
+            "leading_shape": "non_string",
+        }
+
+    stripped = raw.lstrip()
+    if not stripped:
+        leading_shape = "whitespace"
+    elif stripped.startswith("```"):
+        leading_shape = "markdown_fence"
+    elif stripped.startswith("{"):
+        leading_shape = "json_object"
+    elif stripped.startswith("["):
+        leading_shape = "json_array"
+    else:
+        leading_shape = "non_json_text"
+
+    return {
+        "output_type": "string",
+        "length": len(raw),
+        "trimmed_length": len(raw.strip()),
+        "leading_shape": leading_shape,
+    }
+
+
+def ai_failure(
+    error: str,
+    diagnostic: dict | None = None,
+    code: str | None = None,
+) -> JSONResponse:
+    content = {"error": error}
+    if code:
+        content["code"] = code
+    if diagnostic:
+        content["diagnostic"] = diagnostic
+    return JSONResponse(status_code=502, content=content)
+
+
+def ai_error_response(result: dict) -> JSONResponse:
+    code = result.get("code")
+    diagnostic = result.get("diagnostic")
+    return ai_failure(
+        result["error"],
+        diagnostic if isinstance(diagnostic, dict) else None,
+        code if isinstance(code, str) else None,
+    )
 
 
 def is_ai_error(result) -> bool:
@@ -695,7 +761,7 @@ async def generate_question(
             result = parse_ai_json(raw)
 
             if is_ai_error(result):
-                return result
+                return ai_error_response(result)
 
             variants = normalize_variants(
                 result
@@ -705,12 +771,11 @@ async def generate_question(
                 "variants": variants,
             }
 
-        except json.JSONDecodeError:
-
-            return {
-                "error": "Invalid JSON",
-                "raw": raw[:1000],
-            }
+        except json.JSONDecodeError as error:
+            return ai_failure(
+                "AI returned invalid JSON",
+                getattr(error, "ai_diagnostic", None),
+            )
 
     # --------------------------------------------------------
     # NEW QUESTION
@@ -747,7 +812,7 @@ async def generate_question(
         result = parse_ai_json(raw)
 
         if is_ai_error(result):
-            return result
+            return ai_error_response(result)
 
         variants = normalize_variants(
             result
@@ -757,12 +822,11 @@ async def generate_question(
             "variants": variants,
         }
 
-    except json.JSONDecodeError:
-
-        return {
-            "error": "Invalid JSON",
-            "raw": raw[:1000],
-        }
+    except json.JSONDecodeError as error:
+        return ai_failure(
+            "AI returned invalid JSON",
+            getattr(error, "ai_diagnostic", None),
+        )
 
 
 # ============================================================
@@ -810,7 +874,7 @@ async def improve_question(
         result = parse_ai_json(raw)
 
         if is_ai_error(result):
-            return result
+            return ai_error_response(result)
 
         variants = normalize_variants(
             result
@@ -820,12 +884,11 @@ async def improve_question(
             "variants": variants,
         }
 
-    except json.JSONDecodeError:
-
-        return {
-            "error": "Invalid JSON",
-            "raw": raw[:1000],
-        }
+    except json.JSONDecodeError as error:
+        return ai_failure(
+            "AI returned invalid JSON",
+            getattr(error, "ai_diagnostic", None),
+        )
 
 
 # ============================================================
@@ -904,14 +967,16 @@ async def generate_quiz(
 
     try:
 
-        return parse_ai_json(raw)
+        result = parse_ai_json(raw)
+        if is_ai_error(result):
+            return ai_error_response(result)
+        return result
 
-    except json.JSONDecodeError:
-
-        return {
-            "error": "Invalid JSON",
-            "raw": raw[:1500],
-        }
+    except json.JSONDecodeError as error:
+        return ai_failure(
+            "AI returned invalid JSON",
+            getattr(error, "ai_diagnostic", None),
+        )
 
 
 # ============================================================
@@ -956,14 +1021,16 @@ async def generate_jeopardy_categories(
 
     try:
 
-        return parse_ai_json(raw)
+        result = parse_ai_json(raw)
+        if is_ai_error(result):
+            return ai_error_response(result)
+        return result
 
-    except json.JSONDecodeError:
-
-        return {
-            "error": "Invalid JSON",
-            "raw": raw[:1000],
-        }
+    except json.JSONDecodeError as error:
+        return ai_failure(
+            "AI returned invalid JSON",
+            getattr(error, "ai_diagnostic", None),
+        )
 
 
 # ============================================================
@@ -1006,14 +1073,16 @@ async def generate_jeopardy_questions(
 
     try:
 
-        return parse_ai_json(raw)
+        result = parse_ai_json(raw)
+        if is_ai_error(result):
+            return ai_error_response(result)
+        return result
 
-    except json.JSONDecodeError:
-
-        return {
-            "error": "Invalid JSON",
-            "raw": raw[:1000],
-        }
+    except json.JSONDecodeError as error:
+        return ai_failure(
+            "AI returned invalid JSON",
+            getattr(error, "ai_diagnostic", None),
+        )
 
 
 # ============================================================
@@ -1260,11 +1329,13 @@ async def generate_from_file(
 
     try:
 
-        return parse_ai_json(raw)
+        result = parse_ai_json(raw)
+        if is_ai_error(result):
+            return ai_error_response(result)
+        return result
 
-    except json.JSONDecodeError:
-
-        return {
-            "error": "Ошибка парсинга",
-            "raw": raw[:1500],
-        }
+    except json.JSONDecodeError as error:
+        return ai_failure(
+            "AI returned invalid JSON",
+            getattr(error, "ai_diagnostic", None),
+        )
