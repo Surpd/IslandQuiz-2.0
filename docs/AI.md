@@ -10,7 +10,7 @@ AI вызывается backend-функцией `call_openai` в `backend/route
 https://api.groq.com/openai/v1/chat/completions
 ```
 
-Ключ берётся из `OPENAI_API_KEY`. Модель зафиксирована backend-кодом как `llama-3.3-70b-versatile`.
+Ключ берётся из `OPENAI_API_KEY`. Модель берётся из `GROQ_MODEL`; если variable не задан, backend использует `qwen/qwen3.6-27b`.
 
 Frontend передаёт параметры в `frontend/src/lib/api.ts`; prompts и модель формируются на backend.
 
@@ -132,10 +132,11 @@ Prompt требует JSON, разнообразные вопросы, есте�
 2. `clean_json` удаляет Markdown code fences и лишний текст.
 3. `parse_ai_json` вызывает `json.loads`.
 4. `normalize_variants` приводит разные top-level формы к `variants` и добавляет `correctAnswer` для совместимости.
-5. `validate_variants` проверяет каждый вопрос.
-6. `validate_quiz` проверяет title, количество вопросов и каждый вопрос.
+5. Frontend проверяет success/error shape до обращения к arrays и показывает controlled error для empty/malformed payload.
 
-`backend/services/ai_validator.py` проверяет структуру, включая:
+`backend/services/ai_validator.py` содержит структуру validator для отдельного H8 contract work, но H11 не применяет его как server-side gate к текущим AI success responses.
+
+Validator проверяет:
 
 - допустимый type и difficulty;
 - четыре уникальных options для choice;
@@ -166,7 +167,7 @@ Usage записывается в `ai_usage`. Счётчик увеличива�
 
 Если `OPENAI_API_KEY` отсутствует, backend возвращает mock JSON, который не является полноценной генерацией и, как правило, не проходит дальнейшую валидацию.
 
-Ошибки Groq, timeout, пустой response и invalid JSON превращаются в JSON-ответы с `error`.
+Ошибки Groq, timeout, пустой response и invalid JSON превращаются в JSON-ответы с `error`. Для provider code `model_not_found` backend возвращает controlled configuration error и не логирует key, полный prompt или raw AI response.
 
 ## File processing limits
 

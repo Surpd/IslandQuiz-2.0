@@ -11,6 +11,11 @@ from routes.auth import get_current_user
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
+DEFAULT_GROQ_MODEL = os.getenv(
+    "GROQ_MODEL",
+    "qwen/qwen3.6-27b",
+)
+
 
 # ==================== HELPERS ====================
 
@@ -51,7 +56,7 @@ class AITestRequest(BaseModel):
     type: str = "choice"
     format: str = "quiz-choice"
     wishes: Optional[str] = None
-    model: Optional[str] = "llama-3.1-8b-instant"
+    model: Optional[str] = DEFAULT_GROQ_MODEL
     temperature: float = 0.8
 
 
@@ -59,20 +64,20 @@ class AITestQuizRequest(BaseModel):
     topic: str
     count: int = 10
     wishes: Optional[str] = None
-    model: Optional[str] = "llama-3.1-8b-instant"
+    model: Optional[str] = DEFAULT_GROQ_MODEL
 
 
 class AITestJeopardyCategoriesRequest(BaseModel):
     topic: str
     wishes: Optional[str] = None
-    model: Optional[str] = "llama-3.1-8b-instant"
+    model: Optional[str] = DEFAULT_GROQ_MODEL
 
 
 class AITestJeopardyQuestionsRequest(BaseModel):
     category: str
     empty_slots: List[int] = [100, 200, 300, 400, 500]
     wishes: Optional[str] = None
-    model: Optional[str] = "llama-3.1-8b-instant"
+    model: Optional[str] = DEFAULT_GROQ_MODEL
 
 
 # ==================== AI LAB ====================

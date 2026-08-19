@@ -44,6 +44,7 @@ Backend использует, среди прочего:
 - `TELEGRAM_AUTH_SECRET`;
 - `TELEGRAM_BOT_TOKEN`;
 - `OPENAI_API_KEY` для Groq;
+- `GROQ_MODEL` для Groq model ID (рекомендуемое текущее значение: `qwen/qwen3.6-27b`);
 - `RESEND_API_KEY`.
 
 Реальные значения должны задаваться только на VPS/в окружении процесса. Не добавлять `.env`, ключи, JWT secrets или service-role credentials в Git или документацию.

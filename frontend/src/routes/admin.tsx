@@ -15,6 +15,8 @@ export const Route = createFileRoute("/admin")({
 type AdminTab = "ai" | "users" | "games" | "stats" | "limits" | "logs";
 type AIMode = "question" | "quiz" | "jeopardy-categories" | "jeopardy-questions";
 
+const DEFAULT_GROQ_MODEL = "qwen/qwen3.6-27b";
+
 function AdminPage() {
   const { user } = useAuth();
 
@@ -113,7 +115,7 @@ function AIQuestionTest() {
   const [topic, setTopic] = useState("Древний Рим");
   const [type, setType] = useState("choice");
   const [wishes, setWishes] = useState("");
-  const [model, setModel] = useState("llama-3.1-8b-instant");
+  const [model, setModel] = useState(DEFAULT_GROQ_MODEL);
   const [temperature, setTemperature] = useState(0.8);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -161,7 +163,7 @@ function AIQuizTest() {
   const [topic, setTopic] = useState("Древний Рим");
   const [count, setCount] = useState(10);
   const [wishes, setWishes] = useState("");
-  const [model, setModel] = useState("llama-3.1-8b-instant");
+  const [model, setModel] = useState(DEFAULT_GROQ_MODEL);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
 
@@ -200,7 +202,7 @@ function AIQuizTest() {
 function AIJeopardyCategoriesTest() {
   const [topic, setTopic] = useState("Древний Рим");
   const [wishes, setWishes] = useState("");
-  const [model, setModel] = useState("llama-3.1-8b-instant");
+  const [model, setModel] = useState(DEFAULT_GROQ_MODEL);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
 
@@ -236,7 +238,7 @@ function AIJeopardyQuestionsTest() {
   const [category, setCategory] = useState("Древний Рим");
   const [slots, setSlots] = useState("100,200,300,400,500");
   const [wishes, setWishes] = useState("");
-  const [model, setModel] = useState("llama-3.1-8b-instant");
+  const [model, setModel] = useState(DEFAULT_GROQ_MODEL);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
 
@@ -288,10 +290,9 @@ function ModelSelect({
       <label className="block">
         <span className="text-xs font-semibold text-muted-foreground">Модель</span>
         <select className="input-base mt-1" value={model} onChange={(e) => setModel(e.target.value)}>
-          <option value="llama-3.1-8b-instant">Llama 3.1 8B</option>
-          <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
-          <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-          <option value="gemma-2-9b-it">Gemma 2 9B</option>
+          <option value="qwen/qwen3.6-27b">Qwen 3.6 27B</option>
+          <option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
+          <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
         </select>
       </label>
       {temperature !== undefined && setTemperature && (

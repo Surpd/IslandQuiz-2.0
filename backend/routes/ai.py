@@ -46,7 +46,10 @@ GROQ_URL = (
     "https://api.groq.com/openai/v1/chat/completions"
 )
 
-AI_MODEL = "llama-3.3-70b-versatile"
+AI_MODEL = os.getenv(
+    "GROQ_MODEL",
+    "qwen/qwen3.6-27b",
+)
 
 AI_TIMEOUT = 60.0
 
@@ -102,10 +105,34 @@ async def call_openai(prompt: str) -> str:
             # не пытаемся молча парсить ошибку Groq
             # как обычный AI JSON.
             if response.status_code >= 400:
+                provider_code = "unknown"
+                try:
+                    provider_error = response.json().get("error", {})
+                    if isinstance(provider_error, dict):
+                        provider_code = str(
+                            provider_error.get("code", "unknown")
+                        )
+                except Exception:
+                    pass
+
+                if provider_code == "model_not_found":
+                    print(
+                        "[AI] Groq model unavailable:",
+                        AI_MODEL,
+                    )
+                    return json.dumps({
+                        "error": (
+                            "AI provider configuration error: "
+                            "configured Groq model is unavailable."
+                        ),
+                        "code": provider_code,
+                    })
+
                 print(
                     "[AI] Groq HTTP error:",
                     response.status_code,
-                    response.text[:1000],
+                    "code:",
+                    provider_code,
                 )
 
                 return json.dumps({
@@ -117,10 +144,7 @@ async def call_openai(prompt: str) -> str:
                 data = response.json()
 
             except Exception:
-                print(
-                    "[AI] Groq returned invalid JSON:",
-                    response.text[:1000],
-                )
+                print("[AI] Groq returned invalid JSON")
 
                 return json.dumps({
                     "error": "Invalid response from Groq",
@@ -131,8 +155,8 @@ async def call_openai(prompt: str) -> str:
                 or not data["choices"]
             ):
                 print(
-                    "[AI] Bad response:",
-                    json.dumps(data)[:1000],
+                    "[AI] Bad response keys:",
+                    sorted(data.keys()) if isinstance(data, dict) else [],
                 )
 
                 return json.dumps({
@@ -148,8 +172,7 @@ async def call_openai(prompt: str) -> str:
 
             if not content:
                 print(
-                    "[AI] Empty message content:",
-                    json.dumps(data)[:1000],
+                    "[AI] Empty message content",
                 )
 
                 return json.dumps({
@@ -165,19 +188,15 @@ async def call_openai(prompt: str) -> str:
             "error": "AI request timeout",
         })
 
-    except httpx.RequestError as e:
-        print(
-            f"[AI] Groq request error: {e}"
-        )
+    except httpx.RequestError:
+        print("[AI] Groq request error")
 
         return json.dumps({
             "error": "AI connection error",
         })
 
-    except Exception as e:
-        print(
-            f"[AI] Unexpected error: {e}"
-        )
+    except Exception:
+        print("[AI] Unexpected error")
 
         return json.dumps({
             "error": "Unexpected AI error",
@@ -411,12 +430,15 @@ def parse_ai_json(raw: str):
             str(e),
         )
 
-        print(
-            "[AI] Raw response:",
-            raw[:2000],
-        )
-
         raise
+
+
+def is_ai_error(result) -> bool:
+    return (
+        isinstance(result, dict)
+        and isinstance(result.get("error"), str)
+        and bool(result["error"].strip())
+    )
 
 
 # ============================================================
@@ -672,6 +694,9 @@ async def generate_question(
 
             result = parse_ai_json(raw)
 
+            if is_ai_error(result):
+                return result
+
             variants = normalize_variants(
                 result
             )
@@ -720,6 +745,9 @@ async def generate_question(
     try:
 
         result = parse_ai_json(raw)
+
+        if is_ai_error(result):
+            return result
 
         variants = normalize_variants(
             result
@@ -780,6 +808,9 @@ async def improve_question(
     try:
 
         result = parse_ai_json(raw)
+
+        if is_ai_error(result):
+            return result
 
         variants = normalize_variants(
             result
