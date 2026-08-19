@@ -14,6 +14,8 @@ import {
   Play,
   GitFork,
   Trophy,
+  MoreHorizontal,
+  Pencil,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { PlayModal } from "@/components/play-modal";
@@ -168,13 +170,13 @@ function LibraryPage() {
   return (
     <div className="min-h-screen bg-surface">
       <SiteHeader />
-      <main className="mx-auto max-w-7xl px-6 py-10">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <main className="mx-auto max-w-7xl px-4 py-6 pb-24 sm:px-6 sm:py-10 sm:pb-10">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4 sm:mb-8">
           <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
               <LibraryIcon className="h-3.5 w-3.5" /> Библиотека
             </div>
-            <h1 className="font-display text-4xl font-bold tracking-tight">Игры</h1>
+            <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Игры</h1>
             <p className="mt-1 text-muted-foreground">
               {user ? "Кликните на карточку, чтобы открыть игру." : "Войдите, чтобы видеть свои игры."}
             </p>
@@ -195,7 +197,7 @@ function LibraryPage() {
 
         
 
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div className="mb-5 flex snap-x flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
           {tabs.map((t) => {
             const disabled = !user && (t.key === "my" || t.key === "added" || t.key === "played");
             return (
@@ -203,7 +205,7 @@ function LibraryPage() {
                 key={t.key}
                 disabled={disabled}
                 onClick={() => nav({ to: "/library", search: { tab: t.key } })}
-                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+                className={`shrink-0 snap-start rounded-full px-3 py-1.5 text-sm font-semibold transition-colors sm:px-4 ${
                   activeTab === t.key
                     ? "bg-foreground text-white"
                     : "bg-surface-muted text-muted-foreground hover:bg-border"
@@ -215,17 +217,18 @@ function LibraryPage() {
           })}
         </div>
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по названию или тегу…"
-            className="input-base min-w-[220px] flex-1"
+            className="input-base min-w-0"
           />
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as "date" | "rating" | "plays")}
-            className="input-base w-auto"
+            aria-label="Сортировка игр"
+            className="input-base w-[7.5rem] px-3 sm:w-auto"
           >
             <option value="date">По дате</option>
             <option value="rating">По рейтингу</option>
@@ -234,7 +237,7 @@ function LibraryPage() {
         </div>
 
         {popularTags.length > 0 && (
-          <div className="mb-6 flex flex-wrap items-center gap-1.5">
+          <div className="mb-6 flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
             {popularTags.map((t) => {
               const active = selectedTags.includes(t);
               return (
@@ -246,7 +249,7 @@ function LibraryPage() {
                   className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
                     active
                       ? "bg-primary text-white"
-                      : "bg-surface-muted text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                      : "shrink-0 bg-surface-muted text-muted-foreground hover:bg-primary-soft hover:text-primary"
                   }`}
                 >
                   #{t}
@@ -270,7 +273,7 @@ function LibraryPage() {
         )}
 
         {games === null && !error ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {[0, 1, 2].map((i) => (
               <div key={i} className="surface-card h-40 animate-pulse bg-surface-muted" />
             ))}
@@ -290,7 +293,7 @@ function LibraryPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {filtered.map((g) => (
               <GameCard
                 key={`${g.kind}-${g.id}`}
@@ -337,6 +340,7 @@ function GameCard({
 }) {
   const { user, forkGame } = useAuth();
   const nav = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
   const Icon = KIND_ICON[g.kind] ?? FileText;
   const VisIcon = g.visibility === "public" ? Globe : g.visibility === "link" ? Link2 : Lock;
   const isMine = user && g.ownerId === user.id;
@@ -355,11 +359,20 @@ function GameCard({
     onPlay();
   };
 
+  const editGame = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isMine) return;
+    if (g.kind === "quiz") nav({ to: "/builder/quiz", search: { id: g.id } });
+    if (g.kind === "jeopardy") nav({ to: "/builder/jeopardy", search: { id: g.id } });
+    if (g.kind === "millionaire") nav({ to: "/builder/millionaire", search: { id: g.id } });
+  };
+
   return (
     <Link
       to="/game/$id"
       params={{ id: g.id }}
-      className="surface-card group relative flex flex-col gap-3 overflow-hidden p-5 transition-all hover:-translate-y-0.5 hover:shadow-lift"
+      className="surface-card group relative flex flex-col gap-2.5 overflow-hidden p-4 transition-all hover:-translate-y-0.5 hover:shadow-lift sm:gap-3 sm:p-5"
     >
       <div className="flex items-center justify-between">
         <div
@@ -414,8 +427,8 @@ function GameCard({
         return count > 0 ? <RatingStars value={avg} count={count} size={12} /> : null;
       })()}
 
-      <div className="mt-auto flex flex-wrap items-center gap-2">
-        <p className="text-xs text-muted-foreground">
+      <div className="relative mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3">
+        <p className="mr-auto text-xs text-muted-foreground">
           {new Date(g.updatedAt).toLocaleDateString("ru-RU")}
         </p>
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Количество прохождений">
@@ -429,13 +442,61 @@ function GameCard({
             <UserPlus className="h-3 w-3" /> Добавить
           </button>
         )}
-        {(tab === "public" || tab === "played") && (
+        <button
+          onClick={openPlay}
+          className="inline-flex items-center gap-1 rounded-full bg-foreground px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90"
+        >
+          <Play className="h-3 w-3" /> Играть
+        </button>
+        {isMine && (
           <button
-            onClick={openPlay}
-            className="inline-flex items-center gap-1 rounded-full bg-foreground px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90"
+            type="button"
+            onClick={editGame}
+            className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
           >
-            <Play className="h-3 w-3" /> Играть
+            <Pencil className="h-3 w-3" /> Редактировать
           </button>
+        )}
+        <button
+          type="button"
+          aria-label="Дополнительные действия"
+          aria-expanded={menuOpen}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMenuOpen((open) => !open);
+          }}
+          className="grid h-7 w-7 place-items-center rounded-full border border-border-strong text-muted-foreground hover:bg-surface-muted hover:text-foreground"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+        {menuOpen && (
+          <div className="absolute bottom-11 right-0 z-20 min-w-44 overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-lift">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setMenuOpen(false);
+                nav({ to: "/game/$id", params: { id: g.id } });
+              }}
+              className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-surface-muted"
+            >
+              Открыть страницу игры
+            </button>
+            {isMine && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  setMenuOpen(false);
+                  editGame(e);
+                }}
+                className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-surface-muted"
+              >
+                Редактировать
+              </button>
+            )}
+          </div>
         )}
         {tab === "played" && (
           <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-semibold text-success">

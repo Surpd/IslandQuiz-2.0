@@ -142,8 +142,8 @@
 - **Файлы:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, Quiz/Jeopardy room components, reconnect/cache logic.
 - **Готово, когда:** сервер валидирует shape, phase, IDs, bounds, размер/частоту сообщений и повторные действия; frontend отправляет только допустимые actions.
 - **Проверки:** valid/invalid action tests, replay/out-of-order/oversized message tests, state transition tests для Quiz и Jeopardy, reconnect regression.
-- **Фактический результат:** backend валидирует Quiz и Jeopardy message size, phase transitions, IDs, question/category bounds, timer fields, answer/bet limits и replay/duplicate actions; frontend `api.ts` не отправляет room actions вне допустимых фаз и локально проверяет player/bounds payloads.
-- **Проверки:** `python -m unittest discover -s tests -p 'test*.py'` — 56 passed; room suite — 13 passed; Python compile, `npx tsc --noEmit`, `npm run build` и `git diff --check` — passed. `npm run lint` остаётся pre-existing frontend formatting/type baseline; Playwright smoke timeout на существующем login → library flow и rooms не покрывает.
+- **Фактический результат:** backend валидирует Quiz и Jeopardy message size, phase transitions, IDs, question/category bounds, timer fields, answer/bet limits и replay/duplicate actions; `create_room` имеет отдельный bounded limit 256 KiB для signed game snapshot, а обычные room actions остаются ограничены 16 KiB. Frontend `api.ts` не считает комнату созданной без подтверждённого `room_state`.
+- **Проверки:** `python -m unittest discover -s tests -p 'test*.py'` — 83 passed; добавлен regression flow large snapshot create → guest join; Python compile, `npx tsc --noEmit`, `npm run build` и `git diff --check` — passed. Existing Playwright smoke останавливается на pre-existing login → library failure и до online rooms не доходит.
 
 #### M3. Создать единый typed API/contract source of truth — `DEPENDENCY`
 

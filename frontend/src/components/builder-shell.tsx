@@ -105,7 +105,7 @@ export function BuilderShell({
         <button
           type="button"
           onClick={onSave}
-          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold text-white shadow-lift transition-transform hover:scale-[1.03] active:scale-95"
+          className="fixed bottom-20 right-4 z-40 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold text-white shadow-lift transition-transform hover:scale-[1.03] active:scale-95 sm:bottom-6 sm:right-6 sm:px-6"
           style={{
             background: theme ? "var(--pt-accent)" : "var(--primary)",
             color: theme ? "#000" : "#fff",

@@ -334,7 +334,7 @@ export function BuilderFabs({ kind, savedId, visibility, onVisibilityChange, onS
 
   return (
     <>
-      <div className="fixed bottom-4 right-4 left-4 z-40 flex items-center justify-end gap-1.5 sm:bottom-6 sm:right-6 sm:left-auto sm:gap-2">
+      <div className="fixed bottom-20 right-4 left-4 z-40 flex items-center justify-end gap-1.5 sm:bottom-6 sm:right-6 sm:left-auto sm:gap-2">
         {/* Visibility */}
         <div ref={visRef} className="relative" data-visibility={visibility}>
           <button

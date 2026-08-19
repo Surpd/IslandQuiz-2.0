@@ -92,6 +92,15 @@ function BuilderJeopardy() {
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
   const [visibility, setVisibility] = useState<GameVisibility>("private");
 
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const syncMode = () => {
+      if (media.matches) setMode("grid");
+    };
+    syncMode();
+    media.addEventListener("change", syncMode);
+    return () => media.removeEventListener("change", syncMode);
+  }, []);
 
   useEffect(() => {
     if (!urlId) return;
@@ -391,6 +400,7 @@ function BuilderJeopardy() {
       className="btn-ghost"
       onClick={() => setMode((m) => (m === "list" ? "grid" : "list"))}
       aria-label={mode === "list" ? "Плитки" : "Список"}
+      aria-pressed={mode === "grid"}
       title={mode === "list" ? "Плитки" : "Список"}
     >
       {mode === "list" ? <LayoutGrid className="h-4 w-4 shrink-0" /> : <List className="h-4 w-4 shrink-0" />}
@@ -475,7 +485,7 @@ function BuilderJeopardy() {
           onClose={() => setShowSettings(false)}
         />
       )}
-      <div className="surface-card space-y-3 p-6">
+      <div className="surface-card space-y-3 p-4 sm:p-6">
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
             Название игры
@@ -498,7 +508,7 @@ function BuilderJeopardy() {
 
 
       {rounds.map((round, ri) => (
-        <section key={ri} id={`round-${ri}`} className="surface-card space-y-4 p-6 scroll-mt-24">
+        <section key={ri} id={`round-${ri}`} className="surface-card min-w-0 space-y-4 p-4 scroll-mt-24 sm:p-6">
           <div className="flex items-center gap-2">
             <input
               className="input-base flex-1 font-display text-xl font-black text-primary"
@@ -525,12 +535,12 @@ function BuilderJeopardy() {
 
 
           {mode === "grid" ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {round.map((cat, ci) => (
-                <div key={ci} id={`cat-${ri}-${ci}`} className="rounded-2xl border border-border bg-surface-muted p-3">
+                <div key={ci} id={`cat-${ri}-${ci}`} className="min-w-0 rounded-2xl border border-border bg-surface-muted p-3">
                   <div className="mb-1 flex items-center gap-1">
                     <input
-                      className="input-base bg-white text-center font-bold"
+                      className="input-base min-w-0 flex-1 bg-white text-center font-bold"
                       placeholder={`Категория ${ci + 1}`}
                       maxLength={LIMITS.category}
                       value={cat.category}
@@ -570,7 +580,8 @@ function BuilderJeopardy() {
                         <div key={qi} className="group relative">
                           <button
                             onClick={() => setModal({ roundIdx: ri, catIdx: ci, qIdx: qi })}
-                            className={`w-full rounded-lg border-2 py-2 text-sm font-bold transition-all ${
+                            aria-label={`Открыть вопрос за ${q.points}`}
+                            className={`min-h-11 w-full rounded-lg border-2 py-2 text-sm font-bold transition-all ${
                               q.q
                                 ? "border-success bg-success-soft text-success"
                                 : "border-border-strong bg-white text-primary hover:border-primary"
@@ -581,10 +592,10 @@ function BuilderJeopardy() {
                           {cat.questions.length > 1 && (
                             <button
                               onClick={() => removeQuestion(ri, ci, qi)}
-                              className="absolute right-1 top-1 hidden rounded p-0.5 text-muted-foreground hover:bg-danger-soft hover:text-danger group-hover:block"
+                              className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded text-muted-foreground opacity-100 hover:bg-danger-soft hover:text-danger md:pointer-events-none md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:opacity-100"
                               aria-label="Удалить вопрос"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           )}
                         </div>
@@ -594,13 +605,13 @@ function BuilderJeopardy() {
                   <button
                     onClick={() => addQuestion(ri, ci)}
                     disabled={cat.questions.length >= LIMITS.jeopardyQuestionsPerCategory}
-                    className="mt-1 w-full rounded p-1 text-[11px] text-primary hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-1 min-h-10 w-full rounded p-1 text-xs font-semibold text-primary hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     + вопрос
                   </button>
                   <button
                     onClick={() => removeCategory(ri, ci)}
-                    className="mt-2 w-full rounded p-1 text-[11px] text-muted-foreground hover:text-danger"
+                    className="mt-2 min-h-10 w-full rounded p-1 text-xs text-muted-foreground hover:text-danger"
                   >
                     Удалить категорию
                   </button>
@@ -611,11 +622,11 @@ function BuilderJeopardy() {
           ) : (
             <div className="space-y-4">
               {round.map((cat, ci) => (
-                <div key={ci} id={`cat-${ri}-${ci}`} className="rounded-2xl border border-border p-4 scroll-mt-24">
+                <div key={ci} id={`cat-${ri}-${ci}`} className="min-w-0 rounded-2xl border border-border p-4 scroll-mt-24">
                   <div className="mb-3 flex gap-2">
                     <div className="flex-1">
                       <input
-                        className="input-base font-bold"
+                        className="input-base min-w-0 font-bold"
                         placeholder={`Категория ${ci + 1}`}
                         maxLength={LIMITS.category}
                         value={cat.category}
@@ -648,11 +659,11 @@ function BuilderJeopardy() {
                   </div>
                   <div className="space-y-2">
                     {cat.questions.map((q, qi) => (
-                      <div key={qi} className="flex flex-wrap items-center gap-2">
+                      <div key={qi} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2 sm:flex sm:flex-wrap sm:items-center">
                         <span className="grid h-10 w-16 flex-shrink-0 place-items-center rounded-lg bg-primary font-bold text-primary-foreground">
                           {q.points}
                         </span>
-                        <div className="flex-1">
+                        <div className="col-start-2 min-w-0 sm:flex-1">
                           <input
                             className="input-base"
                             placeholder="Вопрос"
@@ -665,7 +676,7 @@ function BuilderJeopardy() {
                           </div>
                         </div>
                         <input
-                          className="input-base flex-1"
+                          className="input-base col-start-2 min-w-0 w-full sm:flex-1"
                           placeholder="Ответ"
                           maxLength={LIMITS.option}
                           value={q.a}
@@ -673,7 +684,7 @@ function BuilderJeopardy() {
                         />
                         <button
                           onClick={() => setModal({ roundIdx: ri, catIdx: ci, qIdx: qi })}
-                          className="rounded-lg border border-border-strong bg-white p-2 hover:border-primary"
+                          className="col-start-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border-strong bg-white p-2 hover:border-primary sm:col-auto"
                           aria-label="Подробно"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -681,7 +692,7 @@ function BuilderJeopardy() {
                         {cat.questions.length > 1 && (
                           <button
                             onClick={() => removeQuestion(ri, ci, qi)}
-                            className="rounded-lg p-2 text-muted-foreground hover:bg-danger-soft hover:text-danger"
+                            className="col-start-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-muted-foreground hover:bg-danger-soft hover:text-danger sm:col-auto"
                             aria-label="Удалить вопрос"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -722,7 +733,7 @@ function BuilderJeopardy() {
         <Plus className="h-4 w-4" /> Добавить раунд
       </button>
 
-      <section id="final-block" className="surface-card space-y-3 border-2 border-amber/30 p-6 scroll-mt-24">
+      <section id="final-block" className="surface-card space-y-3 border-2 border-amber/30 p-4 scroll-mt-24 sm:p-6">
         <h2 className="font-display text-xl font-black text-amber">Финал</h2>
         <div>
           <input
@@ -795,14 +806,19 @@ function QuestionModal({
   const [a, setA] = useState(data.a);
   const [image, setImage] = useState(data.image ?? "");
   const qRef = useRef<HTMLTextAreaElement>(null);
-  const aRef = useRef<HTMLInputElement>(null);
+  const aRef = useRef<HTMLTextAreaElement>(null);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg animate-fade-up rounded-3xl bg-surface p-6 shadow-lift">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Вопрос за ${data.points}`}
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-foreground/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+    >
+      <div className="max-h-[90dvh] w-full max-w-lg animate-fade-up overflow-y-auto rounded-t-3xl bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-lift sm:max-h-none sm:rounded-3xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-lg font-bold">Вопрос за {data.points}</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <button onClick={onClose} className="grid h-11 w-11 place-items-center rounded-xl text-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground" aria-label="Закрыть">
             ✕
           </button>
         </div>
@@ -812,12 +828,12 @@ function QuestionModal({
               ref={qRef}
               rows={3}
               maxLength={LIMITS.question}
-              className="input-base pr-20"
+              className="input-base md:pr-20"
               placeholder="Текст вопроса"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-            <div className="absolute right-2 top-2 flex items-center gap-1">
+            <div className="mt-1 flex justify-end gap-1 md:absolute md:right-2 md:top-2 md:mt-0">
               <AIHelperButton
                 currentValue={q}
                 topic={topic}
@@ -831,15 +847,16 @@ function QuestionModal({
             </div>
           </div>
           <div className="relative">
-            <input
+            <textarea
               ref={aRef}
-              className="input-base pr-20"
+              className="input-base md:pr-20"
+              rows={2}
               maxLength={LIMITS.option}
               placeholder="Ответ"
               value={a}
               onChange={(e) => setA(e.target.value)}
             />
-            <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1">
+            <div className="mt-1 flex justify-end gap-1 md:absolute md:right-1.5 md:top-1/2 md:mt-0 md:-translate-y-1/2">
               <AIHelperButton
                 currentValue={a}
                 topic={topic}
@@ -851,11 +868,11 @@ function QuestionModal({
           </div>
           <ImageDrop value={image} onChange={setImage} />
         </div>
-        <div className="mt-6 flex justify-end gap-2">
-          <button onClick={onClose} className="btn-ghost">
+        <div className="mt-6 grid grid-cols-2 gap-2">
+          <button onClick={onClose} className="btn-ghost min-h-11 justify-center">
             Отмена
           </button>
-          <button onClick={() => onSave({ q, a, image })} className="btn-primary bg-primary">
+          <button onClick={() => onSave({ q, a, image })} className="btn-primary min-h-11 justify-center bg-primary">
             Сохранить
           </button>
         </div>

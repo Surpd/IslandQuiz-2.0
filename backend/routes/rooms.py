@@ -16,6 +16,8 @@ connections: dict[str, list[WebSocket]] = {}
 room_cleanup_tasks: dict[str, asyncio.Task] = {}
 ROOM_RECONNECT_GRACE_SECONDS = 60
 MAX_ROOM_MESSAGE_BYTES = 16 * 1024
+# create_room carries the signed snapshot, which can be much larger than actions.
+MAX_ROOM_CREATE_MESSAGE_BYTES = 256 * 1024
 MAX_ANSWER_LENGTH = 2000
 ROOM_RESULT_DB_ERROR = "Не удалось сохранить результат комнаты"
 
@@ -319,7 +321,8 @@ async def room_websocket(websocket: WebSocket, code: str):
     try:
         while True:
             raw = await websocket.receive_text()
-            if len(raw.encode("utf-8")) > MAX_ROOM_MESSAGE_BYTES:
+            raw_size = len(raw.encode("utf-8"))
+            if raw_size > MAX_ROOM_CREATE_MESSAGE_BYTES:
                 await send_error(websocket, "Сообщение комнаты слишком большое")
                 continue
             try:
@@ -341,6 +344,9 @@ async def room_websocket(websocket: WebSocket, code: str):
             action = data.get("action")
             if not isinstance(action, str):
                 await send_error(websocket, "Неизвестное действие комнаты")
+                continue
+            if raw_size > MAX_ROOM_MESSAGE_BYTES and action != "create_room":
+                await send_error(websocket, "Сообщение комнаты слишком большое")
                 continue
 
             # ==================== ОБЩИЕ ДЕЙСТВИЯ ====================

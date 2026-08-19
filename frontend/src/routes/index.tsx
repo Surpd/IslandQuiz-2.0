@@ -448,23 +448,6 @@ function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-border py-10">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 md:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="grid h-6 w-6 place-items-center rounded bg-foreground text-white">
-              <span className="text-[9px] font-black">IQ</span>
-            </div>
-            <span className="font-display text-sm font-bold">IslandQuiz</span>
-          </div>
-          <div className="flex items-center gap-6 text-xs text-muted-foreground">
-            <Link to="/faq" className="hover:text-foreground">FAQ</Link>
-            <Link to="/support" className="hover:text-foreground">Поддержать</Link>
-            <Link to="/privacy" className="hover:text-foreground">Конфиденциальность</Link>
-            <Link to="/terms" className="hover:text-foreground">Условия использования</Link>
-          </div>
-          <p className="text-xs text-muted-foreground">© 2026 IslandQuiz</p>
-        </div>
-      </footer>
     </div>
   );
 }
