@@ -11,6 +11,7 @@
 - Cloudflare public check остаётся diagnostic warning: `403` от edge не означает failure backend deployment.
 - Rollback capability через `workflow_dispatch(target_sha)` существует, но полный controlled rehearsal ещё не проведён.
 - Codex model routing зафиксирован в `docs/CODEX_MODEL_GUIDE.md` и связан с процессом через `AGENTS.md`.
+- H10 закрыта: Quiz и Jeopardy room protocol validation синхронизированы между backend и frontend, добавлены valid/invalid state-transition regressions.
 
 ## Recently completed
 
@@ -23,6 +24,9 @@
 - **H6 / DONE:** backend deployment automation работает; rollback rehearsal вынесен в H6.1.
 - **H8 / DONE:** canonical AI contract закреплён для Quiz, file и Jeopardy; provider/output failures имеют controlled error envelope.
 - **H7 / DONE:** baseline critical regression suite вырос с 16 до 35 backend tests и покрывает текущие auth, Telegram, visibility/results, AI и room contracts без изменения security architecture.
+- **H9 / DONE:** единый result access matrix закрывает owner/non-owner/admin/private/public/link paths; Jeopardy owner submit и cross-user played-game access исправлены, malformed result rows и PII filtering покрыты regression tests.
+- **H10 / DONE:** WebSocket room actions валидируют phase, shape, IDs, bounds, timers, payload limits и replay/duplicate actions для Quiz и Jeopardy; frontend facade фильтрует недопустимые actions до отправки.
+- **M4 / DONE:** backend routers нормализуют Supabase/API exceptions, `None`, empty и malformed responses; provider failures и room result persistence возвращают controlled errors, добавлены 80 regression tests.
 - **CODEX_MODEL_GUIDE:** для задач добавлен выбор Luna/Terra/Sol с условиями escalation.
 
 ## Broken / needs fix now
@@ -42,9 +46,9 @@ Frontend теперь нормализует success payload и переводи
 
 ## Next 3–5 recommended tasks
 
-1. **C3 — Server-side scoring и trusted results** — **Sol / high**. C2 уже закрыла identity/spoofing, но client-scored `correct`/`delta`/`score`/`streak` остаются недоверенными до server-side recalculation.
-2. **H9 — Единый контроль доступа к результатам** — **Sol / high**. Включая private Jeopardy/online submit owner-binding gap, зафиксированный H7 tests.
-3. **H10 — protocol validation WebSocket-комнат** — **Sol / high**. Дополнить C2 проверкой shape, phase, bounds и replay/out-of-order actions.
+1. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
+2. **M7/M9 — CI quality gates и monitoring** — **Terra / medium**. После стабилизации room protocol и deployment baseline.
+3. **M5 — Jeopardy AI validation** — **Terra / medium**. После закрепления canonical AI contract.
 
 Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
 

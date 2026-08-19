@@ -45,6 +45,27 @@ if not TELEGRAM_AUTH_SECRET:
 
 
 LOGIN_TOKEN_EXPIRE_MINUTES = 5
+DB_ERROR_DETAIL = "Ошибка базы данных"
+
+
+def _db_response(query):
+    try:
+        response = query.execute()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL) from exc
+    if response is None:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return response
+
+
+def _db_rows(query):
+    response = _db_response(query)
+    data = getattr(response, "data", None)
+    if data is None:
+        return []
+    if not isinstance(data, list):
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return [row for row in data if isinstance(row, dict)]
 
 
 def _base36(value: int) -> str:
@@ -263,22 +284,21 @@ def telegram_bot_login(
     # 1. Ищем аккаунт по Telegram ID
     # --------------------------------------------------------
 
-    res = (
+    res_rows = _db_rows(
         supabase
         .table("users")
         .select("*")
         .eq("telegram_id", telegram_id)
-        .execute()
     )
 
-    if not res.data and not token_data["user_id"] and not input.confirm:
+    if not res_rows and not token_data["user_id"] and not input.confirm:
         return {
             "ok": False,
             "needs_confirmation": True,
         }
 
-    if res.data:
-        user = res.data[0]
+    if res_rows:
+        user = res_rows[0]
 
         if token_data["user_id"] and str(user["id"]) != str(token_data["user_id"]):
             raise HTTPException(
@@ -303,57 +323,53 @@ def telegram_bot_login(
             updates["name"] = name[:100]
 
         if updates:
-            (
+            _db_response(
                 supabase
                 .table("users")
                 .update(updates)
                 .eq("id", user["id"])
-                .execute()
             )
 
-            refreshed = (
+            refreshed_rows = _db_rows(
                 supabase
                 .table("users")
                 .select("*")
                 .eq("id", user["id"])
-                .execute()
             )
 
-            if refreshed.data:
-                user = refreshed.data[0]
+            if refreshed_rows:
+                user = refreshed_rows[0]
 
     # --------------------------------------------------------
     # 2. Telegram привязывается к существующему аккаунту
     # --------------------------------------------------------
 
     elif token_data["user_id"]:
-        existing = (
+        existing_rows = _db_rows(
             supabase
             .table("users")
             .select("*")
             .eq("id", str(token_data["user_id"]))
-            .execute()
         )
 
-        if not existing.data:
+        if not existing_rows:
             raise HTTPException(
                 status_code=404,
                 detail="Пользователь не найден",
             )
 
-        user = existing.data[0]
+        user = existing_rows[0]
 
         # Защита от привязки одного Telegram
         # к двум аккаунтам.
-        already_bound = (
+        already_bound_rows = _db_rows(
             supabase
             .table("users")
             .select("id")
             .eq("telegram_id", telegram_id)
-            .execute()
         )
 
-        if already_bound.data:
+        if already_bound_rows:
             raise HTTPException(
                 status_code=409,
                 detail="Этот Telegram уже привязан к другому аккаунту",
@@ -372,24 +388,22 @@ def telegram_bot_login(
         if name:
             updates["name"] = name[:100]
 
-        (
+        _db_response(
             supabase
             .table("users")
             .update(updates)
             .eq("id", user["id"])
-            .execute()
         )
 
-        refreshed = (
+        refreshed_rows = _db_rows(
             supabase
             .table("users")
             .select("*")
             .eq("id", user["id"])
-            .execute()
         )
 
-        if refreshed.data:
-            user = refreshed.data[0]
+        if refreshed_rows:
+            user = refreshed_rows[0]
 
     # --------------------------------------------------------
     # 3. Создаём новый Telegram-only аккаунт
@@ -421,20 +435,19 @@ def telegram_bot_login(
             ).isoformat(),
         }
 
-        inserted = (
+        inserted_rows = _db_rows(
             supabase
             .table("users")
             .insert(user)
-            .execute()
         )
 
-        if not inserted.data:
+        if not inserted_rows:
             raise HTTPException(
-                status_code=500,
-                detail="Не удалось создать пользователя",
+                status_code=502,
+                detail=DB_ERROR_DETAIL,
             )
 
-        user = inserted.data[0]
+        user = inserted_rows[0]
 
     # --------------------------------------------------------
     # Проверяем бан
@@ -506,21 +519,20 @@ def telegram_complete(
             detail="В токене нет пользователя",
         )
 
-    res = (
+    res_rows = _db_rows(
         supabase
         .table("users")
         .select("*")
         .eq("id", str(token_data["user_id"]))
-        .execute()
     )
 
-    if not res.data:
+    if not res_rows:
         raise HTTPException(
             status_code=404,
             detail="Пользователь не найден",
         )
 
-    user = res.data[0]
+    user = res_rows[0]
 
     if user.get("banned"):
         raise HTTPException(

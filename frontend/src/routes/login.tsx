@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { PasswordInput } from "@/components/password-input";
 import { useAuth } from "@/hooks/use-auth";
+import { setAuthToken } from "@/lib/auth";
 
 
 export const Route = createFileRoute("/login")({
@@ -24,7 +25,6 @@ export const Route = createFileRoute("/login")({
 
 
 const TELEGRAM_TOKEN_KEY = "telegram_token";
-const AUTH_TOKEN_KEY = "islandquiz.token";
 
 
 function LoginPage() {
@@ -108,10 +108,7 @@ function LoginPage() {
       );
     }
   
-    localStorage.setItem(
-      AUTH_TOKEN_KEY,
-      data.token,
-    );
+    setAuthToken(data.token);
   
     window.history.replaceState(
       {},

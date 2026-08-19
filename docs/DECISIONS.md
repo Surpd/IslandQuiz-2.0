@@ -36,6 +36,8 @@
 
 Сервер является источником истины для правильности ответов, очков и итогового результата. Клиентские `correct`, `score`, `delta` и итоговые значения не являются доверенными. Host adjustment допускается только как отдельная явно фиксируемая ручная корректировка, не смешанная с автоматическим scoring. Для подтверждения результата сохраняются ответы, применённый game snapshot/version и данные, достаточные для server-side пересчёта.
 
+Для C3 принят промежуточный путь без production migration: неизменяемый snapshot и SHA-256 version от canonical `games.data` вычисляются backend-side и сохраняются в существующем JSON payload результата. Snapshot фиксируется при старте standalone-прохождения или комнаты; legacy rows без snapshot остаются untrusted. Целевая нормализованная `game_snapshots` table с FK переносится в P2/M11 после отдельного approval. В Jeopardy открытые ответы подтверждаются только явным решением host credential и сохраняются как auditable manual adjudication.
+
 ## AI
 
 14. Groq вызывается через OpenAI-compatible API, хотя backend helper называется `call_openai`.

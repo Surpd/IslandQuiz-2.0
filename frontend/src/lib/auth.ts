@@ -24,6 +24,19 @@ type StoredUser = User & {
 
 const USERS_KEY = "islandquiz.v1.auth.users";
 export const SESSION_KEY = "islandquiz.v1.auth.session";
+export const AUTH_TOKEN_KEY = "islandquiz.token";
+
+export function getAuthToken(): string | null {
+  return typeof window === "undefined" ? null : localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+export function setAuthToken(token: string): void {
+  if (typeof window !== "undefined") localStorage.setItem(AUTH_TOKEN_KEY, token);
+}
+
+export function clearAuthToken(): void {
+  if (typeof window !== "undefined") localStorage.removeItem(AUTH_TOKEN_KEY);
+}
 
 declare global {
   interface Window {

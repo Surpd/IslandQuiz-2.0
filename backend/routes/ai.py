@@ -40,6 +40,37 @@ from database import supabase
 
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
+DB_ERROR_DETAIL = "Ошибка базы данных"
+
+
+def _db_response(query):
+    try:
+        response = query.execute()
+    except Exception as exc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL) from exc
+    if response is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return response
+
+
+def _db_count(query) -> int:
+    from fastapi import HTTPException
+    response = _db_response(query)
+    count = getattr(response, "count", None)
+    if isinstance(count, int):
+        return count
+    rows = getattr(response, "data", None)
+    if rows is None:
+        return 0
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return len(rows)
+
+
+def _db_insert(query):
+    return _db_response(query)
 
 
 # ============================================================
@@ -543,7 +574,7 @@ def get_today_ai_count(
         "%Y-%m-%d"
     )
 
-    res = (
+    query = (
         supabase
         .table("ai_usage")
         .select(
@@ -558,14 +589,8 @@ def get_today_ai_count(
             "created_at",
             today,
         )
-        .execute()
     )
-
-    return (
-        res.count
-        if hasattr(res, "count")
-        else len(res.data or [])
-    )
+    return _db_count(query)
 
 
 def increment_ai_count(
@@ -573,12 +598,12 @@ def increment_ai_count(
     request_type: str,
 ):
 
-    supabase.table(
+    _db_insert(supabase.table(
         "ai_usage"
     ).insert({
         "user_id": user_id,
         "request_type": request_type,
-    }).execute()
+    }))
 
 
 def check_ai_limit(user):

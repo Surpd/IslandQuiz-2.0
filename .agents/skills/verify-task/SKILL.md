@@ -18,6 +18,12 @@ broken, nullable values, incorrect error paths, persistence gaps, authorization 
 and tests asserting the wrong thing. A build, typecheck, lint, or unit suite alone is
 never sufficient evidence for a user-facing runtime bug.
 
+When a frontend change can affect the existing smoke path, run `cd frontend; npm run
+test:e2e`. Treat its result as evidence only for the mocked login → Quiz Builder → save
+→ Library reopen → offline player → answer/finish flow. It does not verify real
+backend/Supabase persistence, Telegram, AI, online rooms, permissions, or production
+results; add targeted regression/integration checks for those subsystems.
+
 Use the read-only `reviewer` for sufficiently risky work or when independent review is
 requested. Do not change application code unless the user explicitly asks for fixes.
 

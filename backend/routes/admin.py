@@ -15,6 +15,8 @@ DEFAULT_GROQ_MODEL = os.getenv(
     "GROQ_MODEL",
     "qwen/qwen3.6-27b",
 )
+DB_ERROR_DETAIL = "Ошибка базы данных"
+AI_ERROR_DETAIL = "Ошибка AI-провайдера"
 
 
 # ==================== HELPERS ====================
@@ -24,18 +26,53 @@ def require_admin(user):
         raise HTTPException(status_code=403, detail="Access denied")
 
 
+def _db_response(query):
+    try:
+        response = query.execute()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL) from exc
+    if response is None:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return response
+
+
+def _response_rows(response) -> list[dict]:
+    rows = getattr(response, "data", None)
+    if rows is None:
+        return []
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return rows
+
+
+def _db_rows(query) -> list[dict]:
+    return _response_rows(_db_response(query))
+
+
+def _db_count(query) -> int:
+    response = _db_response(query)
+    count = getattr(response, "count", None)
+    if isinstance(count, int):
+        return count
+    return len(_response_rows(response))
+
+
 def _call_ai(model: str, prompt: str, temperature: float = 0.8) -> str:
     async def _call():
         url = "https://api.groq.com/openai/v1/chat/completions"
         key = os.getenv("OPENAI_API_KEY", "")
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                url,
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": temperature},
-            )
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
+            try:
+                response = await client.post(
+                    url,
+                    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                    json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": temperature},
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+            except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+                raise HTTPException(status_code=502, detail=AI_ERROR_DETAIL) from exc
     return asyncio.run(_call())
 
 
@@ -170,33 +207,35 @@ def list_users(
     user=Depends(get_current_user),
 ):
     require_admin(user)
-    res = supabase.table("users").select("*", count="exact").order("created_at", desc=True) \
-        .range(offset, offset + limit - 1).execute()
-    total = res.count if hasattr(res, 'count') else len(res.data or [])
-    return {"users": res.data or [], "total": total, "limit": limit, "offset": offset}
+    query = supabase.table("users").select("*", count="exact").order("created_at", desc=True) \
+        .range(offset, offset + limit - 1)
+    response = _db_response(query)
+    rows = _response_rows(response)
+    total = response.count if isinstance(getattr(response, "count", None), int) else len(rows)
+    return {"users": rows, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/users/{user_id}/ban")
 def toggle_ban(user_id: str, user=Depends(get_current_user)):
     require_admin(user)
-    target = supabase.table("users").select("banned").eq("id", user_id).execute()
-    if target.data:
-        new_status = not target.data[0].get("banned", False)
-        supabase.table("users").update({"banned": new_status}).eq("id", user_id).execute()
+    rows = _db_rows(supabase.table("users").select("banned").eq("id", user_id))
+    if rows:
+        new_status = not rows[0].get("banned", False)
+        _db_rows(supabase.table("users").update({"banned": new_status}).eq("id", user_id))
     return {"ok": True}
 
 
 @router.post("/users/{user_id}/make-admin")
 def make_admin(user_id: str, user=Depends(get_current_user)):
     require_admin(user)
-    supabase.table("users").update({"role": "admin"}).eq("id", user_id).execute()
+    _db_rows(supabase.table("users").update({"role": "admin"}).eq("id", user_id))
     return {"ok": True}
 
 
 @router.delete("/users/{user_id}")
 def delete_user(user_id: str, user=Depends(get_current_user)):
     require_admin(user)
-    supabase.table("users").delete().eq("id", user_id).execute()
+    _db_rows(supabase.table("users").delete().eq("id", user_id))
     return {"ok": True}
 
 
@@ -209,23 +248,25 @@ def list_all_games(
     user=Depends(get_current_user),
 ):
     require_admin(user)
-    res = supabase.table("games").select("*", count="exact").order("updated_at", desc=True) \
-        .range(offset, offset + limit - 1).execute()
-    total = res.count if hasattr(res, 'count') else len(res.data or [])
-    return {"games": res.data or [], "total": total, "limit": limit, "offset": offset}
+    query = supabase.table("games").select("*", count="exact").order("updated_at", desc=True) \
+        .range(offset, offset + limit - 1)
+    response = _db_response(query)
+    rows = _response_rows(response)
+    total = response.count if isinstance(getattr(response, "count", None), int) else len(rows)
+    return {"games": rows, "total": total, "limit": limit, "offset": offset}
 
 
 @router.delete("/games/{game_id}")
 def admin_delete_game(game_id: str, user=Depends(get_current_user)):
     require_admin(user)
-    supabase.table("games").delete().eq("id", game_id).execute()
+    _db_rows(supabase.table("games").delete().eq("id", game_id))
     return {"ok": True}
 
 
 @router.patch("/games/{game_id}/visibility")
 def admin_set_visibility(game_id: str, visibility: str = "public", user=Depends(get_current_user)):
     require_admin(user)
-    supabase.table("games").update({"visibility": visibility}).eq("id", game_id).execute()
+    _db_rows(supabase.table("games").update({"visibility": visibility}).eq("id", game_id))
     return {"ok": True}
 
 
@@ -234,15 +275,15 @@ def admin_set_visibility(game_id: str, visibility: str = "public", user=Depends(
 @router.get("/stats")
 def get_stats(user=Depends(get_current_user)):
     require_admin(user)
-    users = supabase.table("users").select("id", count="exact").execute()
-    games = supabase.table("games").select("id", count="exact").execute()
-    quiz_results = supabase.table("quiz_results").select("id", count="exact").execute()
-    online_results = supabase.table("online_quiz_results").select("id", count="exact").execute()
+    users = _db_count(supabase.table("users").select("id", count="exact"))
+    games = _db_count(supabase.table("games").select("id", count="exact"))
+    quiz_results = _db_count(supabase.table("quiz_results").select("id", count="exact"))
+    online_results = _db_count(supabase.table("online_quiz_results").select("id", count="exact"))
     return {
-        "users": users.count if hasattr(users, 'count') else len(users.data or []),
-        "games": games.count if hasattr(games, 'count') else len(games.data or []),
-        "quizResults": quiz_results.count if hasattr(quiz_results, 'count') else len(quiz_results.data or []),
-        "onlineResults": online_results.count if hasattr(online_results, 'count') else len(online_results.data or []),
+        "users": users,
+        "games": games,
+        "quizResults": quiz_results,
+        "onlineResults": online_results,
     }
 
 
@@ -251,15 +292,13 @@ def get_stats(user=Depends(get_current_user)):
 @router.get("/logs/errors")
 def get_error_logs(limit: int = 50, user=Depends(get_current_user)):
     require_admin(user)
-    res = supabase.table("error_logs").select("*").order("created_at", desc=True).limit(limit).execute()
-    return res.data or []
+    return _db_rows(supabase.table("error_logs").select("*").order("created_at", desc=True).limit(limit))
 
 
 @router.get("/logs/ai")
 def get_ai_logs(limit: int = 50, user=Depends(get_current_user)):
     require_admin(user)
-    res = supabase.table("ai_logs").select("*").order("created_at", desc=True).limit(limit).execute()
-    return res.data or []
+    return _db_rows(supabase.table("ai_logs").select("*").order("created_at", desc=True).limit(limit))
 
 
 # ==================== LIMITS ====================
@@ -267,18 +306,18 @@ def get_ai_logs(limit: int = 50, user=Depends(get_current_user)):
 @router.get("/limits")
 def get_limits(user=Depends(get_current_user)):
     require_admin(user)
-    res = supabase.table("settings").select("*").execute()
-    return {s["key"]: s["value"] for s in (res.data or [])}
+    rows = _db_rows(supabase.table("settings").select("*"))
+    return {s["key"]: s["value"] for s in rows if "key" in s and "value" in s}
 
 
 @router.post("/limits")
 def set_limit(key: str, value: str, user=Depends(get_current_user)):
     require_admin(user)
-    supabase.table("settings").upsert({"key": key, "value": value}).execute()
+    _db_rows(supabase.table("settings").upsert({"key": key, "value": value}))
     return {"ok": True}
 
 @router.post("/users/{user_id}/set-plan")
 def set_plan(user_id: str, plan: str = "free", user=Depends(get_current_user)):
     require_admin(user)
-    supabase.table("users").update({"plan": plan}).eq("id", user_id).execute()
+    _db_rows(supabase.table("users").update({"plan": plan}).eq("id", user_id))
     return {"ok": True}

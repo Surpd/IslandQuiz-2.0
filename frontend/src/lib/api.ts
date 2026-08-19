@@ -437,7 +437,20 @@ export async function getResults(gameId: string) {
   return Array.isArray(list) ? list.map(mapQuizResult) : [];
 }
 
-export async function submitResult(payload: Omit<QuizResult, "id" | "finishedAt">) {
+export async function createPlaySnapshot<T>(kind: GameKind, gameId: string) {
+  return apiFetch(`/api/games/${gameId}/play-snapshot`, {
+    method: "POST",
+    body: JSON.stringify({ kind }),
+  }) as Promise<{ data: T; version: string; snapshotToken: string }>;
+}
+
+export async function submitResult(payload: {
+  gameId: string;
+  playerName: string;
+  timeSec: number;
+  snapshotToken: string;
+  answers: { qId: string; given: string }[];
+}) {
   return apiFetch(`/api/quiz/${payload.gameId}/results`, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -451,7 +464,7 @@ export async function getMillionaireResults(gameId: string): Promise<Millionaire
 }
 
 export async function submitMillionaireResult(
-  payload: Omit<MillionaireResult, "id" | "finishedAt">,
+  payload: { gameId: string; playerName: string; timeSec: number; snapshotToken: string; answers: { qIdx: number; selectedIndex?: number }[] },
 ) {
   return apiFetch(`/api/millionaire/${payload.gameId}/results`, {
     method: "POST",
@@ -478,7 +491,12 @@ export async function getJeopardyGameDetail(
 }
 
 export async function submitJeopardyResult(
-  payload: Omit<JeopardyResult, "id" | "playedAt">,
+  payload: {
+    gameId: string;
+    snapshotToken: string;
+    teams: { id: string; name: string }[];
+    decisions: ({ kind: "question"; playerId: string; correct: boolean; round: number; catIdx: number; qIdx: number } | { kind: "final"; playerId: string; correct: boolean; bet: number })[];
+  },
 ) {
   return apiFetch(`/api/jeopardy/${payload.gameId}/results`, {
     method: "POST",
@@ -712,6 +730,16 @@ async function sendAndWaitState(code: string, payload: Record<string, unknown>):
   }
 }
 
+function sendJeopardyAction(
+  code: string,
+  payload: Record<string, unknown>,
+  phases: JeopardyPhase[],
+): Promise<RoomState | null> {
+  const state = roomConns.get(code)?.state;
+  if (!state?.jeopardy || !phases.includes(state.jeopardy.phase)) return Promise.resolve(state ?? null);
+  return sendAndWaitState(code, payload);
+}
+
 export function subscribeRoom(code: string, handler: (s: RoomState) => void) {
   if (typeof window === "undefined") return () => {};
   const conn = ensureRoomConn(code);
@@ -726,6 +754,7 @@ export function subscribeRoom(code: string, handler: (s: RoomState) => void) {
 }
 
 export async function createRoom(gameKind: GameKind, gameId: string) {
+  const snapshot = await createPlaySnapshot(gameKind, gameId);
   const code = String(Math.floor(1000 + Math.random() * 9000));
   const conn = ensureRoomConn(code);
   await conn.openPromise;
@@ -733,6 +762,7 @@ export async function createRoom(gameKind: GameKind, gameId: string) {
     action: "create_room",
     gameKind,
     gameId,
+    snapshotToken: snapshot.snapshotToken,
   });
   return { code, room_url: `/room/${code}` };
 }
@@ -807,62 +837,7 @@ export async function nextQuestion(code: string) {
 }
 
 export async function finishRoom(code: string) {
-  const s = await sendAndWaitState(code, { action: "finish" });
-  console.log("[finishRoom] state:", s ? "received" : "null", "gameKind:", s?.gameKind);
-  if (s?.gameKind === "quiz") {
-    try {
-      console.log("[finishRoom] loading game:", s.gameId);
-      const rec = await loadGame<QuizData>("quiz", s.gameId);
-      console.log("[finishRoom] game loaded:", rec ? "yes" : "no");
-      if (rec) {
-        const questions = rec.data.questions;
-        const maxScore = questions.reduce((sum, q) => sum + (q.points || 0), 0);
-        const durationSec = Math.max(0, Math.round((Date.now() - s.createdAt) / 1000));
-        const players = s.players.map((p) => {
-          const hist = p.answerHistory ?? [];
-          const answers: OnlineQuizPlayerAnswer[] = hist.map((a) => {
-            const q: QuizQuestion | undefined = questions[a.questionIdx];
-            const correctAnswer = q ? formatQuizAnswer(q) : "";
-            return {
-              questionIdx: a.questionIdx,
-              question: q?.q ?? `Вопрос ${a.questionIdx + 1}`,
-              given: q ? formatGivenAnswer(q, a.given) : a.given,
-              correctAnswer,
-              correct: a.correct,
-              earned: a.delta,
-              points: q?.points ?? 0,
-              timeMs: a.timeMs,
-            };
-          });
-          const correctCount = answers.filter((a) => a.correct).length;
-          return {
-            id: p.id,
-            nickname: p.nickname,
-            avatar: p.avatar,
-            score: p.score,
-            maxScore,
-            correctCount,
-            totalQuestions: questions.length,
-            answers,
-          };
-        });
-        console.log("[finishRoom] saving results...");
-        await apiFetch(`/api/quiz/${s.gameId}/online-results`, {
-          method: "POST",
-          body: JSON.stringify({
-            roomCode: s.code,
-            gameId: s.gameId,
-            durationSec,
-            players,
-          }),
-        });
-        console.log("[finishRoom] results saved");
-      }
-    } catch (err) {
-      console.error("Failed to save online room result", err);
-    }
-  }
-  return s;
+  return sendAndWaitState(code, { action: "finish" });
 }
 
 export async function kickPlayer(code: string, playerId: string) {
@@ -896,7 +871,7 @@ export function computeKahootScore(opts: {
 export async function submitAnswer(
   code: string,
   playerId: string,
-  payload: { correct: boolean; timeMs: number; totalMs: number; given?: string },
+  payload: { given?: string },
 ) {
   const s = roomConns.get(code)?.state;
   if (!s) return { correct: false, score: 0 };
@@ -905,23 +880,14 @@ export async function submitAnswer(
   if (p.lastAnswer?.questionIdx === s.questionIdx) {
     return { correct: p.lastAnswer.correct, score: p.score };
   }
-  const { delta, streakAfter } = computeKahootScore({
-    correct: payload.correct,
-    timeMs: payload.timeMs,
-    totalMs: payload.totalMs,
-    streakBefore: p.streak,
-  });
   await sendAndWaitState(code, {
     action: "answer",
-    correct: payload.correct,
-    delta,
-    streak: streakAfter,
-    timeMs: payload.timeMs,
     given: payload.given ?? "",
   });
   const after = roomConns.get(code)?.state;
   const player = after?.players.find((pl) => pl.id === playerId);
-  return { correct: payload.correct, score: player?.score ?? p.score + delta, delta };
+  const answer = player?.lastAnswer;
+  return { correct: answer?.correct ?? false, score: player?.score ?? p.score, delta: answer?.delta ?? 0 };
 }
 
 export async function getOnlineResults(gameId: string): Promise<OnlineQuizResult[]> {
@@ -939,11 +905,11 @@ export async function listRooms() {
 // =========================================================================
 
 export async function setJeopardyMode(code: string, mode: "buzz" | "turn") {
-  return sendAndWaitState(code, { action: "jeopardy_set_mode", mode });
+  return sendJeopardyAction(code, { action: "jeopardy_set_mode", mode }, ["lobby", "board"]);
 }
 
 export async function startJeopardyGame(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_start" });
+  return sendJeopardyAction(code, { action: "jeopardy_start" }, ["lobby"]);
 }
 
 export async function selectJeopardyQuestion(
@@ -960,6 +926,7 @@ export async function selectJeopardyQuestion(
     if (cur && cur !== playerId) return s;
   }
   if (j.mode === "buzz" && playerId) return s;
+  if (j.phase !== "board" || !Number.isInteger(catIdx) || catIdx < 0 || !Number.isInteger(qIdx) || qIdx < 0) return s;
   const key = `${j.round}-${catIdx}-${qIdx}`;
   if (j.usedKeys.includes(key)) return s;
 
@@ -975,24 +942,28 @@ export async function selectJeopardyQuestion(
     /* keep default */
   }
 
-  return sendAndWaitState(code, {
+  return sendJeopardyAction(code, {
     action: "jeopardy_select",
     catIdx,
     qIdx,
     questionTotalMs,
     questionStartAt: Date.now(),
-  });
+  }, ["board"]);
 }
 
 export async function submitJeopardyBuzzAnswer(code: string, playerId: string, given: string) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || s.jeopardy.phase !== "answering" || s.jeopardy.buzzedPlayerId !== playerId || !given.trim() || given.length > 2000) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_buzz_answer",
     given,
-  });
+  }, ["answering"]);
 }
 
 export async function finalizeJeopardyTurnWrong(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_turn_wrong_finalize" });
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || s.jeopardy.mode !== "turn" || !s.jeopardy.awaitingBonus) return s ?? null;
+  return sendJeopardyAction(code, { action: "jeopardy_turn_wrong_finalize" }, ["answering"]);
 }
 
 export async function buzzJeopardy(code: string, playerId: string) {
@@ -1001,10 +972,10 @@ export async function buzzJeopardy(code: string, playerId: string) {
   const j = s.jeopardy;
   if (j.mode !== "buzz" || j.phase !== "question" || j.buzzedPlayerId) return s;
   if (j.buzzedPlayerIds.includes(playerId)) return s;
-  return sendAndWaitState(code, {
+  return sendJeopardyAction(code, {
     action: "jeopardy_buzz",
     buzzStartAt: Date.now(),
-  });
+  }, ["question"]);
 }
 
 export async function acceptJeopardyAnswer(code: string, correct: boolean) {
@@ -1019,23 +990,23 @@ export async function acceptJeopardyAnswer(code: string, correct: boolean) {
   } catch {
     /* keep 0 */
   }
-  return sendAndWaitState(code, {
+  return sendJeopardyAction(code, {
     action: "jeopardy_accept",
     correct,
     points,
-  });
+  }, ["answering", "question"]);
 }
 
 export async function closeJeopardyQuestion(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_close_question" });
+  return sendJeopardyAction(code, { action: "jeopardy_close_question" }, ["question", "answering", "reveal"]);
 }
 
 export async function backToBoard(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_back_to_board" });
+  return sendJeopardyAction(code, { action: "jeopardy_back_to_board" }, ["question", "answering", "reveal"]);
 }
 
 export async function skipJeopardyQuestion(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_skip" });
+  return sendJeopardyAction(code, { action: "jeopardy_skip" }, ["question", "answering", "reveal"]);
 }
 
 export async function endJeopardyRound(code: string) {
@@ -1049,77 +1020,62 @@ export async function endJeopardyRound(code: string) {
       /* keep 1 */
     }
   }
-  return sendAndWaitState(code, { action: "jeopardy_end_round", totalRounds });
+  return sendJeopardyAction(code, { action: "jeopardy_end_round", totalRounds }, ["board"]);
 }
 
 export async function submitJeopardyFinalBet(code: string, playerId: string, bet: number) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  const player = s?.players.find((item) => item.id === playerId);
+  if (!s?.jeopardy || s.jeopardy.phase !== "final-bets" || !player || !Number.isInteger(bet) || bet < 0 || bet > Math.max(0, player.score)) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_final_bet",
     bet,
-  });
+  }, ["final-bets"]);
 }
 
 export async function startJeopardyFinalQuestion(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_final_start" });
+  return sendJeopardyAction(code, { action: "jeopardy_final_start" }, ["final-bets"]);
 }
 
 export async function submitJeopardyFinalAnswer(code: string, playerId: string, given: string) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || s.jeopardy.phase !== "final-question" || !s.players.some((item) => item.id === playerId) || !given.trim() || given.length > 2000) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_final_answer",
     given,
-  });
+  }, ["final-question"]);
 }
 
 export async function markJeopardyFinal(code: string, playerId: string, correct: boolean) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || s.jeopardy.phase !== "final-question" || !s.players.some((item) => item.id === playerId) || !(playerId in s.jeopardy.finalGiven) || playerId in s.jeopardy.finalAnswers) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_final_mark",
     playerId,
     correct,
-  });
+  }, ["final-question"]);
 }
 
 export async function revealJeopardyFinal(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_final_reveal" });
+  return sendJeopardyAction(code, { action: "jeopardy_final_reveal" }, ["final-question"]);
 }
 
 export async function advanceJeopardyFinalReveal(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_final_advance" });
+  return sendJeopardyAction(code, { action: "jeopardy_final_advance" }, ["final-reveal"]);
 }
 
 export async function finishJeopardyGame(code: string) {
-  const s = await sendAndWaitState(code, { action: "jeopardy_finish" });
-  if (s?.jeopardy) {
-    try {
-      const sorted = [...s.players].sort((a, b) => b.score - a.score);
-      const winner = sorted[0] ?? null;
-      const hasFinal = Object.keys(s.jeopardy.finalBets).length > 0;
-      await submitJeopardyResult({
-        gameId: s.gameId,
-        hasFinal,
-        winnerId: winner?.id ?? null,
-        teams: s.players.map((p) => ({
-          id: p.id,
-          name: p.nickname,
-          score: p.score,
-          correct: p.jCorrect ?? 0,
-          wrong: p.jWrong ?? 0,
-          finalBet: hasFinal ? (s.jeopardy!.finalBets[p.id] ?? 0) : undefined,
-          finalCorrect: hasFinal ? (s.jeopardy!.finalAnswers[p.id] ?? false) : undefined,
-        })),
-      });
-    } catch (err) {
-      console.error("Failed to save online jeopardy result", err);
-    }
-  }
-  return s;
+  return sendJeopardyAction(code, { action: "jeopardy_finish" }, ["final-reveal"]);
 }
 
 export async function adjustJeopardyScore(code: string, playerId: string, delta: number) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || !["board", "answering", "reveal"].includes(s.jeopardy.phase) || !s.players.some((item) => item.id === playerId) || !Number.isInteger(delta) || Math.abs(delta) > 1000000) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_adjust_score",
     playerId,
     delta,
-  });
+  }, ["board", "answering", "reveal"]);
 }
 
 // =========================================================================

@@ -8,7 +8,7 @@ import { RefreshCw, Timer, Sparkles } from "lucide-react";
 import { PlayerShell } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
 import { LaTeX } from "@/lib/latex";
-import { loadGame, submitResult } from "@/lib/api";
+import { createPlaySnapshot, submitResult } from "@/lib/api";
 import { formatQuizAnswer, formatGivenAnswer, checkQuizAnswerCore } from "@/lib/format-answer";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
@@ -16,7 +16,7 @@ import type { QuizData, QuizQuestion } from "@/lib/types";
 
 interface QAnswer {
   qId: string; correct: boolean; earned: number; question: string;
-  given: string; correctAnswer: string; points: number;
+  given: string; rawGiven: string; correctAnswer: string; points: number;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -44,6 +44,7 @@ export function PlayerV2Full({ data, gameId }: { data: QuizData; gameId?: string
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
   const startedAt = useRef<number>(0);
   const savedRef = useRef(false);
+  const [snapshotToken, setSnapshotToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && !nameTouched && !name) setName(user.name);
@@ -73,32 +74,32 @@ export function PlayerV2Full({ data, gameId }: { data: QuizData; gameId?: string
     return () => clearInterval(t);
   }, [phase, idx, order, config]);
 
-  const start = () => {
+  const start = async () => {
     if (!config) return;
+    let token: string | null = null;
+    if (gameId) {
+      try {
+        token = (await createPlaySnapshot<QuizData>("quiz", gameId)).snapshotToken;
+      } catch (error) {
+        console.error("Не удалось зафиксировать snapshot игры", error);
+        return;
+      }
+    }
     const ord = config.shuffleQuestions ? shuffle(questions.map((_, i) => i)) : questions.map((_, i) => i);
     setOrder(ord);
     setIdx(0); setAnswers([]); setCurrent(""); setFeedback(null);
-    startedAt.current = Date.now(); savedRef.current = false;
+    startedAt.current = Date.now(); savedRef.current = false; setSnapshotToken(token);
     setPhase("playing");
   };
 
   const persistResult = (finalAnswers: QAnswer[]) => {
     if (savedRef.current || !questions.length) return;
     savedRef.current = true;
-    const totalPts = questions.reduce((s, q) => s + q.points, 0);
-    const earned = finalAnswers.reduce((s, a) => s + a.earned, 0);
-    const correct = finalAnswers.filter((a) => a.correct).length;
     const timeSec = Math.max(0, Math.floor((Date.now() - startedAt.current) / 1000));
-    if (gameId) {
+    if (gameId && snapshotToken) {
       submitResult({
-        gameId: gameId, playerName: name.trim(), score: earned, maxScore: totalPts,
-        correctCount: correct, totalQuestions: questions.length, timeSec,
-        userId: user?.id, avatar: user?.avatar,
-        answers: finalAnswers.map(a => ({
-          qId: a.qId, question: a.question, given: a.given,
-          correctAnswer: a.correctAnswer, isCorrect: a.correct,
-          earned: a.earned, points: a.points,
-        })),
+        gameId, playerName: name.trim(), timeSec, snapshotToken,
+        answers: finalAnswers.map(a => ({ qId: a.qId, given: a.rawGiven })),
       }).then(saved => console.log("[quiz] результат сохранён", saved))
         .catch(e => { savedRef.current = false; console.error("Не удалось сохранить результат", e); });
     }
@@ -113,7 +114,7 @@ export function PlayerV2Full({ data, gameId }: { data: QuizData; gameId?: string
     const earned = isCorrect ? q.points : 0;
     const nextAnswers = [...answers, {
       qId: q.id, correct: isCorrect, earned, question: q.q,
-      given: timeout ? "" : formatGivenAnswer(q, current),
+      given: timeout ? "" : formatGivenAnswer(q, current), rawGiven: timeout ? "" : current,
       correctAnswer: formatQuizAnswer(q), points: q.points,
     }];
     setAnswers(nextAnswers);

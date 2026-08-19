@@ -24,6 +24,12 @@ exercise when applicable. A build, lint, typecheck, or unit suite alone does not
 user-facing runtime task. Reproduce runtime bugs when feasible and add a focused
 regression check when practical; do not add tests that merely mirror implementation.
 
+For frontend changes that can affect the covered browser path, run `cd frontend; npm
+run test:e2e`. This smoke test uses mocked auth/games/results APIs and covers only login,
+Quiz Builder, save, Library reopen, offline player, and answer/finish; it is not evidence
+for real persistence, Telegram, AI, online rooms, permissions, or production results.
+Use more targeted regression or integration checks when the task reaches those areas.
+
 Use the custom `reviewer` only for auth, authorization, permissions, WebSockets, scoring,
 security, database consistency, AI contracts, major state changes, broad changes,
 surviving fixes, ambiguous evidence, or an explicit request. If it returns material

@@ -33,6 +33,7 @@
 
 ### C3. Перенести расчёт результата на доверенную сторону
 
+- **Статус:** `DONE`. Quiz/Millionaire пересчитываются backend-side из signed snapshot; Jeopardy фиксирует auditable host decisions, а online results сохраняет room backend из server-held state. Для текущей реализации snapshot/version сохраняются в existing result JSON без production migration; нормализованная snapshot table остаётся target design P2/M11. Legacy rows без snapshot — untrusted.
 - **Проблема/цель:** одиночный player считает ответы и score на frontend; room actions и result payload также передают `correct`, `delta`, `score` и историю от клиента. Нужен независимый пересчёт по game snapshot и правилам конкретного формата.
 - **Почему важно:** иначе пользователь может отправить завышенный результат, а сохранённая статистика и leaderboard не являются доказательством прохождения.
 - **Затрагивает:** players всех трёх форматов, `backend/routes/results.py`, `backend/routes/rooms.py`, `games.data`, `frontend/src/lib/api.ts`, таблицы результатов и online rooms.
@@ -161,6 +162,7 @@
 
 ### H9. Ввести единый контроль доступа к результатам и online results
 
+- **Статус:** `DONE`. Закрыты admin/private result view, owner identity для Jeopardy submit, cross-user tampering в `/played-games/{user_id}`, endpoint-level access matrix, nested PII filtering и PII/malformed-row regression tests; production DB/RLS не изменялись.
 - **Проблема/цель:** доступ к результатам реализован отдельными endpoint-ветками и разными payload; нужно проверить owner/admin/public/link semantics, userId filters и доступ к online player data.
 - **Почему важно:** результаты могут раскрывать персональные данные или быть недоступны законному владельцу; разрозненная authorization логика создаёт обходы.
 - **Затрагивает:** `backend/routes/results.py`, `backend/routes/games.py`, frontend results/dashboard/profile routes, `quiz_results`, `jeopardy_results`, `millionaire_results`, `online_quiz_results`.
@@ -171,6 +173,7 @@
 
 ### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation
 
+- **Статус:** `DONE`; backend и frontend validation закрывают room message size, phases, IDs, bounds, timer/answer/bet limits и duplicate/replay actions для Quiz и Jeopardy. Добавлены invalid и valid state-transition regressions.
 - **Проблема/цель:** действия room могут передавать произвольные значения `delta`, timestamps, IDs, индексы и phase-related fields; нет единой schema validation и понятных ошибок для invalid state.
 - **Почему важно:** даже после базовой авторизации malformed/replayed actions могут ломать состояние или вызывать исключения.
 - **Затрагивает:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, Quiz/Jeopardy room components, reconnect/cache.
@@ -223,12 +226,15 @@
 
 ### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API
 
+- **Статус:** `DONE`; targeted backend router slices завершены без изменения schema, business rules, API success contracts или production data.
 - **Проблема/цель:** прямые обращения роутов к `res.data`, `data[0]` и полям разных таблиц требуют единой проверки ошибок, `None` и пустых результатов.
 - **Почему важно:** редкие ошибки БД/неполная запись превращаются в 500, частичное сохранение или неясную ошибку пользователю.
 - **Затрагивает:** `backend/database.py`, все затронутые routers/services, frontend API facade и error UI.
 - **Зависимости:** C5; определить mapping Supabase errors в стабильные HTTP errors и logging policy.
 - **Сложность:** L.
 - **Самостоятельность:** да после schema audit, без изменения бизнес-правил.
+- **Решение:** локальные DB/API normalization helpers добавлены в `games.py`, `admin.py`, `users.py`, `results.py`, `feedback.py`, `ai.py`, `auth.py` и `telegram_auth.py`; room result persistence отправляет controlled WebSocket error при exception/`None`/empty response. Добавлены regression tests для DB exceptions, `None`, empty, malformed rows, provider failures и duplicate/constraint semantics.
+- **Проверки:** backend regression — 80 passed; Python compile и `git diff --check` — passed. Frontend contract не менялся.
 
 ### M5. Довести Jeopardy AI до уровня валидации обычного Quiz
 

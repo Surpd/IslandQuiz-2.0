@@ -4,7 +4,7 @@ import { Sparkles, RefreshCw } from "lucide-react";
 import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
 import { LaTeX } from "@/lib/latex";
-import { loadGame, submitMillionaireResult, type MillionaireAnswerDetail } from "@/lib/api";
+import { createPlaySnapshot, loadGame, submitMillionaireResult, type MillionaireAnswerDetail } from "@/lib/api";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
 import type { MilestoneMode, MillionaireData, MillionaireQuestion } from "@/lib/types";
@@ -40,8 +40,9 @@ function PlayMillionaire() {
   const [hidden, setHidden] = useState<Set<number>>(new Set());
   const [timeLeft, setTimeLeft] = useState(0);
   const startedAtRef = useRef<number>(Date.now());
-  const answersRef = useRef<MillionaireAnswerDetail[]>([]);
+  const answersRef = useRef<Array<MillionaireAnswerDetail & { selectedIndex?: number }>>([]);
   const savedRef = useRef(false);
+  const [snapshotToken, setSnapshotToken] = useState<string | null>(null);
 
   useEffect(() => {
     let cancel = false;
@@ -104,19 +105,13 @@ function PlayMillionaire() {
   useEffect(() => {
     if (phase === "playing" || phase === "start" || savedRef.current || !questions.length) return;
     savedRef.current = true;
-    const reached = answersRef.current.filter((a) => a.isCorrect).length;
+    if (!snapshotToken) return;
     void submitMillionaireResult({
       gameId: id,
       playerName: playerName.trim() || user?.name || "Аноним",
-      avatar: user?.avatar,
-      outcome: phase,
-
-      wonAmount,
-      guaranteedAmount: guaranteedMoney(idx, questions, milestones),
-      reachedCount: reached,
-      totalQuestions: questions.length,
       timeSec: Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)),
-      answers: [...answersRef.current],
+      snapshotToken,
+      answers: answersRef.current.map((answer) => ({ qIdx: answer.qIdx, selectedIndex: answer.selectedIndex })),
     });
   }, [phase, wonAmount, id, idx, user, questions, milestones, playerName]);
 
@@ -151,6 +146,7 @@ function PlayMillionaire() {
       const isCorrect = oi === correctIdx;
       answersRef.current.push({
         qIdx: idx,
+        selectedIndex: oi,
         money: current.money,
         question: current.q,
         given: `${String.fromCharCode(65 + oi)}. ${current.options[oi]?.text ?? ""}`,
@@ -225,8 +221,12 @@ function PlayMillionaire() {
               />
               <button
                 onClick={() => {
-                  startedAtRef.current = Date.now();
-                  setPhase("playing");
+                  void createPlaySnapshot<MillionaireData>("millionaire", id).then((snapshot) => {
+                    setData(snapshot.data);
+                    setSnapshotToken(snapshot.snapshotToken);
+                    startedAtRef.current = Date.now();
+                    setPhase("playing");
+                  }).catch((error) => console.error("Не удалось зафиксировать snapshot игры", error));
                 }}
                 disabled={!playerName.trim()}
                 className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[color:var(--pt-accent)] px-8 py-3 font-bold text-black transition-transform hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"

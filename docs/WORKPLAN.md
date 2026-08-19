@@ -134,7 +134,7 @@
 - **Фактический результат:** production Groq response подтвердил root cause: configured `llama-3.3-70b-versatile` больше недоступна текущему key (`model_not_found`). Strict backend validation из `6f6b3d6` маскировал provider error как invalid Quiz/variants, но не был первопричиной. H11 использует `response_format: json_object`, configurable `GROQ_MODEL` и controlled 502 для provider/parser failures. Production smoke подтвердил full Quiz, per-question/helper, matching, Jeopardy categories/questions и save/open/play path.
 - **Проверки:** current-key Groq model listing; Qwen JSON-mode probes для full Quiz (10 questions) и helper (3 variants); Python syntax, `npx tsc --noEmit`, `npm run build`, `git diff --check`; production UI smoke: generate-quiz, generate-question, Jeopardy categories/questions, save/open/play. `npm run lint` не проходит на существующем общем Prettier/ESLint baseline (2145 problems), не исправлявшемся в H11. Transient Groq `429 rate_limit_exceeded` корректно стал 502; UX/monitoring policy для rate limits остаётся H8/H7/M9 follow-up.
 
-#### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation — `DEPENDENCY`
+#### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation — `DONE`
 
 - **Зависимости:** сначала описать state machine и все action/state fields; реализация следует после C2 и согласования scoring/room protocol.
 - **Блокирующие D1–D9:** нет; inventory и schema draft доступны, завершение зависит от C2 и protocol/scoring contracts.
@@ -142,6 +142,8 @@
 - **Файлы:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, Quiz/Jeopardy room components, reconnect/cache logic.
 - **Готово, когда:** сервер валидирует shape, phase, IDs, bounds, размер/частоту сообщений и повторные действия; frontend отправляет только допустимые actions.
 - **Проверки:** valid/invalid action tests, replay/out-of-order/oversized message tests, state transition tests для Quiz и Jeopardy, reconnect regression.
+- **Фактический результат:** backend валидирует Quiz и Jeopardy message size, phase transitions, IDs, question/category bounds, timer fields, answer/bet limits и replay/duplicate actions; frontend `api.ts` не отправляет room actions вне допустимых фаз и локально проверяет player/bounds payloads.
+- **Проверки:** `python -m unittest discover -s tests -p 'test*.py'` — 56 passed; room suite — 13 passed; Python compile, `npx tsc --noEmit`, `npm run build` и `git diff --check` — passed. `npm run lint` остаётся pre-existing frontend formatting/type baseline; Playwright smoke timeout на существующем login → library flow и rooms не покрывает.
 
 #### M3. Создать единый typed API/contract source of truth — `DEPENDENCY`
 
@@ -213,7 +215,7 @@
 - **Готово, когда:** workflow вручную публикует предыдущий подтверждённый SHA, проходят exact SHA/systemd/local health checks, затем workflow возвращает актуальный SHA с теми же проверками.
 - **Проверки:** два ручных `workflow_dispatch`; Cloudflare URL остаётся diagnostic и не блокирует backend rollback.
 
-#### H9. Ввести единый контроль доступа к результатам и online results — `DEPENDENCY`
+#### H9. Ввести единый контроль доступа к результатам и online results — `DONE`
 
 - **Зависимости:** D6, D5 и аудит identity/production schema; затем единая matrix owner/non-owner/admin/public/link.
 - **Блокирующие D1–D9:** нет; остаются identity/schema audit и authorization matrix.
@@ -222,6 +224,8 @@
 - **Готово, когда:** один принцип доступа действует одинаково для Quiz, Jeopardy, Millionaire и online results; userId из клиента не расширяет права.
 - **Проверки:** owner/non-owner/admin/anonymous/link tests, cross-user ID tampering, PII exposure checks, empty/error Supabase responses.
 - **H7 handoff:** текущие `submit_jeopardy_result` и `submit_online_result` вызывают private-game check без текущего owner identity, поэтому private owner submit получает `403`; baseline regression test фиксирует это поведение. Исправление и единая matrix доступа — scope H9, не H7.
+- **Фактический результат:** единый application-level access helper применяется ко всем result readers; admin видит private results, owner/non-owner/private/public/link matrix покрыта endpoint-level tests, Jeopardy submit получает current user, а `/played-games/{user_id}` блокирует cross-user ID tampering. Result rows и nested teams/players проходят None/malformed normalization; online players и Jeopardy teams отдаются только разрешёнными полями.
+- **Проверки завершения:** `python -m unittest discover -s tests -p 'test*.py'` — 51 passed; Python compile и `git diff --check` — passed. Reviewer reports выявили и закрыли nested PII/malformed-game риски, но финальный reviewer PASS не получен; после последних исправлений выполнен manual security fallback review по diff и тестам: PASS для заявленного H9 scope. Production DB/RLS не изменялись.
 
 После закрытия D1/D2/D3/D5/D6/D7 C4 закрыта, а C4.1 остаётся отдельной зависимой задачей; H3 и H5 можно запускать, H6 завершена, C2 также готова к реализации. C1 требует отдельного approval для production storage/migration. H9 переходит в подготовку после завершения identity/schema audit. C3, H10, M5 и P3 больше не заблокированы решениями, но зависят от C2, H8 и соответствующих контрактов.
 
@@ -239,14 +243,14 @@
 - **C3 bridge:** C2 закрывает identity, authorization и spoofing, но не trusted scoring. После C2 `correct`, `delta`, `score` и `streak` в `answer` остаются legacy client-scored payload только от server-identified own-player socket. C3 обязана заменить их серверным пересчётом из versioned game snapshot и ответов.
 - **Проверки завершения:** `python -m unittest discover -s tests -p 'test*.py'` — 38 passed; targeted room authorization suite — 7 passed; `python -m py_compile routes/rooms.py`, `npx tsc --noEmit`, `npm run build`, `git diff --check` — passed. Full lint остаётся pre-existing baseline (2,000+ Prettier/ESLint messages), не относящийся к C2.
 
-#### C3. Перенести расчёт результата на доверенную сторону — `DEPENDENCY`
+#### C3. Перенести расчёт результата на доверенную сторону — `DONE`
 
-- **Зависимости:** D2, D3 и C2; нужен versioned game snapshot и единые правила для трёх форматов.
-- **Блокирующие D1–D9:** нет; завершение зависит от C2 и versioned game snapshot.
+- **Зависимости:** D2, D3 и C2 — выполнены. Владелец утвердил промежуточный snapshot в existing result JSON без production migration; целевая `game_snapshots` table перенесена в P2/M11.
+- **Блокирующие D1–D9:** нет.
 - **Техническое исследование до решения:** да — каталогизировать scoring inputs и result payloads всех players/rooms.
 - **Файлы:** players трёх форматов, `backend/routes/results.py`, `backend/routes/rooms.py`, `games.data`, `frontend/src/lib/api.ts`, result tables.
-- **Готово, когда:** сервер независимо пересчитывает score из snapshot и ответов; подмена `correct`, `delta`, `score` или history не меняет итог.
-- **Проверки:** golden fixtures для Quiz/Jeopardy/Millionaire, tampered payloads, duplicate submit, online/standalone parity, old snapshot regression.
+- **Фактический результат:** Quiz и Millionaire принимают только raw answers из signed immutable snapshot; standalone Jeopardy сохраняет auditable manual decisions и пересчитывает points/bets/winner сервером; room backend сохраняет Quiz/Jeopardy results из server-held state. Legacy direct online-result POST отключён (`410`), а Quiz ручная корректировка score отключена. Snapshot/version остаются в existing result JSON без migration; legacy rows без envelope остаются untrusted.
+- **Проверки:** `python -m unittest discover -s tests -p 'test*.py'` — 45 passed; Python compile, `npx tsc --noEmit`, `npm run build`, `git diff --check` — passed. Reviewer security/WebSocket/scoring — PASS. `npm run lint` остаётся pre-existing baseline; Playwright smoke не проходит на unrelated login → library mock flow и не покрывает C3 rooms/Jeopardy.
 
 #### C5. Аварийная проверка Supabase schema, RLS и ограничений — `DONE`
 
@@ -266,7 +270,7 @@
 - **Готово, когда:** выбранная topology не теряет или явно корректно завершает комнату при restart и не допускает расходящихся состояний между workers.
 - **Проверки:** restart test, two-worker test, concurrent actions/version conflict, TTL cleanup, reconnect and result finalization.
 
-#### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API — `DEPENDENCY`
+#### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API — `DONE`
 
 - **Зависимости:** C5; сначала карта реальных ошибок и полей, затем стабильный HTTP error mapping.
 - **Блокирующие D1–D9:** нет; C5 и read-only schema audit уже выполнены.
@@ -274,6 +278,8 @@
 - **Файлы:** `backend/database.py`, затронутые routers/services, frontend API facade и error UI.
 - **Готово, когда:** empty/None/error от Supabase не превращаются в случайный 500 или частичное сохранение; frontend получает понятную стабильную ошибку.
 - **Проверки:** empty result, `None`, DB error, duplicate/constraint error, timeout и malformed response tests; backend syntax и frontend checks.
+- **Результат:** targeted wrappers завершены в `games.py`, `admin.py`, `users.py`, `results.py`, `feedback.py`, `ai.py`, `auth.py` и `telegram_auth.py`; `rooms.py` возвращает стабильное WebSocket error-событие при сбое сохранения результата. Exceptions, `None`, empty и malformed DB/API responses не проходят как случайные 500, а endpoint-specific empty semantics и успешные flows сохранены.
+- **Проверка:** `python -m unittest discover -s tests -p 'test*.py'` — 80 passed; `python -m compileall -q routes services tests` и `git diff --check` — passed. Frontend не затронут, API contract не изменён, поэтому TypeScript/build checks не требовались.
 
 #### M5. Довести Jeopardy AI до уровня обычного Quiz — `DEPENDENCY`
 

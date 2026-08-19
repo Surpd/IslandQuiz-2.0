@@ -40,7 +40,10 @@ npm run dev
 npm run lint
 npx tsc --noEmit
 npm run build
+npm run test:e2e
 ```
+
+`npm run test:e2e` запускает единственный Playwright smoke-тест критического браузерного flow: login → Quiz Builder → save → Library → reopen → offline player → answer/finish. Его auth/games/results API responses замоканы для детерминированного локального запуска; тест не доказывает реальное backend/Supabase persistence, Telegram auth, AI generation, online WebSocket rooms, permissions или production result persistence.
 
 Backend:
 
@@ -193,16 +196,16 @@ Backend ожидает переменные окружения. Код не за
 
 ## Git workflow для backlog-задач
 
-После успешной реализации и всех проверок:
+После успешной реализации и всех проверок, только если владелец явно запросил commit/push:
 
 1. Проверить `git diff`.
 2. Проверить `git status`.
 3. Убедиться, что commit содержит только изменения текущей задачи.
 4. Создать один логический commit на одну завершённую backlog-задачу.
 5. Использовать понятное commit message, например `fix(frontend): resolve TypeScript baseline errors` или `fix(auth): make Telegram login tokens single-use`.
-6. После commit выполнить обычный `git push` в текущую рабочую ветку, если push для неё настроен.
+6. После commit выполнить `git push` только если это явно запрошено владельцем.
 
-Обычные staging, commit и push после завершённой backlog-задачи не требуют отдельного подтверждения владельца. Если интерфейс запрашивает permission для такой операции, запрашивать только необходимое разрешение и продолжать.
+Без явного запроса владельца не выполнять commit или push. Никогда не выполнять push напрямую в `origin/main`, если это явно не запрошено владельцем.
 
 Без отдельного разрешения владельца запрещены:
 
@@ -225,7 +228,7 @@ Backend ожидает переменные окружения. Код не за
 1. проверить `git status --short`;
 2. исключить secrets, `.env`, private keys, build artifacts, caches, `node_modules`, `__pycache__` и temporary files;
 3. stage-ить task-relevant files точным списком файлов/директорий;
-4. проверить staged file list и создать commit/push.
+4. при явном запросе проверить staged file list и создать commit/push.
 
 Не тратить excessive time на сохранение гипотетических owner edits. Для docs/process задач допустимо stage-ить `AGENTS.md`, `docs/**` и `.github/workflows/**`, если это соответствует scope. Для code задач допустимо stage-ить все изменённые tracked source files, относящиеся к задаче. Не выполнять `git add .` без проверки status и staged file list.
 
@@ -316,11 +319,11 @@ Supabase не нужно исследовать целиком перед каж
 
 GitHub использовать только когда задача действительно требует push/pull, GitHub Actions, pull request, issues, repository settings, remote-specific information, проверки remote state или release/deployment workflow, связанного с GitHub.
 
-Обычный push в настроенный remote не требует отдельного чтения GitHub или подтверждения владельца. Это не является production deployment.
+Push в настроенный remote всё равно требует явного запроса владельца; push напрямую в `origin/main` запрещён без такого запроса. Это не является production deployment.
 
 ## Лишние подтверждения
 
-Не запрашивать подтверждение для обычного read-only действия в рамках текущей задачи, а также для обычных staging/commit/push после завершённой backlog-задачи, если действие не связано с production changes, удалением данных, secrets, инфраструктурой, deploy или необратимыми действиями.
+Не запрашивать подтверждение для обычного read-only действия в рамках текущей задачи. Commit и push выполнять только после явного запроса владельца, даже если они не связаны с production changes.
 
 Если действие требует отдельного разрешения интерфейса, одной короткой фразой объяснить, зачем оно нужно. Не повторять уже подтверждённые факты.
 
@@ -353,6 +356,6 @@ GitHub использовать только когда задача дейст�
 3. выполнить `git diff --check`;
 4. для текущей документальной задачи не выполнять commit или push, поскольку это не входит в запрошенный scope.
 
-Для обычной завершённой backlog-задачи staging, commit и push выполняются без отдельного подтверждения; permission prompt ограничивать только необходимой операцией.
+Для обычной завершённой backlog-задачи staging, commit и push выполняются только после явного запроса владельца; permission prompt ограничивать только необходимой операцией.
 
 В рамках такого изменения запрещены любые изменения Supabase, GitHub, production или deployment.
