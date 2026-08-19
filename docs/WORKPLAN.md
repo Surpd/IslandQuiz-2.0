@@ -321,6 +321,7 @@
 - **Фактический результат:** `.github/workflows/ci.yml` запускается на `pull_request` и `push` в `main`. Frontend gate выполняет `npm ci`, TypeScript и production build; backend — install, compile и 80 isolated tests. Отдельный hygiene job отвергает whitespace errors, secrets и отслеживаемые cache/build artifacts; dependency audit использует узкий `frontend/scripts/check-npm-audit.mjs` (owner-approved no-fix advisories только для `xlsx`) и `pip-audit`. `backend-deploy.yml` не изменялся.
 - **Граница policy:** GitHub branch protection не настраивался по решению владельца. Красный CI явно маркирует release unsafe; обязательное merge-blocking остаётся отдельным follow-up.
 - **Проверки:** локально прошли hygiene scan, backend compile и 82 tests, frontend `npm ci`, `npx tsc --noEmit` и production build; audit report подтвердил только два allowlisted `xlsx` advisories без upstream fix, а fixable dependency versions обновлены. `pip-audit` локально нестабилен в Windows cache/process environment; GitHub CI остаётся source of truth.
+- **Cloudflare follow-up:** после deploy smoke `npm@10.9.2` обнаружил lockfile drift (`nitro` требовал `lru-cache@11.5.2`). Lockfile пересинхронизирован npm 10.9.2; clean install тем же npm теперь проходит.
 
 #### M9. Укрепить monitoring, health checks и audit logging — `DEPENDENCY`
 
