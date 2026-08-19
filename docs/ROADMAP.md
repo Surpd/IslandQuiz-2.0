@@ -11,7 +11,7 @@
 - Cloudflare public check остаётся diagnostic warning: `403` от edge не означает failure backend deployment.
 - Rollback capability через `workflow_dispatch(target_sha)` существует, но полный controlled rehearsal ещё не проведён.
 - Codex model routing зафиксирован в `docs/CODEX_MODEL_GUIDE.md` и связан с процессом через `AGENTS.md`.
-- H10 начат ограниченным backend Quiz protocol-validation slice; Jeopardy/frontend validation и полная state-machine regression ещё не закрыты.
+- H10 закрыта: Quiz и Jeopardy room protocol validation синхронизированы между backend и frontend, добавлены valid/invalid state-transition regressions.
 
 ## Recently completed
 
@@ -25,6 +25,7 @@
 - **H8 / DONE:** canonical AI contract закреплён для Quiz, file и Jeopardy; provider/output failures имеют controlled error envelope.
 - **H7 / DONE:** baseline critical regression suite вырос с 16 до 35 backend tests и покрывает текущие auth, Telegram, visibility/results, AI и room contracts без изменения security architecture.
 - **H9 / DONE:** единый result access matrix закрывает owner/non-owner/admin/private/public/link paths; Jeopardy owner submit и cross-user played-game access исправлены, malformed result rows и PII filtering покрыты regression tests.
+- **H10 / DONE:** WebSocket room actions валидируют phase, shape, IDs, bounds, timers, payload limits и replay/duplicate actions для Quiz и Jeopardy; frontend facade фильтрует недопустимые actions до отправки.
 - **CODEX_MODEL_GUIDE:** для задач добавлен выбор Luna/Terra/Sol с условиями escalation.
 
 ## Broken / needs fix now
@@ -44,9 +45,9 @@ Frontend теперь нормализует success payload и переводи
 
 ## Next 3–5 recommended tasks
 
-1. **H10 — protocol validation WebSocket-комнат** — **Sol / high**. Backend Quiz slice начат; дополнить Jeopardy/frontend shape, phase, bounds и replay/out-of-order validation.
-2. **M4 — единая обработка ошибок и пустых ответов Supabase/API** — **Terra / medium**. H9 закрыл result-reader slice; остальные routers требуют отдельной targeted inventory.
-3. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
+1. **M4 — единая обработка ошибок и пустых ответов Supabase/API** — **Terra / medium**. H9 закрыл result-reader slice; остальные routers требуют отдельной targeted inventory.
+2. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
+3. **M7/M9 — CI quality gates и monitoring** — **Terra / medium**. После стабилизации room protocol и deployment baseline.
 
 Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
 

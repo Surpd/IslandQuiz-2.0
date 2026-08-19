@@ -78,6 +78,120 @@ def validate_quiz_action(room: dict, action: str, data: dict, identity: dict | N
     return None
 
 
+def validate_jeopardy_action(room: dict, action: str, data: dict, identity: dict | None) -> str | None:
+    """Reject malformed or out-of-order Jeopardy actions before state mutation."""
+    if room.get("gameKind") != "jeopardy":
+        return "Действие доступно только для Jeopardy"
+    j = room.get("jeopardy")
+    if not isinstance(j, dict):
+        return "Состояние Jeopardy не найдено"
+
+    phase = j.get("phase")
+    players = room.get("players", [])
+    player_ids = {player.get("id") for player in players if isinstance(player, dict)}
+    rounds = room.get("_snapshot", {}).get("data", {}).get("rounds", [])
+    round_idx = j.get("round")
+    current_round = rounds[round_idx] if isinstance(rounds, list) and _is_int(round_idx) and 0 <= round_idx < len(rounds) else None
+
+    if action == "jeopardy_set_mode":
+        if phase not in {"lobby", "board"} or data.get("mode") not in {"buzz", "turn"}:
+            return "Режим Jeopardy недоступен на этой фазе"
+    elif action == "jeopardy_start":
+        if phase != "lobby":
+            return "Игру Jeopardy можно начать только из лобби"
+    elif action == "jeopardy_select":
+        cat_idx, q_idx = data.get("catIdx"), data.get("qIdx")
+        if phase != "board" or not _is_int(cat_idx) or not _is_int(q_idx):
+            return "Вопрос Jeopardy недоступен на этой фазе"
+        if not isinstance(current_round, list) or cat_idx < 0 or cat_idx >= len(current_round):
+            return "Некорректная категория Jeopardy"
+        category = current_round[cat_idx]
+        questions = category.get("questions", []) if isinstance(category, dict) else []
+        if not isinstance(questions, list) or q_idx < 0 or q_idx >= len(questions):
+            return "Некорректный вопрос Jeopardy"
+        if f"{round_idx}-{cat_idx}-{q_idx}" in (j.get("usedKeys") or []):
+            return "Вопрос Jeopardy уже использован"
+        total_ms, start_at = data.get("questionTotalMs"), data.get("questionStartAt")
+        if not _is_int(total_ms) or total_ms < 5000 or total_ms > 300000 or not _is_int(start_at):
+            return "Некорректные параметры таймера"
+    elif action == "jeopardy_buzz":
+        player_id = identity.get("playerId") if identity else None
+        if phase != "question" or j.get("mode") != "buzz":
+            return "Сейчас нельзя нажать на кнопку"
+        if player_id in (j.get("buzzedPlayerIds") or []):
+            return "Игрок уже отвечал на этот вопрос"
+        if not _is_int(data.get("buzzStartAt")):
+            return "Некорректное время ответа"
+    elif action == "jeopardy_buzz_answer":
+        given = data.get("given")
+        if phase != "answering" or j.get("buzzedPlayerId") != (identity or {}).get("playerId"):
+            return "Ответ может отправить только выбранный игрок"
+        if not isinstance(given, str) or not given.strip() or len(given) > MAX_ANSWER_LENGTH:
+            return "Некорректный ответ Jeopardy"
+        if j.get("buzzedAnswer") is not None:
+            return "Ответ на этот вопрос уже отправлен"
+    elif action == "jeopardy_accept":
+        expected_phase = "answering" if j.get("mode") == "buzz" else "question"
+        if phase != expected_phase or not isinstance(data.get("correct"), bool):
+            return "Оценка ответа недоступна на этой фазе"
+    elif action == "jeopardy_turn_wrong_finalize":
+        if phase != "answering" or j.get("mode") != "turn" or not j.get("awaitingBonus"):
+            return "Нельзя завершить неверный ответ на этой фазе"
+    elif action in {"jeopardy_close_question", "jeopardy_skip", "jeopardy_back_to_board"}:
+        if phase not in {"question", "answering", "reveal"}:
+            return "Действие над вопросом недоступно на этой фазе"
+        if j.get("selectedCat") is None or j.get("selectedQ") is None:
+            return "Вопрос Jeopardy не выбран"
+    elif action == "jeopardy_end_round":
+        total_rounds = data.get("totalRounds")
+        if phase != "board" or not _is_int(total_rounds) or total_rounds < 1 or total_rounds > len(rounds):
+            return "Раунд Jeopardy нельзя завершить сейчас"
+    elif action == "jeopardy_final_bet":
+        player_id = (identity or {}).get("playerId")
+        bet = data.get("bet")
+        player = next((item for item in players if item.get("id") == player_id), None)
+        if phase != "final-bets" or player_id not in player_ids or not _is_int(bet) or bet < 0:
+            return "Ставка Jeopardy недоступна на этой фазе"
+        if player is not None and bet > max(0, int(player.get("score", 0))):
+            return "Ставка не может превышать счёт игрока"
+        if player_id in (j.get("finalBets") or {}):
+            return "Ставка игрока уже отправлена"
+    elif action == "jeopardy_final_start":
+        if phase != "final-bets":
+            return "Финальный вопрос ещё недоступен"
+    elif action == "jeopardy_final_answer":
+        given = data.get("given")
+        player_id = (identity or {}).get("playerId")
+        if phase != "final-question" or player_id not in player_ids:
+            return "Финальный ответ недоступен на этой фазе"
+        if not isinstance(given, str) or not given.strip() or len(given) > MAX_ANSWER_LENGTH:
+            return "Некорректный финальный ответ"
+        if player_id in (j.get("finalGiven") or {}):
+            return "Финальный ответ уже отправлен"
+    elif action == "jeopardy_final_mark":
+        if phase != "final-question" or data.get("playerId") not in player_ids or not isinstance(data.get("correct"), bool):
+            return "Оценка финального ответа недоступна на этой фазе"
+        if data["playerId"] not in (j.get("finalGiven") or {}):
+            return "Игрок ещё не отправил финальный ответ"
+        if data["playerId"] in (j.get("finalAnswers") or {}):
+            return "Финальный ответ уже оценён"
+    elif action == "jeopardy_final_reveal":
+        if phase != "final-question" or not all(player_id in (j.get("finalAnswers") or {}) for player_id in player_ids):
+            return "Сначала нужно оценить все финальные ответы"
+    elif action == "jeopardy_final_advance":
+        if phase != "final-reveal":
+            return "Финальная таблица ещё не открыта"
+    elif action == "jeopardy_finish":
+        if phase != "final-reveal" or j.get("finalRevealStep") != "done":
+            return "Jeopardy нельзя завершить на этой фазе"
+    elif action == "jeopardy_adjust_score":
+        player_id, delta = data.get("playerId"), data.get("delta")
+        if phase not in {"board", "answering", "reveal"} or player_id not in player_ids or not _is_int(delta) or abs(delta) > 1000000:
+            return "Некорректная корректировка счёта"
+
+    return None
+
+
 def public_room_state(room: dict) -> dict:
     """Never expose in-memory room credentials in a state broadcast."""
     return {key: value for key, value in room.items() if key not in {"_credentials", "_snapshot"}}
@@ -316,6 +430,8 @@ async def room_websocket(websocket: WebSocket, code: str):
                 continue
 
             validation_error = validate_quiz_action(rooms[code], action, data, identity)
+            if not validation_error and action.startswith("jeopardy_"):
+                validation_error = validate_jeopardy_action(rooms[code], action, data, identity)
             if validation_error:
                 await send_error(websocket, validation_error)
                 continue

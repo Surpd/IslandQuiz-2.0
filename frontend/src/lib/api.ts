@@ -730,6 +730,16 @@ async function sendAndWaitState(code: string, payload: Record<string, unknown>):
   }
 }
 
+function sendJeopardyAction(
+  code: string,
+  payload: Record<string, unknown>,
+  phases: JeopardyPhase[],
+): Promise<RoomState | null> {
+  const state = roomConns.get(code)?.state;
+  if (!state?.jeopardy || !phases.includes(state.jeopardy.phase)) return Promise.resolve(state ?? null);
+  return sendAndWaitState(code, payload);
+}
+
 export function subscribeRoom(code: string, handler: (s: RoomState) => void) {
   if (typeof window === "undefined") return () => {};
   const conn = ensureRoomConn(code);
@@ -895,11 +905,11 @@ export async function listRooms() {
 // =========================================================================
 
 export async function setJeopardyMode(code: string, mode: "buzz" | "turn") {
-  return sendAndWaitState(code, { action: "jeopardy_set_mode", mode });
+  return sendJeopardyAction(code, { action: "jeopardy_set_mode", mode }, ["lobby", "board"]);
 }
 
 export async function startJeopardyGame(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_start" });
+  return sendJeopardyAction(code, { action: "jeopardy_start" }, ["lobby"]);
 }
 
 export async function selectJeopardyQuestion(
@@ -916,6 +926,7 @@ export async function selectJeopardyQuestion(
     if (cur && cur !== playerId) return s;
   }
   if (j.mode === "buzz" && playerId) return s;
+  if (j.phase !== "board" || !Number.isInteger(catIdx) || catIdx < 0 || !Number.isInteger(qIdx) || qIdx < 0) return s;
   const key = `${j.round}-${catIdx}-${qIdx}`;
   if (j.usedKeys.includes(key)) return s;
 
@@ -931,24 +942,28 @@ export async function selectJeopardyQuestion(
     /* keep default */
   }
 
-  return sendAndWaitState(code, {
+  return sendJeopardyAction(code, {
     action: "jeopardy_select",
     catIdx,
     qIdx,
     questionTotalMs,
     questionStartAt: Date.now(),
-  });
+  }, ["board"]);
 }
 
 export async function submitJeopardyBuzzAnswer(code: string, playerId: string, given: string) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || s.jeopardy.phase !== "answering" || s.jeopardy.buzzedPlayerId !== playerId || !given.trim() || given.length > 2000) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_buzz_answer",
     given,
-  });
+  }, ["answering"]);
 }
 
 export async function finalizeJeopardyTurnWrong(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_turn_wrong_finalize" });
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || s.jeopardy.mode !== "turn" || !s.jeopardy.awaitingBonus) return s ?? null;
+  return sendJeopardyAction(code, { action: "jeopardy_turn_wrong_finalize" }, ["answering"]);
 }
 
 export async function buzzJeopardy(code: string, playerId: string) {
@@ -957,10 +972,10 @@ export async function buzzJeopardy(code: string, playerId: string) {
   const j = s.jeopardy;
   if (j.mode !== "buzz" || j.phase !== "question" || j.buzzedPlayerId) return s;
   if (j.buzzedPlayerIds.includes(playerId)) return s;
-  return sendAndWaitState(code, {
+  return sendJeopardyAction(code, {
     action: "jeopardy_buzz",
     buzzStartAt: Date.now(),
-  });
+  }, ["question"]);
 }
 
 export async function acceptJeopardyAnswer(code: string, correct: boolean) {
@@ -975,23 +990,23 @@ export async function acceptJeopardyAnswer(code: string, correct: boolean) {
   } catch {
     /* keep 0 */
   }
-  return sendAndWaitState(code, {
+  return sendJeopardyAction(code, {
     action: "jeopardy_accept",
     correct,
     points,
-  });
+  }, ["answering", "question"]);
 }
 
 export async function closeJeopardyQuestion(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_close_question" });
+  return sendJeopardyAction(code, { action: "jeopardy_close_question" }, ["question", "answering", "reveal"]);
 }
 
 export async function backToBoard(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_back_to_board" });
+  return sendJeopardyAction(code, { action: "jeopardy_back_to_board" }, ["question", "answering", "reveal"]);
 }
 
 export async function skipJeopardyQuestion(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_skip" });
+  return sendJeopardyAction(code, { action: "jeopardy_skip" }, ["question", "answering", "reveal"]);
 }
 
 export async function endJeopardyRound(code: string) {
@@ -1005,53 +1020,62 @@ export async function endJeopardyRound(code: string) {
       /* keep 1 */
     }
   }
-  return sendAndWaitState(code, { action: "jeopardy_end_round", totalRounds });
+  return sendJeopardyAction(code, { action: "jeopardy_end_round", totalRounds }, ["board"]);
 }
 
 export async function submitJeopardyFinalBet(code: string, playerId: string, bet: number) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  const player = s?.players.find((item) => item.id === playerId);
+  if (!s?.jeopardy || s.jeopardy.phase !== "final-bets" || !player || !Number.isInteger(bet) || bet < 0 || bet > Math.max(0, player.score)) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_final_bet",
     bet,
-  });
+  }, ["final-bets"]);
 }
 
 export async function startJeopardyFinalQuestion(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_final_start" });
+  return sendJeopardyAction(code, { action: "jeopardy_final_start" }, ["final-bets"]);
 }
 
 export async function submitJeopardyFinalAnswer(code: string, playerId: string, given: string) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || s.jeopardy.phase !== "final-question" || !s.players.some((item) => item.id === playerId) || !given.trim() || given.length > 2000) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_final_answer",
     given,
-  });
+  }, ["final-question"]);
 }
 
 export async function markJeopardyFinal(code: string, playerId: string, correct: boolean) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || s.jeopardy.phase !== "final-question" || !s.players.some((item) => item.id === playerId) || !(playerId in s.jeopardy.finalGiven) || playerId in s.jeopardy.finalAnswers) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_final_mark",
     playerId,
     correct,
-  });
+  }, ["final-question"]);
 }
 
 export async function revealJeopardyFinal(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_final_reveal" });
+  return sendJeopardyAction(code, { action: "jeopardy_final_reveal" }, ["final-question"]);
 }
 
 export async function advanceJeopardyFinalReveal(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_final_advance" });
+  return sendJeopardyAction(code, { action: "jeopardy_final_advance" }, ["final-reveal"]);
 }
 
 export async function finishJeopardyGame(code: string) {
-  return sendAndWaitState(code, { action: "jeopardy_finish" });
+  return sendJeopardyAction(code, { action: "jeopardy_finish" }, ["final-reveal"]);
 }
 
 export async function adjustJeopardyScore(code: string, playerId: string, delta: number) {
-  return sendAndWaitState(code, {
+  const s = roomConns.get(code)?.state;
+  if (!s?.jeopardy || !["board", "answering", "reveal"].includes(s.jeopardy.phase) || !s.players.some((item) => item.id === playerId) || !Number.isInteger(delta) || Math.abs(delta) > 1000000) return s ?? null;
+  return sendJeopardyAction(code, {
     action: "jeopardy_adjust_score",
     playerId,
     delta,
-  });
+  }, ["board", "answering", "reveal"]);
 }
 
 // =========================================================================

@@ -16,6 +16,12 @@ QUIZ_SNAPSHOT_DATA = {
     "questions": [{"id": "q1", "type": "choice", "q": "Capital?", "answer": "Paris", "points": 100, "time": 30}],
 }
 
+JEOPARDY_SNAPSHOT_DATA = {
+    "config": {},
+    "rounds": [[{"category": "Capital cities", "questions": [{"points": 100}]}]],
+    "final": {"category": "Final", "q": "Question", "a": "Answer"},
+}
+
 
 def snapshot_token():
     return issue_snapshot_token("game-1", "quiz", QUIZ_SNAPSHOT_DATA)[1]
@@ -62,6 +68,23 @@ def room_fixture():
             "player-2-token": {"role": "player", "playerId": "player-2"},
         },
     }
+
+
+def jeopardy_room_fixture():
+    room = room_fixture()
+    room["gameKind"] = "jeopardy"
+    room["_snapshot"] = issue_snapshot_token("game-1", "jeopardy", JEOPARDY_SNAPSHOT_DATA)[0]
+    room["jeopardy"] = {
+        "phase": "lobby", "mode": "buzz", "round": 0, "currentPlayerIdx": 0,
+        "usedKeys": [], "selectedCat": None, "selectedQ": None,
+        "buzzedPlayerId": None, "buzzedPlayerIds": [], "buzzedAnswer": None,
+        "buzzStartAt": None, "buzzTimeoutMs": 30000, "questionTotalMs": 30000,
+        "questionElapsedMs": 0, "showAnswer": False, "awaitingBonus": False,
+        "finalBets": {}, "finalAnswers": {}, "finalGiven": {},
+        "finalRevealOrder": [], "finalRevealIdx": -1, "finalRevealStep": "done",
+        "finalRevealAt": None, "lastDelta": None, "decisions": [],
+    }
+    return room
 
 
 class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
@@ -247,6 +270,62 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         oversized = FakeWebSocket([json.dumps({"action": "answer", "given": "x" * 17000})], credential="player-2-token")
         await rooms_route.room_websocket(oversized, "ROOM1")
         self.assertIn({"type": "error", "error": "Сообщение комнаты слишком большое"}, oversized.sent)
+
+    async def test_jeopardy_rejects_invalid_phase_and_question_bounds(self):
+        rooms_route.rooms["ROOM1"] = jeopardy_room_fixture()
+        websocket = FakeWebSocket([
+            json.dumps({"action": "jeopardy_start"}),
+            json.dumps({"action": "jeopardy_select", "catIdx": 9, "qIdx": 0, "questionTotalMs": 30000, "questionStartAt": 1}),
+        ], credential="host-token")
+
+        await rooms_route.room_websocket(websocket, "ROOM1")
+
+        errors = [message["error"] for message in websocket.sent if message["type"] == "error"]
+        self.assertEqual(errors, ["Некорректная категория Jeopardy"])
+
+    async def test_jeopardy_rejects_duplicate_buzz_answer_and_invalid_final_bet(self):
+        room = jeopardy_room_fixture()
+        room["jeopardy"]["phase"] = "answering"
+        room["jeopardy"]["buzzedPlayerId"] = "player-1"
+        rooms_route.rooms["ROOM1"] = room
+        answer_socket = FakeWebSocket([
+            json.dumps({"action": "jeopardy_buzz_answer", "given": "Paris"}),
+            json.dumps({"action": "jeopardy_buzz_answer", "given": "Paris"}),
+        ], credential="player-1-token")
+
+        await rooms_route.room_websocket(answer_socket, "ROOM1")
+
+        errors = [message["error"] for message in answer_socket.sent if message["type"] == "error"]
+        self.assertEqual(errors, ["Ответ на этот вопрос уже отправлен"])
+
+        room["jeopardy"]["phase"] = "final-bets"
+        room["players"][0]["score"] = 100
+        bet_socket = FakeWebSocket([json.dumps({"action": "jeopardy_final_bet", "bet": 101})], credential="player-1-token")
+        await rooms_route.room_websocket(bet_socket, "ROOM1")
+        self.assertIn({"type": "error", "error": "Ставка не может превышать счёт игрока"}, bet_socket.sent)
+
+    async def test_jeopardy_valid_state_transitions(self):
+        rooms_route.rooms["ROOM1"] = jeopardy_room_fixture()
+        host_start = FakeWebSocket([json.dumps({"action": "jeopardy_start"})], credential="host-token")
+        await rooms_route.room_websocket(host_start, "ROOM1")
+        self.assertEqual([m["state"]["jeopardy"]["phase"] for m in host_start.sent if m["type"] == "room_state"][-1], "board")
+
+        host_select = FakeWebSocket([json.dumps({
+            "action": "jeopardy_select", "catIdx": 0, "qIdx": 0,
+            "questionTotalMs": 30000, "questionStartAt": 1,
+        })], credential="host-token")
+        await rooms_route.room_websocket(host_select, "ROOM1")
+        self.assertEqual([m["state"]["jeopardy"]["phase"] for m in host_select.sent if m["type"] == "room_state"][-1], "question")
+
+        player_buzz = FakeWebSocket([json.dumps({"action": "jeopardy_buzz", "buzzStartAt": 1})], credential="player-1-token")
+        await rooms_route.room_websocket(player_buzz, "ROOM1")
+        self.assertEqual([m["state"]["jeopardy"]["phase"] for m in player_buzz.sent if m["type"] == "room_state"][-1], "answering")
+
+        player_answer = FakeWebSocket([json.dumps({"action": "jeopardy_buzz_answer", "given": "Paris"})], credential="player-1-token")
+        await rooms_route.room_websocket(player_answer, "ROOM1")
+        host_accept = FakeWebSocket([json.dumps({"action": "jeopardy_accept", "correct": True})], credential="host-token")
+        await rooms_route.room_websocket(host_accept, "ROOM1")
+        self.assertEqual([m["state"]["jeopardy"]["phase"] for m in host_accept.sent if m["type"] == "room_state"][-1], "reveal")
 
 
 if __name__ == "__main__":

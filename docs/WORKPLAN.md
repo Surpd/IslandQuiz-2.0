@@ -134,7 +134,7 @@
 - **Фактический результат:** production Groq response подтвердил root cause: configured `llama-3.3-70b-versatile` больше недоступна текущему key (`model_not_found`). Strict backend validation из `6f6b3d6` маскировал provider error как invalid Quiz/variants, но не был первопричиной. H11 использует `response_format: json_object`, configurable `GROQ_MODEL` и controlled 502 для provider/parser failures. Production smoke подтвердил full Quiz, per-question/helper, matching, Jeopardy categories/questions и save/open/play path.
 - **Проверки:** current-key Groq model listing; Qwen JSON-mode probes для full Quiz (10 questions) и helper (3 variants); Python syntax, `npx tsc --noEmit`, `npm run build`, `git diff --check`; production UI smoke: generate-quiz, generate-question, Jeopardy categories/questions, save/open/play. `npm run lint` не проходит на существующем общем Prettier/ESLint baseline (2145 problems), не исправлявшемся в H11. Transient Groq `429 rate_limit_exceeded` корректно стал 502; UX/monitoring policy для rate limits остаётся H8/H7/M9 follow-up.
 
-#### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation — `IN_PROGRESS`
+#### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation — `DONE`
 
 - **Зависимости:** сначала описать state machine и все action/state fields; реализация следует после C2 и согласования scoring/room protocol.
 - **Блокирующие D1–D9:** нет; inventory и schema draft доступны, завершение зависит от C2 и protocol/scoring contracts.
@@ -142,7 +142,8 @@
 - **Файлы:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, Quiz/Jeopardy room components, reconnect/cache logic.
 - **Готово, когда:** сервер валидирует shape, phase, IDs, bounds, размер/частоту сообщений и повторные действия; frontend отправляет только допустимые actions.
 - **Проверки:** valid/invalid action tests, replay/out-of-order/oversized message tests, state transition tests для Quiz и Jeopardy, reconnect regression.
-- **Текущий slice:** backend Quiz lifecycle validation добавляет лимит сообщения 16 KiB, проверку фаз, question bounds, answer length и replay; `backend/tests/test_rooms.py` покрывает invalid order, replay и oversized payload. Jeopardy, frontend отправки и полная state-machine проверка остаются в работе.
+- **Фактический результат:** backend валидирует Quiz и Jeopardy message size, phase transitions, IDs, question/category bounds, timer fields, answer/bet limits и replay/duplicate actions; frontend `api.ts` не отправляет room actions вне допустимых фаз и локально проверяет player/bounds payloads.
+- **Проверки:** `python -m unittest discover -s tests -p 'test*.py'` — 56 passed; room suite — 13 passed; Python compile, `npx tsc --noEmit`, `npm run build` и `git diff --check` — passed. `npm run lint` остаётся pre-existing frontend formatting/type baseline; Playwright smoke timeout на существующем login → library flow и rooms не покрывает.
 
 #### M3. Создать единый typed API/contract source of truth — `DEPENDENCY`
 
