@@ -2,6 +2,8 @@ import asyncio
 import json
 import secrets
 import time
+import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from services.trusted_scoring import quiz_answer_is_correct, verify_snapshot_token
@@ -36,6 +38,43 @@ def _kahoot_score(correct: bool, elapsed_ms: int, total_ms: int, streak_before: 
     ratio = max(0, 1 - elapsed_ms / max(1, total_ms))
     streak_after = streak_before + 1
     return 1000 + round(500 * ratio) + (0 if streak_after <= 1 else min(400, (streak_after - 1) * 100)), streak_after
+
+
+def _persist_room_result(room: dict) -> None:
+    if room.get("_resultSaved"):
+        return
+    from database import supabase
+    from services.trusted_scoring import result_payload
+
+    snapshot = room["_snapshot"]
+    if room["gameKind"] == "quiz":
+        questions = snapshot["data"].get("questions", [])
+        players = []
+        for player in room["players"]:
+            answers = player.get("answerHistory", [])
+            players.append({
+                "id": player["id"], "nickname": player["nickname"], "avatar": player.get("avatar", ""),
+                "score": player.get("score", 0), "correctCount": sum(1 for answer in answers if answer.get("correct")),
+                "totalQuestions": len(questions), "maxScore": sum(max(0, int(question.get("points") or 0)) for question in questions if isinstance(question, dict)),
+                "answers": answers,
+            })
+        supabase.table("online_quiz_results").insert({
+            "id": str(uuid.uuid4()), "game_id": room["gameId"], "room_code": room["code"],
+            "played_at": datetime.now(timezone.utc).isoformat(),
+            "duration_sec": max(0, int((time.time() * 1000 - room["createdAt"]) / 1000)),
+            "players": result_payload(snapshot, players),
+        }).execute()
+    elif room["gameKind"] == "jeopardy":
+        j = room["jeopardy"]
+        teams = [{"id": player["id"], "name": player["nickname"], "score": player.get("score", 0), "correct": player.get("jCorrect", 0), "wrong": player.get("jWrong", 0)} for player in room["players"]]
+        winner = max(teams, key=lambda team: team["score"], default=None)
+        supabase.table("jeopardy_results").insert({
+            "id": str(uuid.uuid4()), "game_id": room["gameId"],
+            "played_at": datetime.now(timezone.utc).isoformat(),
+            "teams": result_payload(snapshot, teams, decisions=j.get("decisions", [])),
+            "winner_id": winner["id"] if winner else None, "has_final": bool(j.get("finalBets")),
+        }).execute()
+    room["_resultSaved"] = True
 
 
 async def send_error(websocket: WebSocket, error: str):
@@ -182,6 +221,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                         "finalRevealStep": "done",
                         "finalRevealAt": None,
                         "lastDelta": None,
+                        "decisions": [],
                     }
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
@@ -298,6 +338,7 @@ async def room_websocket(websocket: WebSocket, code: str):
             elif action == "finish":
                 if code in rooms:
                     rooms[code]["status"] = "finished"
+                    _persist_room_result(rooms[code])
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "restart":
@@ -320,13 +361,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "adjust_score":
-                player_id = data.get("playerId")
-                delta = data.get("delta", 0)
-                if code in rooms:
-                    player = next((p for p in rooms[code]["players"] if p["id"] == player_id), None)
-                    if player:
-                        player["score"] = max(0, player.get("score", 0) + delta)
-                await broadcast(code, {"type": "room_state", "state": rooms[code]})
+                await send_error(websocket, "Ручная корректировка Quiz score отключена")
 
             # ==================== JEOPARDY ДЕЙСТВИЯ ====================
 
@@ -400,18 +435,21 @@ async def room_websocket(websocket: WebSocket, code: str):
             elif action == "jeopardy_accept":
                 if code in rooms and "jeopardy" in rooms[code]:
                     j = rooms[code]["jeopardy"]
-                    correct = data.get("correct", False)
+                    correct = bool(data.get("correct", False))
                     target_id = j["buzzedPlayerId"] if j["mode"] == "buzz" else rooms[code]["players"][j["currentPlayerIdx"]]["id"]
                     player = next((p for p in rooms[code]["players"] if p["id"] == target_id), None)
 
                     if player:
-                        points = data.get("points", 0)
+                        snapshot = rooms[code]["_snapshot"]["data"]
+                        question = snapshot.get("rounds", [])[j["round"]][j["selectedCat"]]["questions"][j["selectedQ"]]
+                        points = max(0, int(question.get("points", 0))) if isinstance(question, dict) else 0
                         delta = points if correct else -points
                         player["score"] += delta
                         if correct:
                             player["jCorrect"] = (player.get("jCorrect", 0) + 1)
                         else:
                             player["jWrong"] = (player.get("jWrong", 0) + 1)
+                        j["decisions"].append({"kind": "question", "playerId": target_id, "round": j["round"], "catIdx": j["selectedCat"], "qIdx": j["selectedQ"], "given": j.get("buzzedAnswer"), "correct": correct, "points": points, "host": True})
                         j["lastDelta"] = {"playerId": target_id, "delta": delta}
 
                     # TURN mode
@@ -545,7 +583,10 @@ async def room_websocket(websocket: WebSocket, code: str):
             elif action == "jeopardy_final_mark":
                 if code in rooms and "jeopardy" in rooms[code]:
                     j = rooms[code]["jeopardy"]
-                    j["finalAnswers"][data.get("playerId")] = data.get("correct", False)
+                    player_id = data.get("playerId")
+                    correct = bool(data.get("correct", False))
+                    if any(player["id"] == player_id for player in rooms[code]["players"]):
+                        j["finalAnswers"][player_id] = correct
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "jeopardy_final_reveal":
@@ -583,6 +624,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                         ok = j["finalAnswers"].get(pid, False)
                         delta = bet if ok else -bet
                         player["score"] += delta
+                        j["decisions"].append({"kind": "final", "playerId": pid, "given": j["finalGiven"].get(pid, ""), "correct": ok, "bet": bet, "host": True})
                         j["lastDelta"] = {"playerId": pid, "delta": delta}
 
                     if j["finalRevealIdx"] + 1 >= len(j["finalRevealOrder"]):
@@ -596,6 +638,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                 if code in rooms and "jeopardy" in rooms[code]:
                     rooms[code]["jeopardy"]["phase"] = "podium"
                     rooms[code]["status"] = "finished"
+                    _persist_room_result(rooms[code])
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "jeopardy_adjust_score":
@@ -603,8 +646,9 @@ async def room_websocket(websocket: WebSocket, code: str):
                 delta = data.get("delta", 0)
                 if code in rooms:
                     player = next((p for p in rooms[code]["players"] if p["id"] == player_id), None)
-                    if player:
+                    if player and isinstance(delta, int):
                         player["score"] += delta
+                        rooms[code]["jeopardy"]["decisions"].append({"kind": "adjustment", "playerId": player_id, "delta": delta, "host": True})
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
     except WebSocketDisconnect:

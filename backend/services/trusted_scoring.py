@@ -142,3 +142,86 @@ def result_payload(snapshot: dict, items: list[dict], **extra: Any) -> dict:
         "items": items,
         **extra,
     }
+
+
+def score_millionaire(data: dict, submitted_answers: list[dict]) -> tuple[dict, list[dict]]:
+    questions = data.get("questions")
+    config = data.get("config") or {}
+    if not isinstance(questions, list):
+        raise ValueError("Некорректный Millionaire snapshot")
+    by_index = {answer.get("qIdx"): answer for answer in submitted_answers if isinstance(answer, dict) and isinstance(answer.get("qIdx"), int)}
+    items, reached = [], 0
+    for index, question in enumerate(questions):
+        submitted = by_index.get(index, {})
+        selected = submitted.get("selectedIndex")
+        options = question.get("options") if isinstance(question, dict) else []
+        correct = isinstance(selected, int) and isinstance(options, list) and 0 <= selected < len(options) and bool(options[selected].get("correct"))
+        items.append({"qIdx": index, "money": question.get("money", 0) if isinstance(question, dict) else 0, "question": question.get("q", "") if isinstance(question, dict) else "", "selectedIndex": selected if isinstance(selected, int) else None, "isCorrect": correct})
+        if not correct:
+            break
+        reached += 1
+    total = len(questions)
+    mode = config.get("milestones", "three")
+    milestones = set() if mode == "none" else {max(0, total // 3 - 1), max(0, 2 * total // 3 - 1)}
+    if mode == "three" and total:
+        milestones.add(total - 1)
+    guaranteed = max((questions[index].get("money", 0) if isinstance(questions[index], dict) else 0 for index in range(reached) if index in milestones), default=0)
+    outcome = "won" if total and reached == total else "lost"
+    won_amount = (questions[-1].get("money", 0) if isinstance(questions[-1], dict) else 0) if outcome == "won" else guaranteed
+    return {"outcome": outcome, "wonAmount": won_amount, "guaranteedAmount": guaranteed, "reachedCount": reached, "totalQuestions": total}, items
+
+
+def score_jeopardy(data: dict, submitted_teams: list[dict], decisions: list[dict]) -> tuple[list[dict], list[dict]]:
+    rounds = data.get("rounds")
+    if not isinstance(rounds, list):
+        raise ValueError("Некорректный Jeopardy snapshot")
+    teams = []
+    known_ids = set()
+    for team in submitted_teams:
+        team_id = team.get("id") if isinstance(team, dict) else None
+        if not isinstance(team_id, str) or not team_id or team_id in known_ids:
+            raise ValueError("Некорректный состав команд")
+        known_ids.add(team_id)
+        name = team.get("name") if isinstance(team.get("name"), str) else "Команда"
+        teams.append({"id": team_id, "name": name.strip()[:100] or "Команда", "score": 0, "correct": 0, "wrong": 0})
+    by_id = {team["id"]: team for team in teams}
+    audit, resolved_questions, resolved_final = [], set(), set()
+    for decision in decisions:
+        if not isinstance(decision, dict) or decision.get("playerId") not in by_id or not isinstance(decision.get("correct"), bool):
+            raise ValueError("Некорректное решение ведущего")
+        player = by_id[decision["playerId"]]
+        if decision.get("kind") == "question":
+            round_idx, cat_idx, question_idx = decision.get("round"), decision.get("catIdx"), decision.get("qIdx")
+            key = (round_idx, cat_idx, question_idx, player["id"])
+            if key in resolved_questions:
+                raise ValueError("Повторное решение по вопросу")
+            try:
+                question = rounds[round_idx][cat_idx]["questions"][question_idx]
+            except (IndexError, KeyError, TypeError):
+                raise ValueError("Вопрос отсутствует в snapshot")
+            if not isinstance(question, dict):
+                raise ValueError("Вопрос отсутствует в snapshot")
+            try:
+                points = max(0, int(question.get("points", 0)))
+            except (TypeError, ValueError):
+                raise ValueError("Некорректные очки вопроса")
+            correct = decision["correct"]
+            player["score"] += points if correct else -points
+            player["correct" if correct else "wrong"] += 1
+            resolved_questions.add(key)
+            audit.append({"kind": "question", "playerId": player["id"], "round": round_idx, "catIdx": cat_idx, "qIdx": question_idx, "correct": correct, "points": points, "host": True})
+        elif decision.get("kind") == "final":
+            if player["id"] in resolved_final:
+                raise ValueError("Повторное финальное решение")
+            bet = decision.get("bet")
+            if not isinstance(bet, int) or bet < 0 or bet > max(0, player["score"]):
+                raise ValueError("Некорректная финальная ставка")
+            correct = decision["correct"]
+            player["score"] += bet if correct else -bet
+            player["finalBet"] = bet
+            player["finalCorrect"] = correct
+            resolved_final.add(player["id"])
+            audit.append({"kind": "final", "playerId": player["id"], "correct": correct, "bet": bet, "host": True})
+        else:
+            raise ValueError("Некорректное решение ведущего")
+    return teams, audit

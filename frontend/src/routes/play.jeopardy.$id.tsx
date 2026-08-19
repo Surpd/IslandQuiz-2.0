@@ -3,8 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Minus, X, Trophy } from "lucide-react";
 import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { LaTeX } from "@/lib/latex";
-import { loadGame } from "@/lib/api";
-import { submitJeopardyResult } from "@/lib/api";
+import { createPlaySnapshot, submitJeopardyResult } from "@/lib/api";
 import { fitQuestionSize } from "@/lib/fit-text";
 import type { JeopardyData } from "@/lib/types";
 
@@ -28,6 +27,10 @@ interface Bets {
   [teamId: string]: number;
 }
 
+type JeopardyDecision =
+  | { kind: "question"; playerId: string; correct: boolean; round: number; catIdx: number; qIdx: number }
+  | { kind: "final"; playerId: string; correct: boolean; bet: number };
+
 function PlayJeopardy() {
   const { id } = Route.useParams();
   const [data, setData] = useState<JeopardyData | null>(null);
@@ -45,15 +48,19 @@ function PlayJeopardy() {
   const [finalAnswers, setFinalAnswers] = useState<Record<string, boolean>>({});
   const [correctCounts, setCorrectCounts] = useState<Record<string, number>>({});
   const [wrongCounts, setWrongCounts] = useState<Record<string, number>>({});
+  const [snapshotToken, setSnapshotToken] = useState("");
   const savedRef = useRef(false);
+  const decisionsRef = useRef<JeopardyDecision[]>([]);
+  const decisionKeysRef = useRef(new Set<string>());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let cancel = false;
     (async () => {
-      const g = await loadGame<JeopardyData>("jeopardy", id);
+      const snapshot = await createPlaySnapshot<JeopardyData>("jeopardy", id);
       if (cancel) return;
-      if (g) setData(g.data);
+      setData(snapshot.data);
+      setSnapshotToken(snapshot.snapshotToken);
     })();
     return () => {
       cancel = true;
@@ -108,22 +115,15 @@ function PlayJeopardy() {
   useEffect(() => {
     if (stage !== "results" || savedRef.current) return;
     savedRef.current = true;
-    const sorted = [...teams].sort((a, b) => b.score - a.score);
-    const winner = sorted[0] ?? null;
-    const hasFinal = Object.keys(bets).length > 0;
+    if (!snapshotToken) {
+      savedRef.current = false;
+      return;
+    }
     submitJeopardyResult({
       gameId: id,
-      hasFinal,
-      winnerId: winner?.id ?? null,
-      teams: teams.map((t) => ({
-        id: t.id,
-        name: t.name,
-        score: t.score,
-        correct: correctCounts[t.id] ?? 0,
-        wrong: wrongCounts[t.id] ?? 0,
-        finalBet: hasFinal ? (bets[t.id] ?? 0) : undefined,
-        finalCorrect: hasFinal ? (finalAnswers[t.id] ?? false) : undefined,
-      })),
+      snapshotToken,
+      teams: teams.map((t) => ({ id: t.id, name: t.name })),
+      decisions: decisionsRef.current,
     })
       .then(() => console.log("[jeopardy] результат сохранён"))
       .catch((err) => {
@@ -131,7 +131,7 @@ function PlayJeopardy() {
         savedRef.current = false;
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage]);
+  }, [stage, snapshotToken, id, teams]);
 
   if (!data || !config) {
     return (
@@ -182,6 +182,13 @@ function PlayJeopardy() {
 
   const startFinal = () => setStage("final-question");
   const showResults = () => {
+    teams.forEach((team) => {
+      const key = `final-${team.id}`;
+      if (!decisionKeysRef.current.has(key)) {
+        decisionKeysRef.current.add(key);
+        decisionsRef.current.push({ kind: "final", playerId: team.id, correct: finalAnswers[team.id] ?? false, bet: Math.min(Math.max(0, bets[team.id] ?? 0), Math.max(0, team.score)) });
+      }
+    });
     setTeams((prev) =>
       prev.map((t) => {
         const bet = bets[t.id] ?? 0;
@@ -189,6 +196,14 @@ function PlayJeopardy() {
       }),
     );
     setStage("results");
+  };
+
+  const recordQuestionDecision = (team: Team, correct: boolean, question: ModalState) => {
+    const key = `question-${question.roundIdx}-${question.catIdx}-${question.qIdx}-${team.id}`;
+    if (decisionKeysRef.current.has(key)) return false;
+    decisionKeysRef.current.add(key);
+    decisionsRef.current.push({ kind: "question", playerId: team.id, correct, round: question.roundIdx, catIdx: question.catIdx, qIdx: question.qIdx });
+    return true;
   };
 
   // --------- rendering ---------
@@ -461,6 +476,7 @@ function PlayJeopardy() {
                       <span className="flex-1 truncate font-semibold">{t.name}</span>
                       <button
                         onClick={() => {
+                          if (!recordQuestionDecision(t, false, modal)) return;
                           patchTeam(t.id, { score: t.score - q.points });
                           setWrongCounts((prev) => ({ ...prev, [t.id]: (prev[t.id] ?? 0) + 1 }));
                         }}
@@ -470,6 +486,7 @@ function PlayJeopardy() {
                       </button>
                       <button
                         onClick={() => {
+                          if (!recordQuestionDecision(t, true, modal)) return;
                           patchTeam(t.id, { score: t.score + q.points });
                           setCorrectCounts((prev) => ({ ...prev, [t.id]: (prev[t.id] ?? 0) + 1 }));
                         }}

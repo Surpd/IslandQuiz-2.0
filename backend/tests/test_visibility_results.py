@@ -86,7 +86,7 @@ class VisibilityAndResultsTests(unittest.TestCase):
 
         self.assertEqual(error.exception.status_code, 404)
 
-    def test_private_online_and_jeopardy_submit_lack_owner_binding_until_h9(self):
+    def test_legacy_online_submit_is_disabled_and_private_jeopardy_remains_h9(self):
         private_game = {"owner_id": "owner", "visibility": "private", "kind": "quiz"}
         online_payload = results.OnlineQuizResultInput(
             roomCode="ROOM1",
@@ -94,15 +94,15 @@ class VisibilityAndResultsTests(unittest.TestCase):
             players=[],
         )
         jeopardy_payload = results.JeopardyResultInput(
-            gameId="game-1",
-            hasFinal=False,
+            snapshotToken="snapshot",
             teams=[],
+            decisions=[],
         )
 
         with patch.object(results, "supabase", OneResultSupabase([private_game])):
             with self.assertRaises(HTTPException) as error:
                 results.submit_online_result("game-1", online_payload)
-            self.assertEqual(error.exception.status_code, 403)
+            self.assertEqual(error.exception.status_code, 410)
 
         private_game["kind"] = "jeopardy"
         with patch.object(results, "supabase", OneResultSupabase([private_game])):
@@ -110,6 +110,12 @@ class VisibilityAndResultsTests(unittest.TestCase):
                 results.submit_jeopardy_result("game-1", jeopardy_payload)
 
         self.assertEqual(error.exception.status_code, 403)
+
+    def test_legacy_online_result_submit_is_disabled(self):
+        payload = results.OnlineQuizResultInput(roomCode="ROOM1", durationSec=10, players=[])
+        with self.assertRaises(HTTPException) as error:
+            results.submit_online_result("game-1", payload)
+        self.assertEqual(error.exception.status_code, 410)
 
 
 if __name__ == "__main__":

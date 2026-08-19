@@ -33,7 +33,7 @@
 
 ### C3. Перенести расчёт результата на доверенную сторону
 
-- **Статус:** `IN_PROGRESS`. Для текущей реализации snapshot/version сохраняются в existing result JSON без production migration; нормализованная snapshot table остаётся target design P2/M11.
+- **Статус:** `DONE`. Quiz/Millionaire пересчитываются backend-side из signed snapshot; Jeopardy фиксирует auditable host decisions, а online results сохраняет room backend из server-held state. Для текущей реализации snapshot/version сохраняются в existing result JSON без production migration; нормализованная snapshot table остаётся target design P2/M11. Legacy rows без snapshot — untrusted.
 - **Проблема/цель:** одиночный player считает ответы и score на frontend; room actions и result payload также передают `correct`, `delta`, `score` и историю от клиента. Нужен независимый пересчёт по game snapshot и правилам конкретного формата.
 - **Почему важно:** иначе пользователь может отправить завышенный результат, а сохранённая статистика и leaderboard не являются доказательством прохождения.
 - **Затрагивает:** players всех трёх форматов, `backend/routes/results.py`, `backend/routes/rooms.py`, `games.data`, `frontend/src/lib/api.ts`, таблицы результатов и online rooms.

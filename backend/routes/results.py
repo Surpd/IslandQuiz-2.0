@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from database import supabase
 from routes.auth import get_current_user_optional, get_current_user
-from services.trusted_scoring import issue_snapshot_token, result_payload, score_quiz, verify_snapshot_token
+from services.trusted_scoring import issue_snapshot_token, result_payload, score_jeopardy, score_millionaire, score_quiz, verify_snapshot_token
 
 router = APIRouter(prefix="/api", tags=["results"])
 
@@ -56,11 +56,25 @@ class JeopardyTeamResult(BaseModel):
     finalCorrect: Optional[bool] = None
 
 
+class JeopardyTeamInput(BaseModel):
+    id: str
+    name: str
+
+
+class JeopardyDecision(BaseModel):
+    kind: str
+    playerId: str
+    correct: bool
+    round: Optional[int] = None
+    catIdx: Optional[int] = None
+    qIdx: Optional[int] = None
+    bet: Optional[int] = None
+
+
 class JeopardyResultInput(BaseModel):
-    gameId: str
-    hasFinal: bool
-    winnerId: Optional[str] = None
-    teams: List[JeopardyTeamResult]
+    snapshotToken: str
+    teams: List[JeopardyTeamInput]
+    decisions: List[JeopardyDecision]
 
 
 class JeopardyResultOut(BaseModel):
@@ -77,22 +91,13 @@ class JeopardyResultOut(BaseModel):
 
 class MillionaireAnswerDetail(BaseModel):
     qIdx: int
-    money: float
-    question: str
-    given: str
-    correctAnswer: str
-    isCorrect: bool
+    selectedIndex: Optional[int] = None
 
 
 class MillionaireResultInput(BaseModel):
-    gameId: str
     playerName: str
-    outcome: str
-    wonAmount: float
-    guaranteedAmount: float
-    reachedCount: int
-    totalQuestions: int
-    timeSec: int
+    timeSec: int = 0
+    snapshotToken: str
     answers: List[MillionaireAnswerDetail]
 
 
@@ -248,7 +253,7 @@ def get_jeopardy_results(gameId: str, user=Depends(get_current_user)):
     res = supabase.table("jeopardy_results").select("*").eq("game_id", gameId).order("played_at", desc=True).execute()
     return [
         JeopardyResultOut(id=r["id"], gameId=r["game_id"], playedAt=r["played_at"],
-                          teams=r["teams"], winnerId=r.get("winner_id"), hasFinal=r["has_final"])
+                          teams=_result_items(r["teams"]), winnerId=r.get("winner_id"), hasFinal=r["has_final"])
         for r in (res.data or [])
     ]
 
@@ -263,18 +268,23 @@ def get_jeopardy_result_detail(gameId: str, resultId: str, user=Depends(get_curr
         return None
     r = res.data[0]
     return JeopardyResultOut(id=r["id"], gameId=r["game_id"], playedAt=r["played_at"],
-                             teams=r["teams"], winnerId=r.get("winner_id"), hasFinal=r["has_final"])
+                             teams=_result_items(r["teams"]), winnerId=r.get("winner_id"), hasFinal=r["has_final"])
 
 
 @router.post("/jeopardy/{gameId}/results", response_model=dict)
 def submit_jeopardy_result(gameId: str, payload: JeopardyResultInput):
     _check_can_submit(gameId, "jeopardy", None)
-    
-    result_id = str(uuid.uuid4())
+    try:
+        snapshot = verify_snapshot_token(payload.snapshotToken, gameId, "jeopardy")
+        teams, decisions = score_jeopardy(snapshot["data"], [team.model_dump() for team in payload.teams], [decision.model_dump() for decision in payload.decisions])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    winner = max(teams, key=lambda team: team["score"], default=None)
+    result_id = snapshot["attemptId"]
     supabase.table("jeopardy_results").insert({
         "id": result_id, "game_id": gameId, "played_at": datetime.now(timezone.utc).isoformat(),
-        "teams": [t.model_dump() for t in payload.teams],
-        "winner_id": payload.winnerId, "has_final": payload.hasFinal,
+        "teams": result_payload(snapshot, teams, decisions=decisions),
+        "winner_id": winner["id"] if winner else None, "has_final": bool(decisions and any(decision["kind"] == "final" for decision in decisions)),
     }).execute()
     return {"ok": True, "id": result_id}
 
@@ -293,7 +303,7 @@ def get_millionaire_results(gameId: str, user=Depends(get_current_user)):
                              outcome=r["outcome"], wonAmount=r["won_amount"],
                              guaranteedAmount=r["guaranteed_amount"], reachedCount=r["reached_count"],
                              totalQuestions=r["total_questions"], timeSec=r["time_sec"],
-                             finishedAt=r["finished_at"], answers=r.get("answers"))
+                             finishedAt=r["finished_at"], answers=_result_items(r.get("answers")))
         for r in (res.data or [])
     ]
 
@@ -301,16 +311,20 @@ def get_millionaire_results(gameId: str, user=Depends(get_current_user)):
 @router.post("/millionaire/{gameId}/results", response_model=dict)
 def submit_millionaire_result(gameId: str, payload: MillionaireResultInput, current_user=Depends(get_current_user_optional)):
     _check_can_submit(gameId, "millionaire", current_user)
-    
-    result_id = str(uuid.uuid4())
+    try:
+        snapshot = verify_snapshot_token(payload.snapshotToken, gameId, "millionaire")
+        totals, answers = score_millionaire(snapshot["data"], [answer.model_dump() for answer in payload.answers])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    result_id = snapshot["attemptId"]
     supabase.table("millionaire_results").insert({
         "id": result_id, "game_id": gameId,
         "user_id": current_user["id"] if current_user else None,
-        "player_name": payload.playerName, "outcome": payload.outcome,
-        "won_amount": payload.wonAmount, "guaranteed_amount": payload.guaranteedAmount,
-        "reached_count": payload.reachedCount, "total_questions": payload.totalQuestions,
-        "time_sec": payload.timeSec, "finished_at": datetime.now(timezone.utc).isoformat(),
-        "answers": [a.model_dump() for a in payload.answers],
+        "player_name": payload.playerName.strip()[:100] or "Аноним", "outcome": totals["outcome"],
+        "won_amount": totals["wonAmount"], "guaranteed_amount": totals["guaranteedAmount"],
+        "reached_count": totals["reachedCount"], "total_questions": totals["totalQuestions"],
+        "time_sec": max(0, payload.timeSec), "finished_at": datetime.now(timezone.utc).isoformat(),
+        "answers": result_payload(snapshot, answers),
     }).execute()
     return {"ok": True, "id": result_id}
 
@@ -325,22 +339,14 @@ def get_online_results(gameId: str, user=Depends(get_current_user)):
     res = supabase.table("online_quiz_results").select("*").eq("game_id", gameId).order("played_at", desc=True).execute()
     return [
         OnlineQuizResultOut(id=r["id"], gameId=r["game_id"], roomCode=r["room_code"],
-                            playedAt=r["played_at"], durationSec=r["duration_sec"], players=r["players"])
+                            playedAt=r["played_at"], durationSec=r["duration_sec"], players=_result_items(r["players"]))
         for r in (res.data or [])
     ]
 
 
 @router.post("/quiz/{gameId}/online-results", response_model=dict)
 def submit_online_result(gameId: str, payload: OnlineQuizResultInput):
-    _check_can_submit(gameId, "quiz", None)
-    
-    result_id = str(uuid.uuid4())
-    supabase.table("online_quiz_results").insert({
-        "id": result_id, "game_id": gameId, "room_code": payload.roomCode,
-        "played_at": datetime.now(timezone.utc).isoformat(), "duration_sec": payload.durationSec,
-        "players": [p.model_dump() for p in payload.players],
-    }).execute()
-    return {"ok": True, "id": result_id}
+    raise HTTPException(status_code=410, detail="Legacy online result submit отключён: результат сохраняет room backend")
 
 
 @router.get("/played-games/me")
@@ -354,7 +360,7 @@ def get_my_played_game_ids(user=Depends(get_current_user)):
     
     online = supabase.table("online_quiz_results").select("game_id, players").execute()
     for r in (online.data or []):
-        players = r.get("players") or []
+        players = _result_items(r.get("players"))
         if any(p.get("userId") == user_id or p.get("user_id") == user_id for p in players):
             game_ids.add(r["game_id"])
     
@@ -364,7 +370,7 @@ def get_my_played_game_ids(user=Depends(get_current_user)):
     
     jeopardy = supabase.table("jeopardy_results").select("game_id, teams").execute()
     for r in (jeopardy.data or []):
-        teams = r.get("teams") or []
+        teams = _result_items(r.get("teams"))
         if any(t.get("id") == user_id for t in teams):
             game_ids.add(r["game_id"])
     
@@ -381,7 +387,7 @@ def get_played_game_ids(user_id: str):
     
     online = supabase.table("online_quiz_results").select("game_id, players").execute()
     for r in (online.data or []):
-        players = r.get("players") or []
+        players = _result_items(r.get("players"))
         if any(p.get("userId") == user_id or p.get("user_id") == user_id for p in players):
             game_ids.add(r["game_id"])
     
@@ -391,7 +397,7 @@ def get_played_game_ids(user_id: str):
     
     jeopardy = supabase.table("jeopardy_results").select("game_id, teams").execute()
     for r in (jeopardy.data or []):
-        teams = r.get("teams") or []
+        teams = _result_items(r.get("teams"))
         if any(t.get("id") == user_id for t in teams):
             game_ids.add(r["game_id"])
     

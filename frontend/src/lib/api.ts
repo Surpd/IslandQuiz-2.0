@@ -464,7 +464,7 @@ export async function getMillionaireResults(gameId: string): Promise<Millionaire
 }
 
 export async function submitMillionaireResult(
-  payload: Omit<MillionaireResult, "id" | "finishedAt">,
+  payload: { gameId: string; playerName: string; timeSec: number; snapshotToken: string; answers: { qIdx: number; selectedIndex?: number }[] },
 ) {
   return apiFetch(`/api/millionaire/${payload.gameId}/results`, {
     method: "POST",
@@ -491,7 +491,12 @@ export async function getJeopardyGameDetail(
 }
 
 export async function submitJeopardyResult(
-  payload: Omit<JeopardyResult, "id" | "playedAt">,
+  payload: {
+    gameId: string;
+    snapshotToken: string;
+    teams: { id: string; name: string }[];
+    decisions: ({ kind: "question"; playerId: string; correct: boolean; round: number; catIdx: number; qIdx: number } | { kind: "final"; playerId: string; correct: boolean; bet: number })[];
+  },
 ) {
   return apiFetch(`/api/jeopardy/${payload.gameId}/results`, {
     method: "POST",
@@ -822,62 +827,7 @@ export async function nextQuestion(code: string) {
 }
 
 export async function finishRoom(code: string) {
-  const s = await sendAndWaitState(code, { action: "finish" });
-  console.log("[finishRoom] state:", s ? "received" : "null", "gameKind:", s?.gameKind);
-  if (s?.gameKind === "quiz") {
-    try {
-      console.log("[finishRoom] loading game:", s.gameId);
-      const rec = await loadGame<QuizData>("quiz", s.gameId);
-      console.log("[finishRoom] game loaded:", rec ? "yes" : "no");
-      if (rec) {
-        const questions = rec.data.questions;
-        const maxScore = questions.reduce((sum, q) => sum + (q.points || 0), 0);
-        const durationSec = Math.max(0, Math.round((Date.now() - s.createdAt) / 1000));
-        const players = s.players.map((p) => {
-          const hist = p.answerHistory ?? [];
-          const answers: OnlineQuizPlayerAnswer[] = hist.map((a) => {
-            const q: QuizQuestion | undefined = questions[a.questionIdx];
-            const correctAnswer = q ? formatQuizAnswer(q) : "";
-            return {
-              questionIdx: a.questionIdx,
-              question: q?.q ?? `Вопрос ${a.questionIdx + 1}`,
-              given: q ? formatGivenAnswer(q, a.given) : a.given,
-              correctAnswer,
-              correct: a.correct,
-              earned: a.delta,
-              points: q?.points ?? 0,
-              timeMs: a.timeMs,
-            };
-          });
-          const correctCount = answers.filter((a) => a.correct).length;
-          return {
-            id: p.id,
-            nickname: p.nickname,
-            avatar: p.avatar,
-            score: p.score,
-            maxScore,
-            correctCount,
-            totalQuestions: questions.length,
-            answers,
-          };
-        });
-        console.log("[finishRoom] saving results...");
-        await apiFetch(`/api/quiz/${s.gameId}/online-results`, {
-          method: "POST",
-          body: JSON.stringify({
-            roomCode: s.code,
-            gameId: s.gameId,
-            durationSec,
-            players,
-          }),
-        });
-        console.log("[finishRoom] results saved");
-      }
-    } catch (err) {
-      console.error("Failed to save online room result", err);
-    }
-  }
-  return s;
+  return sendAndWaitState(code, { action: "finish" });
 }
 
 export async function kickPlayer(code: string, playerId: string) {
@@ -1093,31 +1043,7 @@ export async function advanceJeopardyFinalReveal(code: string) {
 }
 
 export async function finishJeopardyGame(code: string) {
-  const s = await sendAndWaitState(code, { action: "jeopardy_finish" });
-  if (s?.jeopardy) {
-    try {
-      const sorted = [...s.players].sort((a, b) => b.score - a.score);
-      const winner = sorted[0] ?? null;
-      const hasFinal = Object.keys(s.jeopardy.finalBets).length > 0;
-      await submitJeopardyResult({
-        gameId: s.gameId,
-        hasFinal,
-        winnerId: winner?.id ?? null,
-        teams: s.players.map((p) => ({
-          id: p.id,
-          name: p.nickname,
-          score: p.score,
-          correct: p.jCorrect ?? 0,
-          wrong: p.jWrong ?? 0,
-          finalBet: hasFinal ? (s.jeopardy!.finalBets[p.id] ?? 0) : undefined,
-          finalCorrect: hasFinal ? (s.jeopardy!.finalAnswers[p.id] ?? false) : undefined,
-        })),
-      });
-    } catch (err) {
-      console.error("Failed to save online jeopardy result", err);
-    }
-  }
-  return s;
+  return sendAndWaitState(code, { action: "jeopardy_finish" });
 }
 
 export async function adjustJeopardyScore(code: string, playerId: string, delta: number) {
