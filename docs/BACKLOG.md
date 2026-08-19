@@ -21,6 +21,9 @@
 
 ### C2. Ввести server-side authorization для WebSocket-комнат
 
+- **Статус:** `DONE`. Сервер выдаёт host/player credentials, связывает действия с server-side role/player и блокирует spoofing/unauthorized actions. Reconnect поддерживается только в памяти текущего backend-процесса через короткое grace window; D4 persistence не реализована.
+- **C3 bridge:** `correct`, `delta`, `score` и `streak` ещё являются legacy client-scored полями после identity check. C2 не делает их trusted и не пересчитывает результат; это обязательный scope C3 через game snapshot и server-side recalculation.
+
 - **Проблема/цель:** WebSocket принимает соединение и действия, а `hostId`, `playerId`, score delta и переходы состояния в значительной степени приходят от клиента. Для host/player нет полноценной проверки прав на каждую команду.
 - **Почему важно:** посторонний клиент может вмешаться в игру, изменить очки, kick/start/finish комнату или раскрыть состояние.
 - **Затрагивает:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, host/player room views, reconnect logic, протокол actions/state.

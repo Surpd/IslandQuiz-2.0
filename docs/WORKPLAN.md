@@ -227,7 +227,7 @@
 
 ### Blocked — не реализовывать до снятия блокеров
 
-#### C2. Server-side authorization WebSocket-комнат — `READY`
+#### C2. Server-side authorization WebSocket-комнат — `DONE`
 
 - **Зависимости:** D2; затем матрица host/player permissions, JWT/guest identity в WS и протокол reconnect.
 - **Блокирующие D1–D9:** нет.
@@ -235,6 +235,9 @@
 - **Файлы:** `backend/routes/rooms.py`, `frontend/src/lib/api.ts`, host/player room views, reconnect logic, protocol/state types.
 - **Готово, когда:** сервер сам определяет участника и право каждой команды; client-supplied `hostId`, `playerId`, score и phase не являются источником доверия.
 - **Проверки:** spoofed identity, unauthorized start/kick/finish/score, guest join/reconnect, host/player permission matrix, multi-client WS integration.
+- **Фактический результат:** сервер выдаёт opaque credentials для host/player, определяет role/player по credential и не раскрывает live state неидентифицированному socket. Host credential хранится в `localStorage`, guest credential — в `sessionStorage`; reconnect в том же backend-процессе работает в течение 60-секундного in-memory grace window. Host-only/player-only actions и чужие `playerId` отклоняются controlled error.
+- **C3 bridge:** C2 закрывает identity, authorization и spoofing, но не trusted scoring. После C2 `correct`, `delta`, `score` и `streak` в `answer` остаются legacy client-scored payload только от server-identified own-player socket. C3 обязана заменить их серверным пересчётом из versioned game snapshot и ответов.
+- **Проверки завершения:** `python -m unittest discover -s tests -p 'test*.py'` — 38 passed; targeted room authorization suite — 7 passed; `python -m py_compile routes/rooms.py`, `npx tsc --noEmit`, `npm run build`, `git diff --check` — passed. Full lint остаётся pre-existing baseline (2,000+ Prettier/ESLint messages), не относящийся к C2.
 
 #### C3. Перенести расчёт результата на доверенную сторону — `DEPENDENCY`
 

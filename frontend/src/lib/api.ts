@@ -20,6 +20,7 @@ import type {
 } from "./types";
 import type { User } from "./auth";
 import { formatQuizAnswer, formatGivenAnswer } from "./format-answer";
+import { clearAuthToken, getAuthToken, setAuthToken } from "./auth";
 
 // Re-export types consumed by other modules so the facade stays the single entry point.
 export type { User } from "./auth";
@@ -37,10 +38,10 @@ export type { JeopardyResult } from "./jeopardy-results";
 // ---------- HTTP helper ----------
 const BASE_URL = "https://api.islandquiz.online";
 const WS_BASE = "wss://api.islandquiz.online";
-const TOKEN_KEY = "islandquiz.token";
+const AUTH_EXPIRED_EVENT = "islandquiz:auth-expired";
 
 export async function apiFetch(path: string, options?: RequestInit): Promise<any> {
-  const token = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+  const token = getAuthToken();
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
@@ -50,6 +51,10 @@ export async function apiFetch(path: string, options?: RequestInit): Promise<any
     },
   });
   if (!res.ok) {
+    if (res.status === 401) {
+      clearAuthToken();
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
     const error = await res.json().catch(() => ({ error: "Network error" }));
     throw new Error(error.error || error.detail || `HTTP ${res.status}`);
   }
@@ -214,7 +219,7 @@ export async function register(input: { email: string; password: string; name: s
     body: JSON.stringify(body),
   });
   if (data.ok && data.token) {
-    localStorage.setItem(TOKEN_KEY, data.token);
+    setAuthToken(data.token);
   }
   if (data.ok && data.user) {
     await bindOrphanGames();
@@ -236,7 +241,7 @@ export async function login(input: { email: string; password: string }) {
     body: JSON.stringify(body),
   });
   if (data.ok && data.token) {
-    localStorage.setItem(TOKEN_KEY, data.token);
+    setAuthToken(data.token);
   }
   if (data.ok && data.user) {
     await bindOrphanGames();
@@ -251,7 +256,7 @@ export async function logout() {
   } catch {
     /* ignore */
   }
-  localStorage.removeItem(TOKEN_KEY);
+  clearAuthToken();
   return { ok: true };
 }
 
@@ -277,13 +282,13 @@ export async function resetPassword(token: string, newPassword: string) {
 }
 
 export async function getMe(): Promise<User | null> {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getAuthToken();
   if (!token) return null;
   try {
     const u = await apiFetch("/api/users/me");
     return u ? mapUser(u) : null;
   } catch {
-    localStorage.removeItem(TOKEN_KEY);
+    clearAuthToken();
     return null;
   }
 }
@@ -317,12 +322,12 @@ export async function startTelegramLink() {
 }
 
 export async function deleteAccount() {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getAuthToken();
   await apiFetch("/api/users/me", {
     method: "DELETE",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
-  localStorage.removeItem(TOKEN_KEY);
+  clearAuthToken();
 }
 
 // ---------- Games ----------
@@ -561,10 +566,40 @@ export interface RoomState {
 type RoomConn = {
   ws: WebSocket;
   handlers: Set<(s: RoomState) => void>;
-  onceWaiters: Set<(msg: { type: string; state?: RoomState; error?: string }) => void>;
+  onceWaiters: Set<(msg: RoomMessage) => void>;
   state: RoomState | null;
   openPromise: Promise<void>;
 };
+
+type RoomMessage = {
+  type: string;
+  state?: RoomState;
+  error?: string;
+  credential?: string;
+  role?: "host" | "player";
+  playerId?: string;
+};
+
+const ROOM_HOST_CREDENTIAL_PREFIX = "islandquiz.room.host.";
+const ROOM_PLAYER_CREDENTIAL_PREFIX = "islandquiz.room.player.";
+
+function roomCredential(code: string): string | null {
+  if (typeof window === "undefined") return null;
+  return (
+    localStorage.getItem(`${ROOM_HOST_CREDENTIAL_PREFIX}${code}`) ??
+    sessionStorage.getItem(`${ROOM_PLAYER_CREDENTIAL_PREFIX}${code}`)
+  );
+}
+
+function storeRoomCredential(code: string, message: RoomMessage) {
+  if (!message.credential || !message.role || typeof window === "undefined") return;
+  const key =
+    message.role === "host"
+      ? `${ROOM_HOST_CREDENTIAL_PREFIX}${code}`
+      : `${ROOM_PLAYER_CREDENTIAL_PREFIX}${code}`;
+  const storage = message.role === "host" ? localStorage : sessionStorage;
+  storage.setItem(key, message.credential);
+}
 
 const roomConns = new Map<string, RoomConn>();
 
@@ -577,9 +612,11 @@ function ensureRoomConn(code: string): RoomConn {
     return existing;
   }
 
-  const ws = new WebSocket(`${WS_BASE}/ws/room/${code}`);
+  const credential = roomCredential(code);
+  const suffix = credential ? `?credential=${encodeURIComponent(credential)}` : "";
+  const ws = new WebSocket(`${WS_BASE}/ws/room/${code}${suffix}`);
   const handlers = new Set<(s: RoomState) => void>();
-  const onceWaiters = new Set<(msg: { type: string; state?: RoomState; error?: string }) => void>();
+  const onceWaiters = new Set<(msg: RoomMessage) => void>();
 
   let resolveOpen!: () => void;
   const openPromise = new Promise<void>((resolve) => {
@@ -595,11 +632,8 @@ function ensureRoomConn(code: string): RoomConn {
   
   ws.onmessage = (ev) => {
     try {
-      const msg = JSON.parse(ev.data as string) as {
-        type: string;
-        state?: RoomState;
-        error?: string;
-      };
+      const msg = JSON.parse(ev.data as string) as RoomMessage;
+      if (msg.type === "room_identity") storeRoomCredential(code, msg);
       if (msg.type === "room_state" && msg.state) {
         conn.state = msg.state;
         handlers.forEach((h) => h(msg.state!));
@@ -646,16 +680,16 @@ function sendRoom(code: string, payload: Record<string, unknown>) {
 
 function waitRoomMessage(
   code: string,
-  pred: (msg: { type: string; state?: RoomState; error?: string }) => boolean,
+  pred: (msg: RoomMessage) => boolean,
   timeoutMs = 8000,
-): Promise<{ type: string; state?: RoomState; error?: string }> {
+): Promise<RoomMessage> {
   const conn = ensureRoomConn(code);
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {
       conn.onceWaiters.delete(onMsg);
       reject(new Error("Таймаут комнаты"));
     }, timeoutMs);
-    const onMsg = (msg: { type: string; state?: RoomState; error?: string }) => {
+    const onMsg = (msg: RoomMessage) => {
       if (!pred(msg)) return;
       window.clearTimeout(timer);
       conn.onceWaiters.delete(onMsg);
@@ -693,15 +727,12 @@ export function subscribeRoom(code: string, handler: (s: RoomState) => void) {
 
 export async function createRoom(gameKind: GameKind, gameId: string) {
   const code = String(Math.floor(1000 + Math.random() * 9000));
-  const hostId = newId();
   const conn = ensureRoomConn(code);
   await conn.openPromise;
   await sendAndWaitState(code, {
     action: "create_room",
     gameKind,
     gameId,
-    hostId,
-    createdAt: Date.now(),
   });
   return { code, room_url: `/room/${code}` };
 }
@@ -709,34 +740,25 @@ export async function createRoom(gameKind: GameKind, gameId: string) {
 export async function joinRoom(code: string, nickname: string, avatar: string) {
   const conn = ensureRoomConn(code);
   await conn.openPromise;
-  // Give the server a moment to push existing room_state on connect
+  // Unbound sockets receive room_available, while identified sockets receive room_state.
+  let roomAvailable = Boolean(conn.state);
   if (!conn.state) {
-    await Promise.race([
-      waitRoomMessage(code, (m) => m.type === "room_state", 1500).catch(() => null),
-      new Promise((r) => setTimeout(r, 400)),
-    ]);
+    const initial = await waitRoomMessage(
+      code,
+      (m) => m.type === "room_state" || m.type === "room_available",
+      1500,
+    ).catch(() => null);
+    roomAvailable = initial?.type === "room_available" || initial?.type === "room_state";
   }
-  if (!conn.state) {
+  if (!roomAvailable) {
     return { success: false as const, error: "Комната не найдена" };
   }
-
-  const existing = conn.state.players.find((p) => p.nickname === nickname);
-  const player = existing
-    ? { ...existing, connected: true, avatar: avatar || existing.avatar }
-    : {
-        id: newId(),
-        nickname,
-        avatar,
-        score: 0,
-        streak: 0,
-        connected: true,
-      };
 
   const errorWait = waitRoomMessage(
     code,
     (m) => m.type === "error" || (m.type === "room_state" && !!m.state),
   );
-  sendRoom(code, { action: "join", player });
+  sendRoom(code, { action: "join", player: { nickname, avatar } });
   try {
     const msg = await errorWait;
     if (msg.type === "error") {
@@ -746,9 +768,9 @@ export async function joinRoom(code: string, nickname: string, avatar: string) {
     /* use cached */
   }
 
-  const joined = conn.state?.players.find((p) => p.nickname === nickname);
-  if (!joined) return { success: false as const, error: "Не удалось присоединиться" };
-  return { success: true as const, player_id: joined.id };
+  const playerId = conn.state?.players.find((p) => p.nickname === nickname)?.id;
+  if (!playerId || !roomCredential(code)) return { success: false as const, error: "Не удалось присоединиться" };
+  return { success: true as const, player_id: playerId };
 }
 
 export async function getRoomState(code: string) {
@@ -770,18 +792,7 @@ export async function startRoom(code: string) {
 }
 
 export async function revealAnswer(code: string) {
-  const s = roomConns.get(code)?.state;
-  if (!s) return null;
-  const answered = s.players.filter(
-    (p) => p.lastAnswer?.questionIdx === s.questionIdx && p.lastAnswer.correct,
-  );
-  const fastest = [...answered].sort(
-    (a, b) => (a.lastAnswer!.timeMs ?? 0) - (b.lastAnswer!.timeMs ?? 0),
-  )[0];
-  return sendAndWaitState(code, {
-    action: "reveal",
-    fastestPlayerId: fastest?.id,
-  });
+  return sendAndWaitState(code, { action: "reveal" });
 }
 
 export async function showLeaderboard(code: string) {
@@ -902,7 +913,6 @@ export async function submitAnswer(
   });
   await sendAndWaitState(code, {
     action: "answer",
-    playerId,
     correct: payload.correct,
     delta,
     streak: streakAfter,
@@ -977,7 +987,6 @@ export async function selectJeopardyQuestion(
 export async function submitJeopardyBuzzAnswer(code: string, playerId: string, given: string) {
   return sendAndWaitState(code, {
     action: "jeopardy_buzz_answer",
-    playerId,
     given,
   });
 }
@@ -994,7 +1003,6 @@ export async function buzzJeopardy(code: string, playerId: string) {
   if (j.buzzedPlayerIds.includes(playerId)) return s;
   return sendAndWaitState(code, {
     action: "jeopardy_buzz",
-    playerId,
     buzzStartAt: Date.now(),
   });
 }
@@ -1047,7 +1055,6 @@ export async function endJeopardyRound(code: string) {
 export async function submitJeopardyFinalBet(code: string, playerId: string, bet: number) {
   return sendAndWaitState(code, {
     action: "jeopardy_final_bet",
-    playerId,
     bet,
   });
 }
@@ -1059,7 +1066,6 @@ export async function startJeopardyFinalQuestion(code: string) {
 export async function submitJeopardyFinalAnswer(code: string, playerId: string, given: string) {
   return sendAndWaitState(code, {
     action: "jeopardy_final_answer",
-    playerId,
     given,
   });
 }
@@ -1290,7 +1296,7 @@ export async function improveQuestion(input: {
     method: "POST",
     body: JSON.stringify(input),
   }), "варианты вопроса");
-  if (!Array.isArray(response.variants) || response.variants.length === 0) {
+  if (!Array.isArray(response.variants) || response.variants.length !== 3) {
     throw new Error("AI не вернул варианты вопроса.");
   }
   return { variants: response.variants.map(normalizeGeneratedQuestion) };

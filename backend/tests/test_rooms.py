@@ -1,5 +1,5 @@
-import json
 import copy
+import json
 import unittest
 
 from fastapi import WebSocketDisconnect
@@ -8,9 +8,10 @@ from routes import rooms as rooms_route
 
 
 class FakeWebSocket:
-    def __init__(self, messages):
+    def __init__(self, messages, credential=None):
         self.messages = iter(messages)
         self.sent = []
+        self.query_params = {"credential": credential} if credential else {}
 
     async def accept(self):
         return None
@@ -25,74 +26,175 @@ class FakeWebSocket:
             raise WebSocketDisconnect() from exc
 
 
-class RoomFlowTests(unittest.IsolatedAsyncioTestCase):
+def room_fixture():
+    return {
+        "code": "ROOM1",
+        "gameKind": "quiz",
+        "gameId": "game-1",
+        "hostId": "server-host",
+        "status": "waiting",
+        "questionIdx": 0,
+        "questionStartAt": None,
+        "players": [
+            {"id": "player-1", "nickname": "Alice", "avatar": "", "score": 0, "streak": 0},
+            {"id": "player-2", "nickname": "Bob", "avatar": "", "score": 0, "streak": 0},
+        ],
+        "fastestPlayerId": None,
+        "createdAt": 1,
+        "_credentials": {
+            "host-token": {"role": "host", "playerId": None},
+            "player-1-token": {"role": "player", "playerId": "player-1"},
+            "player-2-token": {"role": "player", "playerId": "player-2"},
+        },
+    }
+
+
+class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         rooms_route.rooms.clear()
         rooms_route.connections.clear()
+        for task in rooms_route.room_cleanup_tasks.values():
+            task.cancel()
+        rooms_route.room_cleanup_tasks.clear()
 
     async def asyncTearDown(self):
         rooms_route.rooms.clear()
         rooms_route.connections.clear()
+        for task in rooms_route.room_cleanup_tasks.values():
+            task.cancel()
+        rooms_route.room_cleanup_tasks.clear()
 
-    async def test_quiz_room_lifecycle_and_disconnect_cleanup(self):
-        player = {"id": "player-1", "nickname": "Alice", "avatar": "", "score": 0}
-        actions = [
-            {"action": "create_room", "gameId": "game-1", "hostId": "host-1"},
-            {"action": "join", "player": player},
-            {"action": "start", "questionStartAt": 123},
-            {
-                "action": "answer",
-                "playerId": "player-1",
-                "correct": True,
-                "delta": 100,
-                "given": "Paris",
-            },
-            {"action": "next_question", "questionStartAt": 456},
-            {"action": "finish"},
-        ]
-        websocket = FakeWebSocket([json.dumps(action) for action in actions])
+    async def test_create_room_issues_server_host_identity(self):
+        websocket = FakeWebSocket([json.dumps({
+            "action": "create_room",
+            "gameKind": "quiz",
+            "gameId": "game-1",
+            "hostId": "spoofed-host",
+            "createdAt": 0,
+        })])
 
         await rooms_route.room_websocket(websocket, "ROOM1")
 
-        states = [message["state"] for message in websocket.sent if message["type"] == "room_state"]
-        self.assertGreaterEqual(len(states), len(actions))
-        self.assertEqual(states[0]["status"], "waiting")
-        self.assertEqual(states[1]["players"][0]["id"], "player-1")
-        self.assertEqual(states[2]["status"], "active")
-        self.assertEqual(states[3]["players"][0]["score"], 100)
-        self.assertEqual(states[-2]["questionIdx"], 1)
-        self.assertEqual(states[-1]["status"], "finished")
-        self.assertNotIn("ROOM1", rooms_route.rooms)
-        self.assertNotIn("ROOM1", rooms_route.connections)
+        identity = next(message for message in websocket.sent if message["type"] == "room_identity")
+        state = next(message["state"] for message in websocket.sent if message["type"] == "room_state")
+        self.assertEqual(identity["role"], "host")
+        self.assertTrue(identity["credential"])
+        self.assertNotEqual(state["hostId"], "spoofed-host")
+        self.assertNotIn("_credentials", state)
 
-    async def test_joining_unknown_room_returns_error_and_cleans_up(self):
+    async def test_guest_join_ignores_client_player_id_and_issues_identity(self):
+        rooms_route.rooms["ROOM1"] = room_fixture()
+        websocket = FakeWebSocket([json.dumps({
+            "action": "join",
+            "player": {"id": "player-2", "nickname": "Eve", "avatar": ""},
+        })])
+
+        await rooms_route.room_websocket(websocket, "ROOM1")
+
+        identity = next(message for message in websocket.sent if message["type"] == "room_identity")
+        state = [message["state"] for message in websocket.sent if message["type"] == "room_state"][-1]
+        joined = next(player for player in state["players"] if player["nickname"] == "Eve")
+        self.assertEqual(identity["role"], "player")
+        self.assertEqual(identity["playerId"], joined["id"])
+        self.assertNotEqual(joined["id"], "player-2")
+
+    async def test_authorized_create_join_start_and_answer_happy_path(self):
+        host_create = FakeWebSocket([json.dumps({
+            "action": "create_room",
+            "gameKind": "quiz",
+            "gameId": "game-1",
+        })])
+        await rooms_route.room_websocket(host_create, "ROOM1")
+        host_credential = next(message["credential"] for message in host_create.sent if message["type"] == "room_identity")
+
+        guest_join = FakeWebSocket([json.dumps({
+            "action": "join",
+            "player": {"nickname": "Alice", "avatar": ""},
+        })])
+        await rooms_route.room_websocket(guest_join, "ROOM1")
+        guest_identity = next(message for message in guest_join.sent if message["type"] == "room_identity")
+
+        host_start = FakeWebSocket([json.dumps({"action": "start"})], credential=host_credential)
+        await rooms_route.room_websocket(host_start, "ROOM1")
+
+        player_answer = FakeWebSocket([json.dumps({
+            "action": "answer",
+            "correct": True,
+            "delta": 100,
+            "streak": 1,
+            "given": "Paris",
+        })], credential=guest_identity["credential"])
+        await rooms_route.room_websocket(player_answer, "ROOM1")
+
+        state = [message["state"] for message in player_answer.sent if message["type"] == "room_state"][-1]
+        self.assertEqual(state["status"], "active")
+        self.assertEqual(state["players"][0]["id"], guest_identity["playerId"])
+        self.assertEqual(state["players"][0]["score"], 100)
+
+    async def test_player_cannot_answer_for_another_player(self):
+        rooms_route.rooms["ROOM1"] = room_fixture()
+        websocket = FakeWebSocket([json.dumps({
+            "action": "answer",
+            "playerId": "player-2",
+            "correct": True,
+            "delta": 100,
+            "streak": 1,
+            "given": "Paris",
+        })], credential="player-1-token")
+
+        await rooms_route.room_websocket(websocket, "ROOM1")
+
+        state = [message["state"] for message in websocket.sent if message["type"] == "room_state"][-1]
+        players = {player["id"]: player for player in state["players"]}
+        self.assertEqual(players["player-1"]["score"], 100)
+        self.assertEqual(players["player-2"]["score"], 0)
+
+    async def test_host_actions_require_host_credential(self):
+        rooms_route.rooms["ROOM1"] = room_fixture()
         websocket = FakeWebSocket([
-            json.dumps({
-                "action": "join",
-                "player": {"id": "player-1", "nickname": "Alice"},
-            }),
-        ])
+            json.dumps({"action": "start"}),
+            json.dumps({"action": "adjust_score", "playerId": "player-2", "delta": 999}),
+        ], credential="player-1-token")
 
-        await rooms_route.room_websocket(websocket, "MISSING")
+        await rooms_route.room_websocket(websocket, "ROOM1")
 
-        self.assertEqual(
-            websocket.sent,
-            [{"type": "error", "error": "Комната не найдена"}],
-        )
-        self.assertNotIn("MISSING", rooms_route.rooms)
-        self.assertNotIn("MISSING", rooms_route.connections)
+        errors = [message["error"] for message in websocket.sent if message["type"] == "error"]
+        self.assertEqual(errors, ["Действие доступно только ведущему", "Действие доступно только ведущему"])
 
-    async def test_malformed_message_returns_error_and_cleans_up(self):
-        websocket = FakeWebSocket(["not json"])
+    async def test_host_can_control_room_but_unbound_socket_cannot(self):
+        rooms_route.rooms["ROOM1"] = room_fixture()
+        host = FakeWebSocket([json.dumps({"action": "start"})], credential="host-token")
 
-        await rooms_route.room_websocket(websocket, "INVALID")
+        await rooms_route.room_websocket(host, "ROOM1")
 
-        self.assertEqual(
-            websocket.sent,
-            [{"type": "error", "error": "Неверный формат сообщения"}],
-        )
-        self.assertNotIn("INVALID", rooms_route.rooms)
-        self.assertNotIn("INVALID", rooms_route.connections)
+        state = [message["state"] for message in host.sent if message["type"] == "room_state"][-1]
+        self.assertEqual(state["status"], "active")
+
+        rooms_route.rooms["ROOM1"] = room_fixture()
+        unbound = FakeWebSocket([json.dumps({"action": "finish"})])
+        await rooms_route.room_websocket(unbound, "ROOM1")
+        self.assertIn({"type": "error", "error": "Действие доступно только ведущему"}, unbound.sent)
+
+    async def test_player_reconnect_receives_state_after_disconnect(self):
+        rooms_route.rooms["ROOM1"] = room_fixture()
+        first_connection = FakeWebSocket([], credential="player-1-token")
+
+        await rooms_route.room_websocket(first_connection, "ROOM1")
+
+        self.assertIn("ROOM1", rooms_route.rooms)
+        self.assertIn("ROOM1", rooms_route.room_cleanup_tasks)
+
+        reconnect = FakeWebSocket([], credential="player-1-token")
+
+        await rooms_route.room_websocket(reconnect, "ROOM1")
+
+        self.assertEqual(reconnect.sent[0]["type"], "room_state")
+
+    async def test_unknown_action_is_controlled(self):
+        rooms_route.rooms["ROOM1"] = room_fixture()
+        websocket = FakeWebSocket([json.dumps({"action": "delete_room"})], credential="host-token")
+        await rooms_route.room_websocket(websocket, "ROOM1")
+        self.assertIn({"type": "error", "error": "Неизвестное действие комнаты"}, websocket.sent)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
+import asyncio
 import json
-from typing import Optional
+import secrets
+import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -8,12 +10,56 @@ router = APIRouter(tags=["rooms"])
 # Хранилище комнат и соединений (в памяти)
 rooms: dict[str, dict] = {}
 connections: dict[str, list[WebSocket]] = {}
+room_cleanup_tasks: dict[str, asyncio.Task] = {}
+ROOM_RECONNECT_GRACE_SECONDS = 60
+
+HOST_ACTIONS = {
+    "start", "reveal", "leaderboard", "next_question", "finish", "restart", "kick", "adjust_score",
+    "jeopardy_set_mode", "jeopardy_start", "jeopardy_select", "jeopardy_accept",
+    "jeopardy_turn_wrong_finalize", "jeopardy_close_question", "jeopardy_skip",
+    "jeopardy_back_to_board", "jeopardy_end_round", "jeopardy_final_start",
+    "jeopardy_final_mark", "jeopardy_final_reveal", "jeopardy_final_advance",
+    "jeopardy_finish", "jeopardy_adjust_score",
+}
+PLAYER_ACTIONS = {"answer", "jeopardy_buzz", "jeopardy_buzz_answer", "jeopardy_final_bet", "jeopardy_final_answer"}
+
+
+def public_room_state(room: dict) -> dict:
+    """Never expose in-memory room credentials in a state broadcast."""
+    return {key: value for key, value in room.items() if key != "_credentials"}
+
+
+async def send_error(websocket: WebSocket, error: str):
+    await websocket.send_json({"type": "error", "error": error})
+
+
+def room_identity(code: str, credential: str | None) -> dict | None:
+    if not credential or code not in rooms:
+        return None
+    return rooms[code].get("_credentials", {}).get(credential)
+
+
+def issue_credential(room: dict, role: str, player_id: str | None = None) -> tuple[str, dict]:
+    credential = secrets.token_urlsafe(32)
+    identity = {"role": role, "playerId": player_id}
+    room["_credentials"][credential] = identity
+    return credential, identity
+
+
+async def cleanup_empty_room_after_grace(code: str):
+    await asyncio.sleep(ROOM_RECONNECT_GRACE_SECONDS)
+    if not connections.get(code):
+        connections.pop(code, None)
+        rooms.pop(code, None)
+    room_cleanup_tasks.pop(code, None)
 
 
 async def broadcast(code: str, message: dict):
     """Отправить сообщение всем в комнате."""
     if code not in connections:
         return
+    if message.get("type") == "room_state" and isinstance(message.get("state"), dict):
+        message = {**message, "state": public_room_state(message["state"])}
     dead = []
     for ws in connections[code]:
         try:
@@ -28,13 +74,21 @@ async def broadcast(code: str, message: dict):
 async def room_websocket(websocket: WebSocket, code: str):
     await websocket.accept()
 
+    identity = room_identity(code, websocket.query_params.get("credential"))
+    cleanup_task = room_cleanup_tasks.pop(code, None)
+    if cleanup_task:
+        cleanup_task.cancel()
+
     if code not in connections:
         connections[code] = []
     connections[code].append(websocket)
 
-    # Отправить текущее состояние комнаты новому игроку
+    # Unbound sockets may join by room code, but do not receive live game state.
     if code in rooms:
-        await websocket.send_json({"type": "room_state", "state": rooms[code]})
+        if identity:
+            await websocket.send_json({"type": "room_state", "state": public_room_state(rooms[code])})
+        else:
+            await websocket.send_json({"type": "room_available"})
 
     try:
         while True:
@@ -56,24 +110,36 @@ async def room_websocket(websocket: WebSocket, code: str):
                 continue
 
             action = data.get("action")
+            if not isinstance(action, str):
+                await send_error(websocket, "Неизвестное действие комнаты")
+                continue
 
             # ==================== ОБЩИЕ ДЕЙСТВИЯ ====================
 
             if action == "create_room":
+                if code in rooms:
+                    await send_error(websocket, "Комната с таким кодом уже существует")
+                    continue
                 game_kind = data.get("gameKind", "quiz")
                 game_id = data.get("gameId", "")
+                if game_kind not in {"quiz", "jeopardy", "millionaire"} or not isinstance(game_id, str) or not game_id:
+                    await send_error(websocket, "Некорректные параметры комнаты")
+                    continue
                 rooms[code] = {
                     "code": code,
                     "gameKind": game_kind,
                     "gameId": game_id,
-                    "hostId": data.get("hostId", ""),
+                    "hostId": f"host-{secrets.token_urlsafe(12)}",
                     "status": "waiting",
                     "questionIdx": 0,
                     "questionStartAt": None,
                     "players": [],
                     "fastestPlayerId": None,
-                    "createdAt": data.get("createdAt", 0),
+                    "createdAt": int(time.time() * 1000),
+                    "_credentials": {},
                 }
+                credential, identity = issue_credential(rooms[code], "host")
+                await websocket.send_json({"type": "room_identity", "credential": credential, "role": "host"})
                 # Если Jeopardy — добавить начальное состояние
                 if game_kind == "jeopardy":
                     rooms[code]["jeopardy"] = {
@@ -105,18 +171,40 @@ async def room_websocket(websocket: WebSocket, code: str):
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "join":
-                player = data.get("player")
                 if code not in rooms:
-                    await websocket.send_json({"type": "error", "error": "Комната не найдена"})
+                    await send_error(websocket, "Комната не найдена")
                     continue
-                # Проверяем дубликат по нику
-                existing = next((p for p in rooms[code]["players"] if p["nickname"] == player["nickname"]), None)
-                if existing:
-                    existing["connected"] = True
-                    existing["avatar"] = player.get("avatar", existing.get("avatar", ""))
-                else:
-                    rooms[code]["players"].append(player)
+                if identity:
+                    await send_error(websocket, "Игрок уже определён для этого соединения")
+                    continue
+                player_data = data.get("player")
+                nickname = player_data.get("nickname", "").strip() if isinstance(player_data, dict) else ""
+                avatar = player_data.get("avatar", "") if isinstance(player_data, dict) else ""
+                if not nickname or len(nickname) > 64 or not isinstance(avatar, str):
+                    await send_error(websocket, "Некорректные данные игрока")
+                    continue
+                player_id = f"player-{secrets.token_urlsafe(12)}"
+                player = {"id": player_id, "nickname": nickname, "avatar": avatar, "score": 0, "streak": 0, "connected": True}
+                rooms[code]["players"].append(player)
+                credential, identity = issue_credential(rooms[code], "player", player_id)
+                await websocket.send_json({"type": "room_identity", "credential": credential, "role": "player", "playerId": player_id})
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
+
+            elif code not in rooms:
+                await send_error(websocket, "Комната не найдена")
+                continue
+
+            elif action in HOST_ACTIONS and (not identity or identity["role"] != "host"):
+                await send_error(websocket, "Действие доступно только ведущему")
+                continue
+
+            elif action in PLAYER_ACTIONS and (not identity or identity["role"] != "player"):
+                await send_error(websocket, "Действие доступно только игроку комнаты")
+                continue
+
+            elif action not in HOST_ACTIONS | PLAYER_ACTIONS:
+                await send_error(websocket, "Неизвестное действие комнаты")
+                continue
 
             elif action == "start":
                 if code not in rooms:
@@ -132,14 +220,14 @@ async def room_websocket(websocket: WebSocket, code: str):
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "answer":
-                player_id = data.get("playerId")
-                if code not in rooms:
-                    continue
+                player_id = identity["playerId"]
                 player = next((p for p in rooms[code]["players"] if p["id"] == player_id), None)
                 if player:
                     # Не даём ответить дважды на один вопрос
                     if player.get("lastAnswer") and player["lastAnswer"].get("questionIdx") == rooms[code].get("questionIdx"):
                         continue
+                    # C2 bridge: identity is server-verified, but scoring payload is legacy until C3.
+                    # C3 must recompute correct/delta/streak from a versioned game snapshot.
                     player["lastAnswer"] = {
                         "questionIdx": rooms[code].get("questionIdx", 0),
                         "correct": data.get("correct"),
@@ -157,10 +245,14 @@ async def room_websocket(websocket: WebSocket, code: str):
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "reveal":
-                if code not in rooms:
-                    continue
                 rooms[code]["status"] = "reveal"
-                rooms[code]["fastestPlayerId"] = data.get("fastestPlayerId")
+                answered = [
+                    p for p in rooms[code]["players"]
+                    if p.get("lastAnswer", {}).get("questionIdx") == rooms[code].get("questionIdx")
+                    and p["lastAnswer"].get("correct")
+                ]
+                fastest = min(answered, key=lambda p: p["lastAnswer"].get("timeMs", 0), default=None)
+                rooms[code]["fastestPlayerId"] = fastest["id"] if fastest else None
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "leaderboard":
@@ -257,7 +349,14 @@ async def room_websocket(websocket: WebSocket, code: str):
             elif action == "jeopardy_buzz":
                 if code in rooms and "jeopardy" in rooms[code]:
                     j = rooms[code]["jeopardy"]
-                    j["buzzedPlayerId"] = data.get("playerId")
+                    if j["phase"] != "question":
+                        await send_error(websocket, "Сейчас нельзя нажать на кнопку")
+                        continue
+                    player_id = identity["playerId"]
+                    if player_id in j["buzzedPlayerIds"]:
+                        await send_error(websocket, "Игрок уже отвечал на этот вопрос")
+                        continue
+                    j["buzzedPlayerId"] = player_id
                     j["buzzedAnswer"] = None
                     j["buzzStartAt"] = data.get("buzzStartAt")
                     j["phase"] = "answering"
@@ -266,6 +365,9 @@ async def room_websocket(websocket: WebSocket, code: str):
             elif action == "jeopardy_buzz_answer":
                 if code in rooms and "jeopardy" in rooms[code]:
                     j = rooms[code]["jeopardy"]
+                    if j["buzzedPlayerId"] != identity["playerId"]:
+                        await send_error(websocket, "Ответ может отправить только выбранный игрок")
+                        continue
                     j["buzzedAnswer"] = data.get("given")
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
@@ -391,7 +493,7 @@ async def room_websocket(websocket: WebSocket, code: str):
             elif action == "jeopardy_final_bet":
                 if code in rooms and "jeopardy" in rooms[code]:
                     j = rooms[code]["jeopardy"]
-                    player_id = data.get("playerId")
+                    player_id = identity["playerId"]
                     bet = data.get("bet", 0)
                     player = next((p for p in rooms[code]["players"] if p["id"] == player_id), None)
                     cap = max(0, player.get("score", 0)) if player else 0
@@ -411,7 +513,7 @@ async def room_websocket(websocket: WebSocket, code: str):
             elif action == "jeopardy_final_answer":
                 if code in rooms and "jeopardy" in rooms[code]:
                     j = rooms[code]["jeopardy"]
-                    j["finalGiven"][data.get("playerId")] = data.get("given", "")
+                    j["finalGiven"][identity["playerId"]] = data.get("given", "")
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "jeopardy_final_mark":
@@ -485,4 +587,6 @@ async def room_websocket(websocket: WebSocket, code: str):
         connections[code] = [ws for ws in connections.get(code, []) if ws != websocket]
         if not connections.get(code):
             connections.pop(code, None)
-            rooms.pop(code, None)
+            # C2 reconnect bridge: keep only in-memory identity/state briefly.
+            # D4 persistence and restart recovery remain explicitly out of scope.
+            room_cleanup_tasks[code] = asyncio.create_task(cleanup_empty_room_after_grace(code))

@@ -4,7 +4,7 @@
 
 ## Current state
 
-- Основные frontend/backend baseline/contracts уже приведены в рабочее состояние: H1, H2, H3, H7, H8 и C4 отмечены `DONE`.
+- Основные frontend/backend baseline/contracts уже приведены в рабочее состояние: H1, H2, H3, H7, H8, C2 и C4 отмечены `DONE`.
 - Supabase production snapshot и deployment topology документированы; H5 и C5 закрыты.
 - Backend deployment automation H6 закрыта: GitHub Actions публикует exact SHA на VPS, проверяет syntax/systemd/local health и SHA. Documentation-only и frontend-only push не запускают backend deploy.
 - Добавлена минимальная Playwright E2E foundation: `cd frontend; npm run test:e2e` проверяет mocked login → Quiz Builder → save → Library → reopen → offline player → answer/finish flow. Реальные backend/Supabase, Telegram, AI, online rooms, permissions и production results остаются непокрыты.
@@ -42,9 +42,9 @@ Frontend теперь нормализует success payload и переводи
 
 ## Next 3–5 recommended tasks
 
-1. **C2 — Server-side authorization WebSocket-комнат** — **Sol / high**. Главный security blocker онлайн-режима.
-2. **C3 — Server-side scoring и trusted results** — **Sol / high**. Закрыть целостность результатов после C2.
-3. **H9 — Единый контроль доступа к результатам** — **Sol / high**. Включая private Jeopardy/online submit owner-binding gap, зафиксированный H7 tests.
+1. **C3 — Server-side scoring и trusted results** — **Sol / high**. C2 уже закрыла identity/spoofing, но client-scored `correct`/`delta`/`score`/`streak` остаются недоверенными до server-side recalculation.
+2. **H9 — Единый контроль доступа к результатам** — **Sol / high**. Включая private Jeopardy/online submit owner-binding gap, зафиксированный H7 tests.
+3. **H10 — protocol validation WebSocket-комнат** — **Sol / high**. Дополнить C2 проверкой shape, phase, bounds и replay/out-of-order actions.
 
 Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
 
