@@ -1,23 +1,18 @@
 import json
+import io
+import os
 import sys
 import types
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from fastapi import UploadFile
+
 
 fake_database = types.ModuleType("database")
 fake_database.supabase = object()
 sys.modules.setdefault("database", fake_database)
-
-fake_auth = types.ModuleType("routes.auth")
-
-
-async def fake_get_current_user():
-    return None
-
-
-fake_auth.get_current_user = fake_get_current_user
-sys.modules.setdefault("routes.auth", fake_auth)
+os.environ["JWT_SECRET"] = "test-jwt-secret-for-unit-tests-only-123456"
 
 from routes import ai as ai_route
 
@@ -125,6 +120,146 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 502)
         self.assertEqual(json.loads(response.body)["code"], "invalid_ai_json")
+
+    async def test_jeopardy_categories_returns_validated_categories(self):
+        payload = {
+            "categories": [
+                {"name": f"Category {index}", "description": f"Description {index}"}
+                for index in range(1, 6)
+            ]
+        }
+
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(
+                ai_route,
+                "call_openai",
+                new=AsyncMock(return_value=json.dumps(payload)),
+            ),
+        ):
+            response = await ai_route.generate_jeopardy_categories.__wrapped__(
+                self.request,
+                ai_route.GenerateJeopardyCategoriesInput(topic="science"),
+                None,
+            )
+
+        self.assertEqual(response, payload)
+
+    async def test_jeopardy_questions_reject_invalid_slots(self):
+        payload = {
+            "questions": [
+                {"points": 100, "difficulty": "basic", "q": "Question?", "a": "Answer"},
+            ]
+        }
+
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(
+                ai_route,
+                "call_openai",
+                new=AsyncMock(return_value=json.dumps(payload)),
+            ),
+        ):
+            response = await ai_route.generate_jeopardy_questions.__wrapped__(
+                self.request,
+                ai_route.GenerateJeopardyQuestionsInput(
+                    category="science",
+                    emptySlots=[100, 200],
+                ),
+                None,
+            )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(json.loads(response.body)["code"], "invalid_ai_response")
+
+    async def test_generate_from_file_rejects_unsupported_extension(self):
+        upload = UploadFile(filename="notes.csv", file=io.BytesIO(b"facts"))
+
+        with patch.object(ai_route, "check_ai_limit", return_value=None):
+            response = await ai_route.generate_from_file.__wrapped__(
+                self.request,
+                upload,
+                5,
+                "mixed",
+                "",
+                None,
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(json.loads(response.body)["code"], "unsupported_file_format")
+
+    async def test_generate_from_file_returns_validated_quiz(self):
+        payload = {
+            "title": "Imported quiz",
+            "questions": [choice_question(index) for index in range(5)],
+        }
+        upload = UploadFile(
+            filename="notes.txt",
+            file=io.BytesIO("The moon reflects sunlight.".encode()),
+        )
+
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(
+                ai_route,
+                "call_openai",
+                new=AsyncMock(return_value=json.dumps(payload)),
+            ) as call_openai,
+        ):
+            response = await ai_route.generate_from_file.__wrapped__(
+                self.request,
+                upload,
+                5,
+                "mixed",
+                "",
+                None,
+            )
+
+        self.assertEqual(response, payload)
+        self.assertIn("The moon reflects sunlight.", call_openai.await_args.args[0])
+
+    async def test_generate_from_file_rejects_empty_text(self):
+        upload = UploadFile(filename="empty.txt", file=io.BytesIO(b"  \n"))
+
+        with patch.object(ai_route, "check_ai_limit", return_value=None):
+            response = await ai_route.generate_from_file.__wrapped__(
+                self.request,
+                upload,
+                5,
+                "mixed",
+                "",
+                None,
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(json.loads(response.body)["code"], "empty_file_text")
+
+    async def test_generate_from_file_returns_provider_error(self):
+        upload = UploadFile(filename="notes.txt", file=io.BytesIO(b"facts"))
+        provider_error = {
+            "error": "AI request timeout",
+            "code": "ai_provider_timeout",
+        }
+
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(
+                ai_route,
+                "call_openai",
+                new=AsyncMock(return_value=json.dumps(provider_error)),
+            ),
+        ):
+            response = await ai_route.generate_from_file.__wrapped__(
+                self.request,
+                upload,
+                5,
+                "mixed",
+                "",
+                None,
+            )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(json.loads(response.body)["code"], "ai_provider_timeout")
 
 
 if __name__ == "__main__":

@@ -65,6 +65,35 @@ class RoomFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("ROOM1", rooms_route.rooms)
         self.assertNotIn("ROOM1", rooms_route.connections)
 
+    async def test_joining_unknown_room_returns_error_and_cleans_up(self):
+        websocket = FakeWebSocket([
+            json.dumps({
+                "action": "join",
+                "player": {"id": "player-1", "nickname": "Alice"},
+            }),
+        ])
+
+        await rooms_route.room_websocket(websocket, "MISSING")
+
+        self.assertEqual(
+            websocket.sent,
+            [{"type": "error", "error": "Комната не найдена"}],
+        )
+        self.assertNotIn("MISSING", rooms_route.rooms)
+        self.assertNotIn("MISSING", rooms_route.connections)
+
+    async def test_malformed_message_returns_error_and_cleans_up(self):
+        websocket = FakeWebSocket(["not json"])
+
+        await rooms_route.room_websocket(websocket, "INVALID")
+
+        self.assertEqual(
+            websocket.sent,
+            [{"type": "error", "error": "Неверный формат сообщения"}],
+        )
+        self.assertNotIn("INVALID", rooms_route.rooms)
+        self.assertNotIn("INVALID", rooms_route.connections)
+
 
 if __name__ == "__main__":
     unittest.main()

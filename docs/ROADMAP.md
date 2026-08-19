@@ -4,7 +4,7 @@
 
 ## Current state
 
-- Основные frontend baseline/contracts уже приведены в рабочее состояние: H1, H2, H3, H8 и C4 отмечены `DONE`.
+- Основные frontend/backend baseline/contracts уже приведены в рабочее состояние: H1, H2, H3, H7, H8 и C4 отмечены `DONE`.
 - Supabase production snapshot и deployment topology документированы; H5 и C5 закрыты.
 - Backend deployment automation H6 закрыта: GitHub Actions публикует exact SHA на VPS, проверяет syntax/systemd/local health и SHA. Documentation-only и frontend-only push не запускают backend deploy.
 - Добавлена минимальная Playwright E2E foundation: `cd frontend; npm run test:e2e` проверяет mocked login → Quiz Builder → save → Library → reopen → offline player → answer/finish flow. Реальные backend/Supabase, Telegram, AI, online rooms, permissions и production results остаются непокрыты.
@@ -22,6 +22,7 @@
 - **C5 / DONE:** выполнен read-only Supabase schema/RLS/RPC snapshot.
 - **H6 / DONE:** backend deployment automation работает; rollback rehearsal вынесен в H6.1.
 - **H8 / DONE:** canonical AI contract закреплён для Quiz, file и Jeopardy; provider/output failures имеют controlled error envelope.
+- **H7 / DONE:** baseline critical regression suite вырос с 16 до 35 backend tests и покрывает текущие auth, Telegram, visibility/results, AI и room contracts без изменения security architecture.
 - **CODEX_MODEL_GUIDE:** для задач добавлен выбор Luna/Terra/Sol с условиями escalation.
 
 ## Broken / needs fix now
@@ -41,9 +42,9 @@ Frontend теперь нормализует success payload и переводи
 
 ## Next 3–5 recommended tasks
 
-1. **H7 — Добавить критические API/room/AI tests и расширить E2E** — **Terra / high**. Добавлены backend AI route regression tests; остаются реальные/интеграционные проверки auth, permissions, results, дополнительных AI flows и rooms.
-2. **C2 — Server-side authorization WebSocket-комнат** — **Sol / high**. Главный security blocker онлайн-режима.
-3. **C3 — Server-side scoring и trusted results** — **Sol / high**. Закрыть целостность результатов после C2.
+1. **C2 — Server-side authorization WebSocket-комнат** — **Sol / high**. Главный security blocker онлайн-режима.
+2. **C3 — Server-side scoring и trusted results** — **Sol / high**. Закрыть целостность результатов после C2.
+3. **H9 — Единый контроль доступа к результатам** — **Sol / high**. Включая private Jeopardy/online submit owner-binding gap, зафиксированный H7 tests.
 
 Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
 
@@ -67,4 +68,4 @@ Frontend теперь нормализует success payload и переводи
 
 ## Working formula
 
-H11 и H8 закрыты; далее добавить regression coverage H7 и затем двигаться к C2/C3. Для обычных docs/process изменений использовать Luna; для AI/frontend integration — Terra; для auth/security/rooms/DB — Sol. Подробные правила выбора находятся в `docs/CODEX_MODEL_GUIDE.md`.
+H11, H8 и H7 закрыты; далее security/data-integrity work C2/C3/H9. Для обычных docs/process изменений использовать Luna; для AI/frontend integration — Terra; для auth/security/rooms/DB — Sol. Подробные правила выбора находятся в `docs/CODEX_MODEL_GUIDE.md`.

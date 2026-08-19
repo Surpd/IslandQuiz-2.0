@@ -134,14 +134,15 @@
 
 ### H7. Добавить автоматические проверки критических API и room flows
 
-- **Статус реализации:** `IN_PROGRESS`. Добавлены изолированные backend unittest для quiz room lifecycle/cleanup после disconnect и AI route contract checks для full Quiz, variants и controlled provider/malformed JSON errors; полный набор критических API/permission/AI/room проверок ещё не завершён.
+- **Статус реализации:** `DONE` как baseline critical regression suite. Backend suite вырос с 16 до 35 tests: JWT basics, Telegram verify/bot-login/complete, D6 visibility/results, AI contracts/errors и room lifecycle/malformed input.
 - **Проблема/цель:** в репозитории нет backend test suite; отсутствуют системные проверки auth, Telegram replay, permissions, results, visibility, AI contracts и WebSocket state transitions.
 - **Почему важно:** изменения в связанных frontend/backend слоях легко ломают security и сохранение данных незаметно.
-- **Текущее состояние:** минимальная Playwright foundation уже добавлена: `cd frontend; npm run test:e2e` проверяет mocked login → Quiz Builder → save → Library → reopen → offline player → answer/finish flow. H7.0 добавляет backend room lifecycle unittest, а текущий AI slice — route contract tests; полный запуск backend-тестов: `cd backend; python -m unittest discover -s tests -p 'test*.py'`. H7 остаётся незавершённой: реальные backend/Supabase, Telegram, permissions и production result persistence пока не покрыты.
+- **Текущее состояние:** `cd backend; python -m unittest discover -s tests -p 'test*.py'` выполняет 35 isolated tests с test doubles, без production data/credentials. Playwright smoke остаётся mocked frontend coverage. H7 фиксирует текущие contracts; не заменяет production/Supabase integration coverage.
 - **Затрагивает:** `backend/routes/*`, `backend/services/*`, `frontend/src/lib/api.ts`, room clients и Supabase test doubles/fixtures.
 - **Зависимости:** C1–C5 и H2–H3 для утверждённых контрактов; выбор test DB/mocks и CI environment.
 - **Сложность:** XL.
 - **Самостоятельность:** частично; инфраструктура тестов может быть подготовлена самостоятельно, но ожидаемые security/scoring правила требует утвердить владелец.
+- **Follow-up:** C1, C2, C3, C4.1 и H9 сохраняют собственные acceptance criteria. В частности, H9 исправляет current private Jeopardy/online result submit gap: owner identity не передаётся в route-level access check, поэтому owner получает `403`; H7 test документирует это поведение, не исправляет его.
 
 ### H8. Согласовать фактический AI contract и документацию
 
@@ -163,6 +164,7 @@
 - **Зависимости:** принятая visibility policy, user identity policy и production schema/RLS snapshot; tests на owner/non-owner/admin/anonymous.
 - **Сложность:** L.
 - **Самостоятельность:** нет — нужны правила владельца для публичности результатов и персональных данных.
+- **H7 handoff:** private Jeopardy/online result submit сейчас не получает owner identity в `_check_can_submit`, поэтому private owner получает `403`. Нужны единая owner/non-owner/admin/public/link matrix и endpoint-level regression tests.
 
 ### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation
 

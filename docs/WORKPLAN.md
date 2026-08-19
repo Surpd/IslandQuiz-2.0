@@ -97,15 +97,16 @@
 - **Готово, когда:** каждая операция UI имеет один документированный backend contract, корректные ошибки и одинаковую форму данных; неиспользуемые вызовы удалены или явно отмечены.
 - **Проверки:** targeted admin contract/flow checks, `python -m py_compile backend/routes/admin.py`, `npx tsc --noEmit`, `npm run build`, `git diff --check`, secret scan — успешно. Полный lint не запускался: pre-existing Prettier/ESLint baseline вне scope.
 
-#### H7. Добавить автоматические проверки критических API и room flows — `IN_PROGRESS`
+#### H7. Добавить автоматические проверки критических API и room flows — `DONE`
 
 - **Зависимости:** утверждённые контракты C1–C5, H2 и H3; test doubles/fixtures для Supabase и WebSocket.
 - **Блокирующие D1–D9:** нет; ожидаемое security-поведение уточняется по утверждённым контрактам.
 - **Техническое исследование до решения:** да — определить test runner, fixtures, границы mock и минимальный CI command.
-- **Текущее состояние:** добавлена минимальная Playwright foundation (`cd frontend; npm run test:e2e`) с mocked login → Quiz Builder → save → Library → reopen → offline player → answer/finish smoke flow. Добавлены backend unittest для полного quiz room lifecycle и cleanup после disconnect, а также AI route contract checks для full Quiz, variants и controlled provider/malformed JSON errors. Это не закрывает реальные backend/Supabase, Telegram, permissions или production result checks.
+- **Фактический результат:** baseline suite вырос с 16 до 35 backend tests. Покрыты JWT valid/missing/invalid/expired/deleted/banned paths; Telegram verify, bot-login и complete, включая текущую replayability; D6 game/result visibility и empty responses; Quiz/Jeopardy/file AI success/error paths; room lifecycle, missing room и malformed JSON cleanup. Playwright smoke остаётся отдельным mocked frontend flow.
 - **Файлы:** `backend/routes/*`, `backend/services/*`, `frontend/src/lib/api.ts`, room clients и новые backend/frontend test fixtures.
-- **Готово, когда:** критические auth, Telegram replay, permissions, results, visibility, AI и WebSocket transitions имеют воспроизводимые проверки.
-- **Проверки:** backend test command — `cd backend; python -m unittest discover -s tests -p 'test*.py'`; frontend smoke — `cd frontend; npm run test:e2e`. Негативные случаи с `None`, пустыми ответами Supabase, invalid JSON и malformed actions; отсутствие секретов в fixtures и логах. H7.0 и AI route slice подтверждены; оставшаяся работа: auth/Telegram replay, permissions, results/visibility, дополнительные AI endpoint/file cases и дополнительные WebSocket transitions.
+- **Готово, когда:** baseline checks для критических текущих contracts воспроизводимы без production data или architecture changes — выполнено.
+- **Проверки:** `cd backend; python -m unittest discover -s tests -p 'test*.py'` — 35 tests passed; Python syntax и `git diff --check` — passed. Tests use no production credentials or data.
+- **Следующие security/architecture follow-up:** C1 реализует one-time Telegram consume; C2 — room identity/authorization; C3 — trusted scoring; H9 — единый result access, включая owner binding для private Jeopardy/online submits; C4.1 — session lifecycle. H7 их не решает.
 
 #### H8. Согласовать фактический AI contract и документацию — `DONE`
 
@@ -220,6 +221,7 @@
 - **Файлы:** `backend/routes/results.py`, `backend/routes/games.py`, frontend results/dashboard/profile routes, result tables.
 - **Готово, когда:** один принцип доступа действует одинаково для Quiz, Jeopardy, Millionaire и online results; userId из клиента не расширяет права.
 - **Проверки:** owner/non-owner/admin/anonymous/link tests, cross-user ID tampering, PII exposure checks, empty/error Supabase responses.
+- **H7 handoff:** текущие `submit_jeopardy_result` и `submit_online_result` вызывают private-game check без текущего owner identity, поэтому private owner submit получает `403`; baseline regression test фиксирует это поведение. Исправление и единая matrix доступа — scope H9, не H7.
 
 После закрытия D1/D2/D3/D5/D6/D7 C4 закрыта, а C4.1 остаётся отдельной зависимой задачей; H3 и H5 можно запускать, H6 завершена, C2 также готова к реализации. C1 требует отдельного approval для production storage/migration. H9 переходит в подготовку после завершения identity/schema audit. C3, H10, M5 и P3 больше не заблокированы решениями, но зависят от C2, H8 и соответствующих контрактов.
 

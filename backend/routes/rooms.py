@@ -39,7 +39,22 @@ async def room_websocket(websocket: WebSocket, code: str):
     try:
         while True:
             raw = await websocket.receive_text()
-            data = json.loads(raw)
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send_json({
+                    "type": "error",
+                    "error": "Неверный формат сообщения",
+                })
+                continue
+
+            if not isinstance(data, dict):
+                await websocket.send_json({
+                    "type": "error",
+                    "error": "Неверный формат сообщения",
+                })
+                continue
+
             action = data.get("action")
 
             # ==================== ОБЩИЕ ДЕЙСТВИЯ ====================
@@ -470,4 +485,4 @@ async def room_websocket(websocket: WebSocket, code: str):
         connections[code] = [ws for ws in connections.get(code, []) if ws != websocket]
         if not connections.get(code):
             connections.pop(code, None)
-            rooms.pop(code, None)   
+            rooms.pop(code, None)
