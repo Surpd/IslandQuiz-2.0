@@ -294,6 +294,7 @@
 
 ### M9. Укрепить мониторинг, health checks и audit logging
 
+- **Safe local slice:** HTTP responses получают `X-Request-ID`; 5xx и unhandled failures пишут sanitized structured signal с route template, method, status и duration, а health endpoint возвращает machine-readable `status: ok`. Raw answers, emails, names, tokens и secrets не логируются этим slice. External monitoring/alerts, production config, database retention и PII policy не менялись и остаются за отдельным owner decision.
 - **Проблема/цель:** есть health endpoint и таблицы logs, но нет подтверждённого production smoke-check, alerting, correlation ID, метрик WebSocket/AI/Supabase и контроля утечки secrets в логах.
 - **Почему важно:** ошибки deployment, polling, AI и комнат будут обнаруживаться только по жалобам пользователей.
 - **Затрагивает:** `backend/main.py`, error/AI logs, VPS/Cloudflare/UptimeRobot, admin logs UI, deployment docs.

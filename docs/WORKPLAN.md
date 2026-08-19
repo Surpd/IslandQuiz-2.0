@@ -330,6 +330,7 @@
 - **Файлы:** `backend/main.py`, error/AI logs, VPS/Cloudflare/UptimeRobot, admin logs UI, deployment docs.
 - **Готово, когда:** deployment, Telegram, AI, Supabase и WS failures имеют обнаруживаемый сигнал без записи secrets/лишней PII.
 - **Проверки:** health/alert smoke, log redaction, correlation ID propagation, failed dependency simulation, retention check.
+- **Safe local slice (2026-08-19):** добавлены request correlation ID (`X-Request-ID`), sanitized structured logs только для 5xx/unhandled HTTP failures и machine-readable local health payload `{status: "ok", ...}`. Логи используют route template, method, status и duration без raw request path/body/query, ответов, email, player names, tokens или secrets. Внешний monitoring, alerting, VPS/Cloudflare config, database audit-log writes и retention policy не менялись; они остаются dependency на отдельное решение владельца.
 
 #### P1. Восстановление онлайн-игры после disconnect — `BLOCKED`
 
