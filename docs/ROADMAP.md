@@ -26,7 +26,7 @@
 
 ### H11 — Quiz Builder AI generation (`IN_PROGRESS`, Terra / high)
 
-`ae47585` устранил два frontend TypeError, но не завершил working flow: production UI smoke получил backend controlled errors `AI вернул некорректный квиз` и `AI вернул некорректные варианты`. H11 переоткрыт до подтверждения successful AI response через backend normalization и builder.
+`ae47585` устранил два frontend TypeError, но не завершил working flow: production UI smoke получил backend controlled errors `AI вернул некорректный квиз` и `AI вернул некорректные варианты`. Git history доказал, что эти gates появились в `6f6b3d6`; H11 возвращает предшествующий endpoint response flow и ждёт production confirmation.
 
 Первоначально исправлены два пользовательских сбоя:
 
@@ -35,7 +35,7 @@
 
 Frontend теперь нормализует success payload и переводит error/empty/malformed response в controlled UI error до `.map`/`.length`; legacy malformed QuizData не ломает builder. Jeopardy raw-response backend validation остаётся H8 follow-up.
 
-Текущий scope H11: `ai-generate-quiz.tsx`, `ai-helper.tsx`, `ai-jeopardy-category.tsx`, `builder.quiz.tsx`, `api.ts`, `backend/routes/ai.py` и validator compatibility mapping. Canonical AI schema и `games.data` не меняются.
+Текущий scope H11: `ai-generate-quiz.tsx`, `ai-helper.tsx`, `ai-jeopardy-category.tsx`, `builder.quiz.tsx`, `api.ts` и `backend/routes/ai.py`. Canonical AI schema и `games.data` не меняются.
 
 ## Next 3–5 recommended tasks
 

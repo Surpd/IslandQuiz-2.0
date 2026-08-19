@@ -123,12 +123,12 @@
 - **Цель:** восстановить полный flow AI response → normalization/mapping → Quiz Builder state для full quiz и per-question generation; не маскировать TypeError защитной проверкой.
 - **Рекомендуемая модель:** Terra / high, согласно `docs/CODEX_MODEL_GUIDE.md`.
 - **Зависимости:** точечная сверка текущих success/error/empty response shapes; H8 остаётся отдельной задачей по canonical AI contract.
-- **Файлы:** `frontend/src/components/ai-generate-quiz.tsx`, `frontend/src/components/ai-helper.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/src/lib/api.ts`, `backend/routes/ai.py`, `backend/services/ai_validator.py`, targeted normalization fixture.
+- **Файлы:** `frontend/src/components/ai-generate-quiz.tsx`, `frontend/src/components/ai-helper.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/src/lib/api.ts`, `backend/routes/ai.py`.
 - **Готово, когда:** full quiz и per-question generation работают для валидного ответа, empty/incomplete response и API error; вопросы корректно попадают в builder; TypeError не возникает и не скрывается.
 - **Проверки:** authenticated Quiz Builder smoke, full generation, helper для нескольких question types, invalid/empty/error fixtures, `npx tsc --noEmit`, targeted lint/build и сохранение результата.
 - **Граница scope:** если потребуется менять canonical AI schema или `games.data`, остановиться и обновить зависимость H8; не начинать архитектурное изменение в H11.
-- **Фактический результат:** commit `ae47585` устранил frontend `.map`/`.length` crash, но production UI smoke выявил, что backend validator отклоняет parsed AI payload до frontend success mapping. H11 переоткрыт: compatibility-normalizer приводит известные aliases/envelopes к существующей строгой схеме, а повторный authenticated smoke остаётся обязательным. Canonical backend contract и Jeopardy server validator не меняются.
-- **Проверки:** targeted backend normalization fixture, Python syntax, `npx tsc --noEmit`, `npm run build`, `git diff --check` — успешно. `npm run lint` не проходит на существующем общем Prettier/ESLint baseline (2145 problems), не исправлявшемся в H11. Successful production UI smoke, сохранение и play остаются pending.
+- **Фактический результат:** comparison с `6f6b3d6` доказал root cause: именно этот commit впервые добавил strict backend validation и текущие error strings; до него parsed full quiz и variants возвращались frontend напрямую. H11 возвращает этот success flow, а frontend guards из `ae47585` остаются единственной границей malformed/empty responses. Successful authenticated smoke, сохранение и play остаются обязательными.
+- **Проверки:** Git-history contract comparison, Python syntax, `npx tsc --noEmit`, `npm run build`, `git diff --check`. `npm run lint` не проходит на существующем общем Prettier/ESLint baseline (2145 problems), не исправлявшемся в H11.
 
 #### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation — `DEPENDENCY`
 

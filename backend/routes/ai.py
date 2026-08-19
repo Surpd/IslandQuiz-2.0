@@ -29,14 +29,6 @@ from services.ai_prompts import (
     generate_jeopardy_questions_prompt,
 )
 
-from services.ai_validator import (
-    describe_ai_shape,
-    normalize_question,
-    normalize_quiz,
-    validate_variants,
-    validate_quiz,
-)
-
 from limiter import limiter
 from database import supabase
 
@@ -196,10 +188,7 @@ async def call_openai(prompt: str) -> str:
 # NORMALIZATION
 # ============================================================
 
-def normalize_variants(
-    result,
-    expected_type: str | None = None,
-) -> list:
+def normalize_variants(result) -> list:
     """
     Приводит разные варианты ответа AI
     к единому массиву variants.
@@ -247,12 +236,9 @@ def normalize_variants(
         "hard",
     ]
 
-    normalized_variants = []
-
     for i, variant in enumerate(variants):
 
         if not isinstance(variant, dict):
-            normalized_variants.append(variant)
             continue
 
         # ----------------------------------------------------
@@ -313,14 +299,7 @@ def normalize_variants(
 
                 variant["correctAnswer"] = ""
 
-        normalized_variants.append(
-            normalize_question(
-                variant,
-                expected_type=expected_type,
-            )
-        )
-
-    return normalized_variants
+    return variants
 
 
 # ============================================================
@@ -438,114 +417,6 @@ def parse_ai_json(raw: str):
         )
 
         raise
-
-
-# ============================================================
-# VALIDATION HELPERS
-# ============================================================
-
-def validate_question_variants(
-    variants: list,
-    expected_count: int = 3,
-    source=None,
-):
-    """
-    Проверяет варианты через обычный Python validator.
-
-    ВАЖНО:
-    Это НЕ AI-запрос.
-
-    Поэтому:
-    - денег не тратит;
-    - лимит AI не увеличивает;
-    - задержка минимальная.
-    """
-
-    validation = validate_variants(
-        variants,
-        expected_count=expected_count,
-    )
-
-    if not validation.get("valid"):
-
-        print(
-            "[AI VALIDATION] Invalid variants:",
-            validation.get("error"),
-            "shape:",
-            describe_ai_shape(source if source is not None else variants),
-        )
-
-        return {
-            "valid": False,
-            "error": validation.get(
-                "error",
-                "Invalid AI output",
-            ),
-            "diagnostic": describe_ai_shape(
-                source if source is not None else variants
-            ),
-        }
-
-    return {
-        "valid": True,
-        "variants": validation.get(
-            "variants",
-            variants,
-        ),
-    }
-
-
-def validate_full_quiz(
-    result,
-    expected_count: int,
-    source=None,
-):
-    """
-    Проверяет полный сгенерированный квиз.
-
-    validate_quiz должен заниматься:
-    - количеством вопросов;
-    - типами;
-    - обязательными полями;
-    - индексами correct;
-    - options;
-    - pairs;
-    - correctAnswer;
-    - difficulty;
-    - структурой JSON.
-
-    Сам validator НЕ использует AI.
-    """
-
-    validation = validate_quiz(result, expected_count)
-
-    if not validation.get("valid"):
-
-        print(
-            "[AI VALIDATION] Invalid quiz:",
-            validation.get("error"),
-            "shape:",
-            describe_ai_shape(source if source is not None else result),
-        )
-
-        return {
-            "valid": False,
-            "error": validation.get(
-                "error",
-                "Invalid AI quiz",
-            ),
-            "diagnostic": describe_ai_shape(
-                source if source is not None else result
-            ),
-        }
-
-    return {
-        "valid": True,
-        "quiz": validation.get(
-            "quiz",
-            result,
-        ),
-    }
 
 
 # ============================================================
@@ -802,37 +673,11 @@ async def generate_question(
             result = parse_ai_json(raw)
 
             variants = normalize_variants(
-                result,
-                expected_type=qtype,
+                result
             )
-
-            validation = (
-                validate_question_variants(
-                    variants,
-                    expected_count=3,
-                    source=result,
-                )
-            )
-
-            if not validation["valid"]:
-
-                return {
-                    "error": (
-                        "AI вернул "
-                        "некорректные варианты"
-                    ),
-                    "details": validation[
-                        "error"
-                    ],
-                    "diagnostic": validation.get(
-                        "diagnostic"
-                    ),
-                }
 
             return {
-                "variants": validation[
-                    "variants"
-                ],
+                "variants": variants,
             }
 
         except json.JSONDecodeError:
@@ -877,37 +722,11 @@ async def generate_question(
         result = parse_ai_json(raw)
 
         variants = normalize_variants(
-            result,
-            expected_type=qtype,
+            result
         )
-
-        validation = (
-            validate_question_variants(
-                variants,
-                expected_count=3,
-                source=result,
-            )
-        )
-
-        if not validation["valid"]:
-
-            return {
-                "error": (
-                    "AI вернул "
-                    "некорректные варианты"
-                ),
-                "details": validation[
-                    "error"
-                ],
-                "diagnostic": validation.get(
-                    "diagnostic"
-                ),
-            }
 
         return {
-            "variants": validation[
-                "variants"
-            ],
+            "variants": variants,
         }
 
     except json.JSONDecodeError:
@@ -934,22 +753,6 @@ async def improve_question(
 ):
 
     check_ai_limit(user)
-
-    format_to_type = {
-        "quiz-choice": "choice",
-        "quiz-bool": "bool",
-        "quiz-text": "text",
-        "quiz-matching": "matching",
-        "quiz-close": "close",
-        "quiz-ordering": "ordering",
-        "choice": "choice",
-        "bool": "bool",
-        "text": "text",
-        "matching": "matching",
-        "close": "close",
-        "ordering": "ordering",
-    }
-    qtype = format_to_type.get(input.format or "", "choice")
 
     prompt = improve_question_prompt(
         current_text=input.currentText,
@@ -979,37 +782,11 @@ async def improve_question(
         result = parse_ai_json(raw)
 
         variants = normalize_variants(
-            result,
-            expected_type=qtype,
+            result
         )
-
-        validation = (
-            validate_question_variants(
-                variants,
-                expected_count=3,
-                source=result,
-            )
-        )
-
-        if not validation["valid"]:
-
-            return {
-                "error": (
-                    "AI вернул "
-                    "некорректные варианты"
-                ),
-                "details": validation[
-                    "error"
-                ],
-                "diagnostic": validation.get(
-                    "diagnostic"
-                ),
-            }
 
         return {
-            "variants": validation[
-                "variants"
-            ],
+            "variants": variants,
         }
 
     except json.JSONDecodeError:
@@ -1096,35 +873,7 @@ async def generate_quiz(
 
     try:
 
-        result = parse_ai_json(raw)
-        normalized_result = normalize_quiz(result)
-
-        # ----------------------------------------------------
-        # BACKEND VALIDATION
-        # ----------------------------------------------------
-
-        validation = validate_full_quiz(
-            normalized_result,
-            count,
-            source=result,
-        )
-
-        if not validation["valid"]:
-
-            return {
-                "error": (
-                    "AI вернул "
-                    "некорректный квиз"
-                ),
-                "details": validation[
-                    "error"
-                ],
-                "diagnostic": validation.get(
-                    "diagnostic"
-                ),
-            }
-
-        return validation["quiz"]
+        return parse_ai_json(raw)
 
     except json.JSONDecodeError:
 
@@ -1480,40 +1229,7 @@ async def generate_from_file(
 
     try:
 
-        result = parse_ai_json(raw)
-        normalized_result = normalize_quiz(result)
-
-        # ----------------------------------------------------
-        # BACKEND VALIDATION
-        # ----------------------------------------------------
-
-        validation = validate_full_quiz(
-            normalized_result,
-            count,
-            source=result,
-        )
-
-        if not validation["valid"]:
-
-            print(
-                "[AI FILE VALIDATION]",
-                validation["error"],
-            )
-
-            return {
-                "error": (
-                    "AI вернул "
-                    "некорректный квиз"
-                ),
-                "details": validation[
-                    "error"
-                ],
-                "diagnostic": validation.get(
-                    "diagnostic"
-                ),
-            }
-
-        return validation["quiz"]
+        return parse_ai_json(raw)
 
     except json.JSONDecodeError:
 
