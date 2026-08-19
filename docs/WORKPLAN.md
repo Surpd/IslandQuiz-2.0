@@ -270,7 +270,7 @@
 - **Готово, когда:** выбранная topology не теряет или явно корректно завершает комнату при restart и не допускает расходящихся состояний между workers.
 - **Проверки:** restart test, two-worker test, concurrent actions/version conflict, TTL cleanup, reconnect and result finalization.
 
-#### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API — `DEPENDENCY`
+#### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API — `IN_PROGRESS`
 
 - **Зависимости:** C5; сначала карта реальных ошибок и полей, затем стабильный HTTP error mapping.
 - **Блокирующие D1–D9:** нет; C5 и read-only schema audit уже выполнены.
@@ -278,6 +278,8 @@
 - **Файлы:** `backend/database.py`, затронутые routers/services, frontend API facade и error UI.
 - **Готово, когда:** empty/None/error от Supabase не превращаются в случайный 500 или частичное сохранение; frontend получает понятную стабильную ошибку.
 - **Проверки:** empty result, `None`, DB error, duplicate/constraint error, timeout и malformed response tests; backend syntax и frontend checks.
+- **Текущий slice:** targeted normalization для `backend/routes/games.py`; `_db_response`/`_db_rows` скрывают DB exceptions и malformed responses за стабильным 502, а empty/None rows сохраняют endpoint-specific semantics. `backend/tests/test_games.py` покрывает empty, None, DB error и malformed rows. Остальные routers и общий error facade остаются вне текущего slice.
+- **Проверка slice:** `python -m unittest discover -s tests -p 'test*.py'` — 60 passed; `py_compile` и `git diff --check` — passed.
 
 #### M5. Довести Jeopardy AI до уровня обычного Quiz — `DEPENDENCY`
 
