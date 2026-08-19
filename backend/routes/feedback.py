@@ -6,6 +6,7 @@ import resend
 import os
 
 router = APIRouter(prefix="/api", tags=["feedback"])
+DB_ERROR_DETAIL = "Ошибка базы данных"
 
 resend.api_key = os.getenv("RESEND_API_KEY")
 
@@ -15,6 +16,18 @@ class FeedbackInput(BaseModel):
     type: str = "bug"
     message: str
     page_url: Optional[str] = None
+
+
+def _db_insert(query):
+    try:
+        response = query.execute()
+    except Exception as exc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL) from exc
+    if response is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
+    return response
 
 def send_email_notification(feedback: FeedbackInput):
     try:
@@ -36,13 +49,13 @@ def send_email_notification(feedback: FeedbackInput):
 
 @router.post("/feedback")
 def submit_feedback(input: FeedbackInput, background_tasks: BackgroundTasks):
-    supabase.table("feedback").insert({
+    _db_insert(supabase.table("feedback").insert({
         "name": input.name,
         "email": input.email,
         "type": input.type,
         "message": input.message,
         "page_url": input.page_url,
-    }).execute()
+    }))
     
     background_tasks.add_task(send_email_notification, input)
     

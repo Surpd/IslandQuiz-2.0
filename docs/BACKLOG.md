@@ -226,7 +226,7 @@
 
 ### M4. Унифицировать обработку ошибок и пустых ответов Supabase/API
 
-- **Статус:** `IN_PROGRESS`; завершены targeted `games.py`, `admin.py`, `users.py` и `results.py` slices без изменения schema, business rules или production data. Остальные routers/API error facade требуют следующих slices.
+- **Статус:** `IN_PROGRESS`; завершены targeted `games.py`, `admin.py`, `users.py`, `results.py` и `feedback.py` slices без изменения schema, business rules или production data. Остальные routers/API error facade требуют следующих slices.
 - **Проблема/цель:** прямые обращения роутов к `res.data`, `data[0]` и полям разных таблиц требуют единой проверки ошибок, `None` и пустых результатов.
 - **Почему важно:** редкие ошибки БД/неполная запись превращаются в 500, частичное сохранение или неясную ошибку пользователю.
 - **Затрагивает:** `backend/database.py`, все затронутые routers/services, frontend API facade и error UI.
