@@ -13,6 +13,8 @@ import {
   ListOrdered,
   ArrowUp,
   ArrowDown, GripVertical,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
 import { HelpButton } from "@/components/help-modal";
@@ -151,7 +153,31 @@ function BuilderQuiz() {
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
   const [visibility, setVisibility] = useState<GameVisibility>("private");
+  const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const questionIds = questions.map((question) => question.id).join("|");
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || !questions.length) return;
+    const cards = questions
+      .map((question) => document.getElementById(`q-${question.id}`))
+      .filter((card): card is HTMLElement => card !== null);
+    if (!cards.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveQuestionId(visible[0].target.id.slice(2));
+      },
+      { rootMargin: "-96px 0px -55% 0px", threshold: [0, 0.25, 0.5] },
+    );
+    cards.forEach((card) => observer.observe(card));
+    return () => observer.disconnect();
+  }, [questionIds, questions]);
 
   // Bug 1.2: подгружаем сохранённый квиз по ?id=
   useEffect(() => {
@@ -203,6 +229,13 @@ function BuilderQuiz() {
     setTimeout(() => {
       document.getElementById(`q-${q.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 50);
+  };
+
+  const scrollToQuestion = (index: number) => {
+    const question = questions[index];
+    if (!question) return;
+    setActiveQuestionId(question.id);
+    document.getElementById(`q-${question.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const patchQuestion = (id: string, patch: Partial<QuizQuestion>) => {
@@ -587,7 +620,12 @@ function BuilderQuiz() {
           onClose={() => setShowSettings(false)}
         />
       )}
-      <div className="surface-card space-y-3 p-6">
+      <MobileQuestionNavigator
+        questions={questions}
+        activeQuestionId={activeQuestionId}
+        onSelect={scrollToQuestion}
+      />
+      <div className="surface-card space-y-3 p-4 sm:p-6">
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
             Название
@@ -664,6 +702,85 @@ function BuilderQuiz() {
   );
 }
 
+function MobileQuestionNavigator({
+  questions,
+  activeQuestionId,
+  onSelect,
+}: {
+  questions: QuizQuestion[];
+  activeQuestionId: string | null;
+  onSelect: (index: number) => void;
+}) {
+  if (!questions.length) return null;
+  const activeIndex = Math.max(0, questions.findIndex((question) => question.id === activeQuestionId));
+  const activeQuestion = questions[activeIndex];
+
+  return (
+    <div className="sticky top-16 z-30 -mx-1 mb-3 rounded-2xl border border-border bg-surface/95 p-2.5 shadow-soft backdrop-blur-md md:hidden">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-foreground">
+            Вопрос {activeIndex + 1} из {questions.length}
+          </p>
+          <p className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+            {TYPE_META[activeQuestion.type].label}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            disabled={activeIndex === 0}
+            onClick={() => onSelect(activeIndex - 1)}
+            aria-label="Предыдущий вопрос"
+            className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-surface-muted disabled:opacity-30"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            disabled={activeIndex === questions.length - 1}
+            onClick={() => onSelect(activeIndex + 1)}
+            aria-label="Следующий вопрос"
+            className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-surface-muted disabled:opacity-30"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <div className="mt-2 flex min-w-0 items-center gap-1">
+        <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-0.5">
+          {questions.map((question, index) => {
+            const current = index === activeIndex;
+            const completed = question.q.trim().length > 0;
+            return (
+              <button
+                key={question.id}
+                type="button"
+                onClick={() => onSelect(index)}
+                aria-label={`Перейти к вопросу ${index + 1}${completed ? ", заполнен" : ", пустой"}`}
+                aria-current={current ? "step" : undefined}
+                className={`relative grid h-8 min-w-8 shrink-0 place-items-center rounded-lg px-2 text-xs font-bold tabular-nums transition-colors ${
+                  current
+                    ? "bg-primary text-white shadow-sm"
+                    : "bg-surface-muted text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                }`}
+              >
+                {index + 1}
+                <span
+                  aria-hidden
+                  className={`absolute bottom-0.5 h-1 w-1 rounded-full ${
+                    completed ? "bg-success" : "bg-border-strong"
+                  }`}
+                />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function QuestionCard({
   index,
   question,
@@ -688,9 +805,9 @@ function QuestionCard({
       : undefined;
   const aiFormat = `quiz-${question.type}`;
   return (
-    <div id={`q-${question.id}`} className="surface-card space-y-4 p-6 scroll-mt-24">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <div id={`q-${question.id}`} className="surface-card space-y-4 p-4 scroll-mt-24 sm:p-6">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {dragHandleProps && (
             <button
               type="button"

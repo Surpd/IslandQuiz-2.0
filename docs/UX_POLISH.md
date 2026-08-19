@@ -18,12 +18,13 @@
 
 1. **Shared mobile shell** — bottom navigation для home/library/builder/profile и единый footer. DONE.
 2. **Library mobile pass** — компактный вертикальный список карточек, tabs/search/filter controls. DONE.
-3. **Quiz builder/player mobile polish** — formula panel, длинные ответы и matching/pairs, компактные result stats. DONE.
-4. **Jeopardy builder mobile mode** — tile/grid presentation for narrow screens.
-5. **Profile mobile actions** — проверить перенос кнопок и поля на 360–430px.
-6. **Admin usability** — search users/games и понятное отображение ban/status.
-7. **Admin AI lab** — привести limits/logs/test UI к понятным состояниям.
-8. **FAQ and feedback follow-up** — структурировать FAQ; отдельно проверить feedback delivery, confirmation и spam protection.
+3. **Quiz Builder mobile pass** — sticky question navigator, compact question cards and mobile-friendly scrolling. DONE.
+4. **Quiz player mobile polish** — formula panel, длинные ответы и matching/pairs, компактные result stats. DONE.
+5. **Jeopardy builder mobile mode** — tile/grid presentation for narrow screens.
+6. **Profile mobile actions** — проверить перенос кнопок и поля на 360–430px.
+7. **Admin usability** — search users/games и понятное отображение ban/status.
+8. **Admin AI lab** — привести limits/logs/test UI к понятным состояниям.
+9. **FAQ and feedback follow-up** — структурировать FAQ; отдельно проверить feedback delivery, confirmation и spam protection.
 
 ## Mobile UX direction
 
@@ -36,11 +37,13 @@ Mobile остаётся компактной responsive-адаптацией т�
 - Builder floating actions подняты выше mobile navigation.
 - Formula panel, длинные ответы, matching/pairs и result stats получили первый mobile polish slice.
 - Library получила вертикальный mobile list, горизонтально прокручиваемые tabs/tag filters, компактный search/sort row и actions Играть / Редактировать / ⋯.
+- Quiz Builder получил mobile-only sticky navigator: позиция «Вопрос N из M», ‹/›, горизонтальный ряд номеров, переход к вопросу по тапу и active/completed/empty markers.
+- Вертикальный список вопросов и desktop sidebar сохранены; mobile question cards стали компактнее, а builder actions остаются выше bottom navigation.
 
 ## Остаётся
 
-- Более компактная mobile toolbar/navigation в Builder.
 - Дальнейшая проверка Library actions и реальных 360–430px screenshots после подключения browser runtime.
+- Более глубокая настройка Builder toolbar/export/settings на mobile.
 - Jeopardy tile/grid mode, Profile/Admin pass и feedback delivery check.
 
 ## Mobile target
