@@ -346,11 +346,11 @@ function ImportModal({
           }`}
         >
           <Upload className="h-8 w-8 text-primary" />
-          <p className="text-sm font-semibold">Перетащите Excel сюда</p>
+          <p className="text-sm font-semibold">Перетащите Excel или CSV сюда</p>
           <p className="text-xs text-muted-foreground">или кликните, чтобы выбрать файл</p>
           <input
             type="file"
-            accept=".xlsx,.xls"
+            accept=".xlsx,.xls,.csv"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];

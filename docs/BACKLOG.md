@@ -360,6 +360,13 @@
 - **Сложность:** L.
 - **Самостоятельность:** да после утверждения target уровня.
 
+### P7. Обновить Quiz Excel import до schema v2 — `DONE`
+
+- **Результат:** подключён русскоязычный XLSX-шаблон с листами «Вопросы», «Инструкция» и `_islandquiz`; v2 преобразуется в существующие модели `choice`, `bool`, `text`, `matching`, `close`, `ordering`.
+- **Совместимость:** сохранён импорт legacy XLSX и добавлена проверка legacy CSV; matching хранится как существующий JSON-массив `{left,right}`, close/ordering — как JSON-массивы.
+- **Проверки:** 17 targeted Playwright regression cases, TypeScript и production build; полный E2E smoke имеет pre-existing auth redirect failure и не изменялся.
+- **Файлы:** `frontend/src/lib/exports.ts`, `frontend/src/components/builder-actions.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/public/templates/islandquiz-quiz-import-v2.xlsx`, `frontend/e2e/quiz-import.spec.ts`.
+
 ## ⚪ Decisions
 
 Принятые решения фиксируют policy; технические детали выбираются внутри соответствующих задач. D4 и D8 остаются открытыми decision blockers.
