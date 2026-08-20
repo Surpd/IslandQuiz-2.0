@@ -272,6 +272,11 @@ function BuilderJeopardy() {
     return id;
   };
 
+  const openResults = async () => {
+    const id = await handleSave();
+    if (id) window.open(`/jeopardy/${id}/results`, "_blank", "noopener");
+  };
+
   const handleBack = () => {
     if (window.history.length > 1) {
       window.history.back();
@@ -495,6 +500,9 @@ function BuilderJeopardy() {
             onExportExcel={() => exportJeopardyExcel({ config, rounds, final })}
             onPrint={(withAnswers) => printJeopardy({ config, rounds, final }, { withAnswers })}
             printAnswers={printAnswers}
+            onResults={openResults}
+            onViewToggle={() => setMode((m) => (m === "list" ? "grid" : "list"))}
+            viewLabel={mode === "list" ? "Плитки" : "Список"}
             helpTitle="Как пользоваться конструктором Своей игры"
             helpContent={
               <>

@@ -227,6 +227,11 @@ function BuilderMillionaire() {
     return id;
   };
 
+  const openResults = async () => {
+    const id = await handleSave();
+    if (id) window.open(`/millionaire/${id}/results`, "_blank", "noopener");
+  };
+
   const handleBack = () => {
     if (window.history.length > 1) {
       window.history.back();
@@ -437,6 +442,7 @@ function BuilderMillionaire() {
             onExportExcel={() => exportMillionaireExcel({ config, questions })}
             onPrint={(withAnswers) => printMillionaire({ config, questions }, { withAnswers })}
             printAnswers={printAnswers}
+            onResults={openResults}
             onDelete={handleDelete}
             helpTitle="Как пользоваться конструктором «Миллионера»"
             helpContent={

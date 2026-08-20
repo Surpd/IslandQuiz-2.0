@@ -349,6 +349,8 @@ interface FabsProps {
   onPrint?: (withAnswers: boolean) => void;
   printAnswers?: boolean;
   onResults?: () => void;
+  onViewToggle?: () => void;
+  viewLabel?: string;
   onDelete?: () => void;
   helpTitle?: string;
   helpContent?: ReactNode;
@@ -374,6 +376,8 @@ export function BuilderFabs({
   onPrint,
   printAnswers = true,
   onResults,
+  onViewToggle,
+  viewLabel,
   onDelete,
   helpTitle,
   helpContent,
@@ -568,6 +572,11 @@ export function BuilderFabs({
             {onResults && savedId && (
               <button type="button" onClick={() => { setMobileMoreOpen(false); onResults(); }} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted">
                 <BarChart3 className="h-4 w-4 text-primary" /> Результаты
+              </button>
+            )}
+            {onViewToggle && viewLabel && (
+              <button type="button" onClick={() => { setMobileMoreOpen(false); onViewToggle(); }} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted">
+                <MoreHorizontal className="h-4 w-4 text-primary" /> Вид: {viewLabel}
               </button>
             )}
             <button
