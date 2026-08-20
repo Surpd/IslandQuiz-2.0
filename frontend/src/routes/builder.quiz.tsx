@@ -1079,6 +1079,7 @@ function MatchingEditor({
   question: QuizQuestion;
   onPatch: (p: Partial<QuizQuestion>) => void;
 }) {
+  const fieldRefs = useRef<Record<string, HTMLInputElement | null>>({});
   let pairs: { left: string; right: string }[] = [];
   try {
     pairs = JSON.parse(question.answer || "[]");
@@ -1102,27 +1103,55 @@ function MatchingEditor({
             </button>
           </div>
           <div className="grid min-w-0 gap-2 sm:flex sm:items-center">
-          <input
-            className="input-base min-w-0"
-            placeholder="Слева"
-            value={p.left}
-            onChange={(e) => {
-              const next = [...pairs];
-              next[i] = { ...next[i], left: e.target.value };
-              setPairs(next);
-            }}
-          />
-          <span className="text-center text-muted-foreground sm:shrink-0">↕</span>
-          <input
-            className="input-base min-w-0"
-            placeholder="Справа"
-            value={p.right}
-            onChange={(e) => {
-              const next = [...pairs];
-              next[i] = { ...next[i], right: e.target.value };
-              setPairs(next);
-            }}
+          <div className="relative min-w-0 flex-1">
+            <input
+              ref={(el) => { fieldRefs.current[`left-${i}`] = el; }}
+              className="input-base min-w-0 pr-12"
+              placeholder="Слева"
+              value={p.left}
+              onChange={(e) => {
+                const next = [...pairs];
+                next[i] = { ...next[i], left: e.target.value };
+                setPairs(next);
+              }}
             />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              <FormulaButton
+                inputRef={{ current: fieldRefs.current[`left-${i}`] } as React.RefObject<HTMLInputElement | null>}
+                value={p.left}
+                onChange={(value) => {
+                  const next = [...pairs];
+                  next[i] = { ...next[i], left: value };
+                  setPairs(next);
+                }}
+              />
+            </div>
+          </div>
+          <span className="text-center text-muted-foreground sm:shrink-0">↕</span>
+          <div className="relative min-w-0 flex-1">
+            <input
+              ref={(el) => { fieldRefs.current[`right-${i}`] = el; }}
+              className="input-base min-w-0 pr-12"
+              placeholder="Справа"
+              value={p.right}
+              onChange={(e) => {
+                const next = [...pairs];
+                next[i] = { ...next[i], right: e.target.value };
+                setPairs(next);
+              }}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              <FormulaButton
+                inputRef={{ current: fieldRefs.current[`right-${i}`] } as React.RefObject<HTMLInputElement | null>}
+                value={p.right}
+                onChange={(value) => {
+                  const next = [...pairs];
+                  next[i] = { ...next[i], right: value };
+                  setPairs(next);
+                }}
+              />
+            </div>
+          </div>
           </div>
           <button
             onClick={() => setPairs(pairs.filter((_, k) => k !== i))}

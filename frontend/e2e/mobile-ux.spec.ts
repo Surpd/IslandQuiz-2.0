@@ -6,6 +6,7 @@ test("mobile builders hide promo hero and keep quiz formula palette in viewport"
   for (const route of ["/builder/quiz", "/builder/jeopardy", "/builder/millionaire"]) {
     await page.goto(route);
     await expect(page.locator("[data-builder-promo]")).toBeHidden();
+    await expect(page.locator("[data-builder-toolbar]")).toBeHidden();
   }
 
   await page.goto("/builder/quiz");
@@ -21,6 +22,19 @@ test("mobile builders hide promo hero and keep quiz formula palette in viewport"
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  await palette.getByRole("button", { name: "Готово" }).click();
+  const answer = page.getByPlaceholder("Вариант A").first();
+  const answerButton = page.getByRole("button", { name: "Вставить формулу" }).nth(1);
+  await answerButton.click();
+  await expect(palette).toBeVisible();
+  const answerBox = await palette.boundingBox();
+  expect(answerBox).not.toBeNull();
+  expect(answerBox!.x).toBe(0);
+  expect(answerBox!.width).toBeGreaterThanOrEqual(380);
+  await palette.getByRole("button", { name: "x²" }).click();
+  await expect(answer).toHaveValue(/x/);
+  await palette.getByRole("button", { name: "Готово" }).click();
+  await expect(answer).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
