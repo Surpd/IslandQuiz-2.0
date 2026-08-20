@@ -11,6 +11,7 @@ from database import supabase
 from routes.auth import get_current_user
 from services.error_logging import parse_error_log
 from services.role_limits import get_role_limits, normalize_limits, save_role_limits
+from services.official_content import validate_pack
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -108,6 +109,11 @@ class AITestJeopardyQuestionsRequest(BaseModel):
     empty_slots: List[int] = [100, 200, 300, 400, 500]
     wishes: Optional[str] = None
     model: Optional[str] = DEFAULT_GROQ_MODEL
+
+
+class OfficialContentImportInput(BaseModel):
+    owner_id: str = Field(min_length=1, max_length=100)
+    pack: dict[str, Any]
 
 
 # ==================== AI LAB ====================
@@ -254,6 +260,81 @@ def admin_delete_game(game_id: str, user=Depends(get_current_user)):
     require_admin(user)
     _db_rows(supabase.table("games").delete().eq("id", game_id))
     return {"ok": True}
+
+
+def _official_import_context(owner_id: str, content_ids: list[str]) -> tuple[dict[str, Any] | None, dict[str, str], dict[str, str]]:
+    owner_rows = _db_rows(supabase.table("users").select("id,name").eq("id", owner_id))
+    owner = owner_rows[0] if owner_rows else None
+    canonical_tags: dict[str, str] = {}
+    for row in _db_rows(supabase.table("tags").select("name,canonical_name")):
+        name = row.get("name")
+        canonical = row.get("canonical_name")
+        if isinstance(name, str) and isinstance(canonical, str):
+            canonical_tags[canonical] = name
+    existing: dict[str, str] = {}
+    if content_ids:
+        for row in _db_rows(supabase.table("games").select("id,official_content_id").in_("official_content_id", content_ids)):
+            content_id = row.get("official_content_id")
+            game_id = row.get("id")
+            if isinstance(content_id, str) and isinstance(game_id, str):
+                existing[content_id] = game_id
+    return owner, canonical_tags, existing
+
+
+def _official_preview(input: OfficialContentImportInput) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    raw_games = input.pack.get("games")
+    if not isinstance(raw_games, list):
+        raw_games = []
+    content_ids = [
+        game.get("content_id")
+        for game in raw_games
+        if isinstance(game, dict) and isinstance(game.get("content_id"), str)
+    ]
+    owner, canonical_tags, existing = _official_import_context(input.owner_id, content_ids)
+    preview = validate_pack(input.pack, canonical_tags, existing)
+    if owner is None:
+        preview["errors"].insert(0, {"path": "$.owner_id", "message": "Автор не найден."})
+        preview["valid"] = False
+    preview["owner"] = {"id": owner.get("id"), "name": owner.get("name") or "Без имени"} if owner else None
+    return preview, owner
+
+
+@router.post("/content/import/validate")
+def validate_official_content_import(input: OfficialContentImportInput, user=Depends(get_current_user)):
+    require_admin(user)
+    preview, _ = _official_preview(input)
+    preview.pop("normalized_games", None)
+    return preview
+
+
+@router.post("/content/import/apply")
+def apply_official_content_import(input: OfficialContentImportInput, user=Depends(get_current_user)):
+    require_admin(user)
+    preview, owner = _official_preview(input)
+    if not preview["valid"] or owner is None:
+        raise HTTPException(status_code=422, detail={"message": "Импорт заблокирован ошибками валидации.", "errors": preview["errors"]})
+    games_to_create = [
+        game for game in preview["normalized_games"]
+        if game["content_id"] not in {item.get("content_id") for item in preview["games"] if item.get("status") == "already_imported"}
+    ]
+    rpc_rows: list[dict[str, Any]] = []
+    if games_to_create:
+        response = _db_response(supabase.rpc("apply_official_content_import", {
+            "p_owner_id": input.owner_id,
+            "p_owner_name": owner.get("name") or "Без имени",
+            "p_games": games_to_create,
+        }))
+        rpc_rows = _response_rows(response)
+    created = sum(1 for row in rpc_rows if row.get("status") == "created")
+    skipped = len(preview["games"]) - created
+    return {
+        "created": created,
+        "skipped": skipped,
+        "games": rpc_rows or [
+            {"content_id": item["content_id"], "game_id": item.get("game_id"), "status": item["status"]}
+            for item in preview["games"]
+        ],
+    }
 
 
 @router.patch("/games/{game_id}/visibility")

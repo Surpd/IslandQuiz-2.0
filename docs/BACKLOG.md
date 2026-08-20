@@ -367,6 +367,14 @@
 - **Проверки:** 17 targeted Playwright regression cases, TypeScript и production build; полный E2E smoke имеет pre-existing auth redirect failure и не изменялся.
 - **Файлы:** `frontend/src/lib/exports.ts`, `frontend/src/components/builder-actions.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/public/templates/islandquiz-quiz-import-v2.xlsx`, `frontend/e2e/quiz-import.spec.ts`.
 
+### P8. Добавить bulk-import официального контента `library-v1` — `DONE`
+
+- **Цель:** администратор загружает один JSON pack с Quiz, Jeopardy и Millionaire, видит server-side validation/preview и атомарно создаёт новые private games.
+- **Контракт:** `schema_version: 1`, стабильный `content_id`, существующие `games.data` payloads без новой внутренней game schema, canonical Tag System v1 и выбранный backend-side автор.
+- **Idempotency/atomicity:** additive `games.official_content_id` partial unique index и одна Postgres RPC-транзакция с `ON CONFLICT`; повторный import пропускает существующие ids, DB error откатывает всю пачку.
+- **Файлы:** `backend/services/official_content.py`, `backend/routes/admin.py`, `frontend/src/routes/admin.tsx`, `docs/OFFICIAL_CONTENT_IMPORT.md`, `content/library-v1.schema.json`, `content/library-v1.json`, migration и targeted tests.
+- **Фактические проверки:** backend `109/109` tests, official-content `11/11`, TypeScript, build и targeted mobile Playwright passed; full E2E `32 passed`, 3 pre-existing failures в smoke/mobile-UX; full lint остаётся pre-existing CRLF/Prettier baseline.
+
 ## ⚪ Decisions
 
 Принятые решения фиксируют policy; технические детали выбираются внутри соответствующих задач. D4 и D8 остаются открытыми decision blockers.

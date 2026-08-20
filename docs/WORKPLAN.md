@@ -423,6 +423,14 @@
 - **Проверки:** targeted importer suite `17/17 passed`, `npx tsc --noEmit`, `npm run build`. Полный `npm run test:e2e` достиг 24 успешных тестов, но smoke имеет pre-existing redirect на `/login`, а runner не завершил дочерний Vite process в sandbox.
 - **Файлы:** `frontend/src/lib/exports.ts`, `frontend/src/components/builder-actions.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/public/templates/islandquiz-quiz-import-v2.xlsx`, `frontend/e2e/quiz-import.spec.ts`.
 
+#### P8. Bulk-import официального контента `library-v1` — `DONE`
+
+- **Acceptance:** admin-only validate/preview/apply endpoints; Quiz всех шести типов, Jeopardy и Millionaire проходят общий validator; unknown tags, duplicate ids, malformed schema и отсутствующего автора блокируют apply; existing ids не дублируются; новые игры private.
+- **Atomicity:** production migration добавляет `games.official_content_id` и закрытую service-role RPC, которая вставляет всю пачку одной транзакцией.
+- **UX:** Admin → Игры получает JSON upload/paste, author selector, counts, responsive preview cards, download starter, import result and link back to games.
+- **Проверки:** backend unit/contract tests, documentation examples through validator, frontend `tsc`, build, targeted Playwright mobile preview/import, `git diff --check`, Supabase schema and security advisor check.
+- **Фактический результат:** production migrations applied and dry-run RPC verified without creating games; backend `109/109`, official-content `11/11`, TypeScript/build and targeted mobile Playwright passed; full E2E `32 passed` with 3 pre-existing failures; full lint remains the repository's pre-existing CRLF/Prettier baseline.
+
 ## Рекомендуемая первая задача
 
 Первая задача — **H1: устранить текущий TypeScript baseline**.

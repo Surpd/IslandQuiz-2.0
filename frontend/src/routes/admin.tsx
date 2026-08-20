@@ -5,6 +5,8 @@ import {
   Bot,
   ChevronDown,
   CircleAlert,
+  Download,
+  FileJson,
   Gamepad2,
   Loader2,
   Lock,
@@ -15,6 +17,7 @@ import {
   Sparkles,
   Tags as TagsIcon,
   Trash2,
+  Upload,
   Users,
   X,
 } from "lucide-react";
@@ -502,6 +505,7 @@ function GamesWorkspace() {
   const [kind, setKind] = useState("");
   const [visibility, setVisibility] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [showImport, setShowImport] = useState(false);
   const load = async () => {
     setLoading(true);
     try {
@@ -547,7 +551,14 @@ function GamesWorkspace() {
   };
   return (
     <div className="space-y-4">
-      <SectionHeading title="Игры" />
+      <SectionHeading
+        title="Игры"
+        action={
+          <button type="button" className="btn-accent" onClick={() => setShowImport(true)}>
+            <Upload className="h-4 w-4" /> Импорт контента
+          </button>
+        }
+      />
       <div className="surface-card p-4">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem_10rem_auto]">
           <label className="relative">
@@ -696,6 +707,15 @@ function GamesWorkspace() {
             {!games.length && <EmptyState text="Игры не найдены." />}
           </div>
         </>
+      )}
+      {showImport && (
+        <OfficialContentImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            setShowImport(false);
+            void load();
+          }}
+        />
       )}
       <p className="text-sm text-muted-foreground">Всего: {total}</p>
     </div>
@@ -892,6 +912,185 @@ function UsersWorkspace({ currentUserId }: { currentUserId: string }) {
           {!users.length && <EmptyState text="Пользователи не найдены." />}
         </div>
       )}
+    </div>
+  );
+}
+
+type OfficialImportPreview = {
+  valid: boolean;
+  counts?: Record<string, number>;
+  owner?: { id: string; name: string } | null;
+  games?: Array<{ content_id: string; kind?: string; title?: string; tags?: string[]; status?: string }>;
+  errors?: Array<{ path: string; message: string }>;
+  warnings?: Array<{ path: string; message: string }>;
+};
+
+function OfficialContentImportModal({
+  onClose,
+  onImported,
+}: {
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const [mode, setMode] = useState<"file" | "paste">("file");
+  const [raw, setRaw] = useState("");
+  const [ownerId, setOwnerId] = useState("");
+  const [owners, setOwners] = useState<WorkspaceUser[]>([]);
+  const [preview, setPreview] = useState<OfficialImportPreview | null>(null);
+  const [result, setResult] = useState<{ created: number; skipped: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    apiFetch("/api/admin/workspace/users?limit=100")
+      .then((response) => setOwners(response.users ?? []))
+      .catch((reason) => setError(reason instanceof Error ? reason.message : "Не удалось загрузить авторов."));
+  }, []);
+
+  const readFile = async (file?: File) => {
+    if (!file) return;
+    setRaw(await file.text());
+    setPreview(null);
+    setResult(null);
+    setError("");
+  };
+
+  const validate = async () => {
+    setError("");
+    setPreview(null);
+    let pack: unknown;
+    try {
+      pack = JSON.parse(raw);
+    } catch {
+      setError("Файл не содержит валидный JSON.");
+      return;
+    }
+    if (!ownerId) {
+      setError("Выберите автора игр.");
+      return;
+    }
+    setBusy(true);
+    try {
+      setPreview(
+        await apiFetch("/api/admin/content/import/validate", {
+          method: "POST",
+          body: JSON.stringify({ owner_id: ownerId, pack }),
+        }),
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Не удалось проверить pack.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const apply = async () => {
+    if (!preview?.valid || !ownerId) return;
+    let pack: unknown;
+    try {
+      pack = JSON.parse(raw);
+    } catch {
+      setError("Файл не содержит валидный JSON.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      setResult(
+        await apiFetch("/api/admin/content/import/apply", {
+          method: "POST",
+          body: JSON.stringify({ owner_id: ownerId, pack }),
+        }),
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Импорт не выполнен.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] bg-foreground/30 p-0 sm:p-4 sm:flex sm:items-center sm:justify-center" onClick={onClose}>
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label="Импорт контента"
+        onClick={(event) => event.stopPropagation()}
+        className="absolute inset-x-0 bottom-0 flex max-h-[94dvh] flex-col overflow-hidden rounded-t-3xl bg-surface shadow-lift sm:static sm:w-full sm:max-w-4xl sm:rounded-3xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-border p-5 sm:p-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileJson className="h-5 w-5 text-primary" />
+              <h2 className="font-display text-xl font-bold">Импорт контента</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">Проверка обязательна. Новые игры создаются private.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Закрыть импорт" className="btn-ghost p-2"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="min-h-0 space-y-5 overflow-y-auto p-5 sm:p-6">
+          {result ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl bg-success-soft p-5 text-success">
+                <h3 className="font-display text-xl font-bold">Импорт завершён</h3>
+                <p className="mt-2 text-sm">Создано: <b>{result.created}</b>. Уже импортировано и пропущено: <b>{result.skipped}</b>.</p>
+              </div>
+              <button type="button" className="btn-accent w-full justify-center" onClick={onImported}>Перейти к играм</button>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
+                <label className="block text-sm font-semibold">
+                  Автор игр
+                  <select aria-label="Автор игр" className="input-base mt-1" value={ownerId} onChange={(event) => { setOwnerId(event.target.value); setPreview(null); }}>
+                    <option value="">Выберите автора</option>
+                    {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name || owner.email || owner.id}</option>)}
+                  </select>
+                </label>
+                <a href="/content/library-v1.json" download className="btn-ghost self-end justify-center"><Download className="h-4 w-4" /> Скачать пример JSON</a>
+              </div>
+              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Источник JSON">
+                <button type="button" role="tab" aria-selected={mode === "file"} className={mode === "file" ? "btn-accent" : "btn-ghost"} onClick={() => setMode("file")}>Загрузить .json</button>
+                <button type="button" role="tab" aria-selected={mode === "paste"} className={mode === "paste" ? "btn-accent" : "btn-ghost"} onClick={() => setMode("paste")}>Вставить JSON</button>
+              </div>
+              {mode === "file" ? (
+                <label className="block rounded-2xl border-2 border-dashed border-border p-5 text-center text-sm text-muted-foreground">
+                  <span className="mb-2 block font-semibold text-foreground">JSON-файл content pack</span>
+                  <input aria-label="JSON-файл" type="file" accept=".json,application/json" onChange={(event) => void readFile(event.target.files?.[0])} />
+                </label>
+              ) : (
+                <textarea aria-label="Вставить JSON" className="input-base min-h-48 font-mono text-xs" value={raw} onChange={(event) => { setRaw(event.target.value); setPreview(null); }} placeholder={'{"schema_version":1,"games":[]}'}/>
+              )}
+              {raw && <p className="break-all text-xs text-muted-foreground">Загружено символов: {raw.length}</p>}
+              <button type="button" className="btn-accent w-full justify-center" disabled={busy || !raw.trim() || !ownerId} onClick={() => void validate()}>{busy ? "Проверяем…" : "Проверить и показать preview"}</button>
+              {error && <div className="rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</div>}
+              {preview && <OfficialImportPreviewCard preview={preview} />}
+              {preview?.valid && <button type="button" className="btn-accent w-full justify-center" disabled={busy} onClick={() => void apply()}>{busy ? "Импортируем…" : "Создать новые игры"}</button>}
+            </>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function OfficialImportPreviewCard({ preview }: { preview: OfficialImportPreview }) {
+  const errors = preview.errors ?? [];
+  const warnings = preview.warnings ?? [];
+  return (
+    <div className="space-y-4 rounded-2xl border border-border p-4 sm:p-5">
+      <div className={`rounded-xl p-3 text-sm font-semibold ${preview.valid ? "bg-success-soft text-success" : "bg-danger-soft text-danger"}`}>
+        {preview.valid ? "Проверка пройдена. Импорт доступен." : "Импорт заблокирован: исправьте ошибки ниже."}
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center text-sm">
+        {(["quiz", "jeopardy", "millionaire"] as const).map((kind) => <div key={kind} className="rounded-xl bg-surface-muted p-3"><b className="block text-lg">{preview.counts?.[kind] ?? 0}</b><span>{kindLabel(kind)}</span></div>)}
+      </div>
+      {preview.owner && <p className="text-sm">Автор: <b>{preview.owner.name}</b></p>}
+      {errors.length > 0 && <div className="space-y-2"><h3 className="text-sm font-bold text-danger">Ошибки</h3>{errors.map((item, index) => <p key={`${item.path}-${index}`} className="break-words text-sm text-danger"><b>{item.path}</b>: {item.message}</p>)}</div>}
+      {warnings.length > 0 && <div className="space-y-2"><h3 className="text-sm font-bold text-amber-700">Предупреждения</h3>{warnings.map((item, index) => <p key={`${item.path}-${index}`} className="break-words text-sm text-amber-700"><b>{item.path}</b>: {item.message}</p>)}</div>}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {(preview.games ?? []).map((game) => <div key={game.content_id} className="rounded-xl bg-surface-muted p-3 text-sm"><div className="flex items-start justify-between gap-2"><b className="break-words">{game.title}</b><span className="shrink-0 rounded-full bg-surface px-2 py-1 text-xs">{kindLabel(game.kind)}</span></div><p className="mt-1 break-all font-mono text-xs text-muted-foreground">{game.content_id}</p><div className="mt-2 flex flex-wrap gap-1">{(game.tags ?? []).map((tag) => <span key={tag} className="rounded-full bg-primary-soft px-2 py-1 text-xs text-primary">#{tag}</span>)}{game.status === "already_imported" && <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-800">будет пропущена</span>}</div></div>)}
+      </div>
     </div>
   );
 }
