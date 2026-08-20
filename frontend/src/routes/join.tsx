@@ -73,7 +73,7 @@ function JoinPage() {
         </div>
         <h1 className="mb-2 font-display text-4xl font-bold tracking-tight">Присоединиться</h1>
         <p className="mb-8 text-muted-foreground">
-          {user ? "Имя и аватарка взяты из профиля — можно изменить." : "Введите код с экрана учителя."}
+          {user ? "Имя и аватар взяты из профиля — можно изменить." : "Введите код с экрана учителя."}
         </p>
 
         <form onSubmit={submit} className="surface-card space-y-5 p-6">
@@ -113,9 +113,9 @@ function JoinPage() {
                   <p className="truncate font-semibold">{nickname}</p>
                   <p className="text-xs text-muted-foreground">
                     {avatar.startsWith("color:")
-                      ? "Свой цвет аватарки"
+                      ? "Свой цвет аватара"
                       : avatar.startsWith("data:") || avatar.startsWith("http")
-                        ? "Аватарка из профиля"
+                        ? "Аватар из профиля"
                         : "Цвет создан автоматически"}
                   </p>
                 </div>

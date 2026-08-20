@@ -28,7 +28,7 @@
 10. **Library final mobile pass** — единая компактная card system и simplified card actions. DONE.
 11. **Game Details mobile hierarchy** — Play/Edit/Results primary actions and unified export/rare-actions entry points. DONE.
 12. **Results mobile structure** — compact summary, attempt cards and expandable details. DONE.
-13. **Profile + Join mobile polish** — stacked profile actions and Join navigation/layout.
+13. **Profile + Join mobile polish** — stacked profile actions and Join navigation/layout. DONE.
 14. **Admin usability** — search users/games и понятное отображение ban/status.
 15. **Admin AI lab** — привести limits/logs/test UI к понятным состояниям.
 16. **FAQ and feedback follow-up** — структурировать FAQ; отдельно проверить feedback delivery, confirmation и spam protection.
