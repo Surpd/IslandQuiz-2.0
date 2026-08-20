@@ -17,14 +17,21 @@
 ## Slices
 
 1. **Shared mobile shell** — bottom navigation для home/library/builder/profile и единый footer. DONE.
-2. **Library mobile pass** — компактный вертикальный список карточек, tabs/search/filter controls. DONE.
-3. **Quiz Builder mobile pass** — sticky question navigator, compact question cards and mobile-friendly scrolling. DONE.
-4. **Quiz player mobile polish** — formula panel, длинные ответы и matching/pairs, компактные result stats. DONE.
-5. **Jeopardy builder mobile mode** — tile/grid presentation for narrow screens. DONE.
-6. **Profile mobile actions** — проверить перенос кнопок и поля на 360–430px.
-7. **Admin usability** — search users/games и понятное отображение ban/status.
-8. **Admin AI lab** — привести limits/logs/test UI к понятным состояниям.
-9. **FAQ and feedback follow-up** — структурировать FAQ; отдельно проверить feedback delivery, confirmation и spam protection.
+2. **Mobile navigation + Create** — five-item application navigation, mobile Create sheet and desktop-only header menus. DONE.
+3. **Library mobile pass** — компактный вертикальный список карточек, tabs/search/filter controls. DONE.
+4. **Quiz Builder mobile pass** — sticky question navigator, compact question cards and mobile-friendly scrolling. DONE.
+5. **Quiz player mobile polish** — formula panel, длинные ответы и matching/pairs, компактные result stats. DONE.
+6. **Jeopardy builder mobile mode** — tile/grid presentation for narrow screens. DONE.
+7. **Builder mobile action hierarchy** — contextual header, compact settings and secondary action sheets.
+8. **Quiz Builder question navigator** — add-question entry in the existing sticky navigator.
+9. **Builder Game Info/settings** — compact collapsible game information and mobile-safe settings presentation.
+10. **Library final mobile pass** — единая компактная card system и simplified card actions.
+11. **Game Details mobile hierarchy** — Play/Edit/Results primary actions and unified export/rare-actions entry points.
+12. **Results mobile structure** — compact summary, attempt cards and expandable details.
+13. **Profile + Join mobile polish** — stacked profile actions and Join navigation/layout.
+14. **Admin usability** — search users/games и понятное отображение ban/status.
+15. **Admin AI lab** — привести limits/logs/test UI к понятным состояниям.
+16. **FAQ and feedback follow-up** — структурировать FAQ; отдельно проверить feedback delivery, confirmation и spam protection.
 
 ## Mobile UX direction
 
@@ -33,6 +40,10 @@ Mobile остаётся компактной responsive-адаптацией т�
 ## Уже сделано
 
 - Shared mobile bottom navigation для Главной, Библиотеки, Создать и Профиля.
+- Mobile navigation теперь включает Join; Create открывает compact sheet с Quiz, Jeopardy и Millionaire.
+- Mobile logo menu и account dropdown скрыты; desktop menu и account actions сохранены.
+- Bottom navigation показывается на Home, Library, Game Details, Builder, Results, Profile и Join; immersive `/play` и `/room` routes остаются без неё.
+- Root layout добавляет mobile safe-area bottom padding для application screens.
 - Убран дублирующий footer на главной: теперь footer рендерится только из root layout.
 - Builder floating actions подняты выше mobile navigation.
 - Formula panel, длинные ответы, matching/pairs и result stats получили первый mobile polish slice.
