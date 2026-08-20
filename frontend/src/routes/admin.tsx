@@ -940,6 +940,7 @@ function OfficialContentImportModal({
   const [result, setResult] = useState<{ created: number; skipped: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [ownerError, setOwnerError] = useState("");
 
   useEffect(() => {
     apiFetch("/api/admin/workspace/users?limit=100")
@@ -953,6 +954,7 @@ function OfficialContentImportModal({
     setPreview(null);
     setResult(null);
     setError("");
+    setOwnerError("");
   };
 
   const validate = async () => {
@@ -966,7 +968,7 @@ function OfficialContentImportModal({
       return;
     }
     if (!ownerId) {
-      setError("Выберите автора игр.");
+      setOwnerError("Выберите автора игр.");
       return;
     }
     setBusy(true);
@@ -1010,15 +1012,15 @@ function OfficialContentImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] bg-foreground/30 p-0 sm:p-4 sm:flex sm:items-center sm:justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] bg-foreground/30 px-0 pb-[calc(4rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] sm:flex sm:items-center sm:justify-center sm:p-4" onClick={onClose}>
       <section
         role="dialog"
         aria-modal="true"
         aria-label="Импорт контента"
         onClick={(event) => event.stopPropagation()}
-        className="absolute inset-x-0 bottom-0 flex max-h-[94dvh] flex-col overflow-hidden rounded-t-3xl bg-surface shadow-lift sm:static sm:w-full sm:max-w-4xl sm:rounded-3xl"
+        className="absolute inset-x-0 bottom-0 flex max-h-[calc(100dvh-env(safe-area-inset-top)-4rem-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-t-3xl bg-surface shadow-lift sm:static sm:max-h-[94dvh] sm:w-full sm:max-w-4xl sm:rounded-3xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border p-5 sm:p-6">
+        <div className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b border-border bg-surface p-5 sm:p-6">
           <div>
             <div className="flex items-center gap-2">
               <FileJson className="h-5 w-5 text-primary" />
@@ -1039,15 +1041,18 @@ function OfficialContentImportModal({
             </div>
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
-                <label className="block text-sm font-semibold">
+              <div className="sticky top-0 z-10 -mx-5 -mt-5 bg-surface px-5 pb-3 pt-5 sm:-mx-6 sm:px-6 sm:pt-6">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
+                  <label className="block text-sm font-semibold">
                   Автор игр
-                  <select aria-label="Автор игр" className="input-base mt-1" value={ownerId} onChange={(event) => { setOwnerId(event.target.value); setPreview(null); }}>
+                  <select aria-label="Автор игр" aria-invalid={!!ownerError} className={`input-base mt-1 ${ownerError ? "border-danger ring-2 ring-danger/20" : ""}`} value={ownerId} onChange={(event) => { setOwnerId(event.target.value); setPreview(null); setOwnerError(""); }}>
                     <option value="">Выберите автора</option>
                     {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name || owner.email || owner.id}</option>)}
                   </select>
-                </label>
-                <a href="/content/library-v1.json" download className="btn-ghost self-end justify-center"><Download className="h-4 w-4" /> Скачать пример JSON</a>
+                  {ownerError && <span role="alert" className="mt-1 block text-xs font-semibold text-danger">{ownerError}</span>}
+                  </label>
+                  <a href="/content/library-v1.json" download className="btn-ghost self-end justify-center"><Download className="h-4 w-4" /> Скачать пример JSON</a>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2" role="tablist" aria-label="Источник JSON">
                 <button type="button" role="tab" aria-selected={mode === "file"} className={mode === "file" ? "btn-accent" : "btn-ghost"} onClick={() => setMode("file")}>Загрузить .json</button>
@@ -1062,7 +1067,7 @@ function OfficialContentImportModal({
                 <textarea aria-label="Вставить JSON" className="input-base min-h-48 font-mono text-xs" value={raw} onChange={(event) => { setRaw(event.target.value); setPreview(null); }} placeholder={'{"schema_version":1,"games":[]}'}/>
               )}
               {raw && <p className="break-all text-xs text-muted-foreground">Загружено символов: {raw.length}</p>}
-              <button type="button" className="btn-accent w-full justify-center" disabled={busy || !raw.trim() || !ownerId} onClick={() => void validate()}>{busy ? "Проверяем…" : "Проверить и показать preview"}</button>
+              <button type="button" className="btn-accent w-full justify-center" disabled={busy || !raw.trim()} onClick={() => void validate()}>{busy ? "Проверяем…" : "Проверить и показать preview"}</button>
               {error && <div className="rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</div>}
               {preview && <OfficialImportPreviewCard preview={preview} />}
               {preview?.valid && <button type="button" className="btn-accent w-full justify-center" disabled={busy} onClick={() => void apply()}>{busy ? "Импортируем…" : "Создать новые игры"}</button>}
@@ -1088,7 +1093,7 @@ function OfficialImportPreviewCard({ preview }: { preview: OfficialImportPreview
       {preview.owner && <p className="text-sm">Автор: <b>{preview.owner.name}</b></p>}
       {errors.length > 0 && <div className="space-y-2"><h3 className="text-sm font-bold text-danger">Ошибки</h3>{errors.map((item, index) => <p key={`${item.path}-${index}`} className="break-words text-sm text-danger"><b>{item.path}</b>: {item.message}</p>)}</div>}
       {warnings.length > 0 && <div className="space-y-2"><h3 className="text-sm font-bold text-amber-700">Предупреждения</h3>{warnings.map((item, index) => <p key={`${item.path}-${index}`} className="break-words text-sm text-amber-700"><b>{item.path}</b>: {item.message}</p>)}</div>}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid max-h-[45dvh] gap-3 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-2">
         {(preview.games ?? []).map((game) => <div key={game.content_id} className="rounded-xl bg-surface-muted p-3 text-sm"><div className="flex items-start justify-between gap-2"><b className="break-words">{game.title}</b><span className="shrink-0 rounded-full bg-surface px-2 py-1 text-xs">{kindLabel(game.kind)}</span></div><p className="mt-1 break-all font-mono text-xs text-muted-foreground">{game.content_id}</p><div className="mt-2 flex flex-wrap gap-1">{(game.tags ?? []).map((tag) => <span key={tag} className="rounded-full bg-primary-soft px-2 py-1 text-xs text-primary">#{tag}</span>)}{game.status === "already_imported" && <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-800">будет пропущена</span>}</div></div>)}
       </div>
     </div>

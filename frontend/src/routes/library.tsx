@@ -17,6 +17,8 @@ import {
   MoreHorizontal,
   Pencil,
   Check,
+  Eye,
+  X,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { PlayModal } from "@/components/play-modal";
@@ -31,7 +33,7 @@ import { cleanupInvalidGames } from "@/lib/storage";
 import { useAuth } from "@/hooks/use-auth";
 import { RatingStars } from "@/components/rating-stars";
 import { Avatar } from "@/components/avatar";
-import { gameSummary } from "@/components/game-content";
+import { GameContent, gameSummary } from "@/components/game-content";
 import type { GameKind, QuizData, StoredGame } from "@/lib/types";
 import { safeCanonicalTag } from "@/lib/tags";
 
@@ -84,6 +86,7 @@ function LibraryPage() {
   const [error, setError] = useState<string | null>(null);
   const [playedIds, setPlayedIds] = useState<Set<string>>(new Set());
   const [playModal, setPlayModal] = useState<{ id: string; kind: GameKind } | null>(null);
+  const [previewGame, setPreviewGame] = useState<StoredGame | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -312,6 +315,7 @@ function LibraryPage() {
                 tab={activeTab}
                 alreadyAdded={addedSourceIds.has(g.id)}
                 onPlay={() => setPlayModal({ id: g.id, kind: g.kind })}
+                onPreview={() => setPreviewGame(g)}
                 onForked={() => {
                   showToast("Игра добавлена в «Мои»");
                   reload();
@@ -330,6 +334,8 @@ function LibraryPage() {
         />
       )}
 
+      {previewGame && <LibraryGamePreview game={previewGame} onClose={() => setPreviewGame(null)} />}
+
       {toast && (
         <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-foreground px-5 py-3 text-sm font-semibold text-white shadow-lift">
           {toast}
@@ -344,12 +350,14 @@ function GameCard({
   tab,
   alreadyAdded,
   onPlay,
+  onPreview,
   onForked,
 }: {
   g: StoredGame;
   tab: TabKey;
   alreadyAdded: boolean;
   onPlay: () => void;
+  onPreview: () => void;
   onForked: () => void;
 }) {
   const { user, forkGame } = useAuth();
@@ -481,6 +489,18 @@ function GameCard({
         >
           <Play className="h-3 w-3" /> Играть
         </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onPreview();
+          }}
+          className="inline-flex min-h-8 items-center gap-1 rounded-full border border-border-strong px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-surface-muted hover:text-foreground"
+          aria-label={`Просмотреть ${titleOf(g)}`}
+        >
+          <Eye className="h-3 w-3" /> <span className="hidden sm:inline">Просмотреть</span>
+        </button>
         {isMine && (
           <button
             type="button"
@@ -543,5 +563,42 @@ function GameCard({
         )}
       </div>
     </Link>
+  );
+}
+
+function LibraryGamePreview({ game, onClose }: { game: StoredGame; onClose: () => void }) {
+  const config = (game.data as { config?: { title?: string; description?: string } }).config;
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end bg-foreground/40 p-0 pb-[calc(4rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:p-4 sm:pb-4" onClick={onClose}>
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Предпросмотр ${titleOf(game)}`}
+        onClick={(event) => event.stopPropagation()}
+        className="flex max-h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] min-h-0 w-full flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-lift sm:max-h-[90dvh] sm:max-w-3xl sm:rounded-3xl"
+      >
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border bg-surface px-4 py-4 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wider text-primary">{KIND_LABEL[game.kind]}</p>
+            <h2 className="mt-1 break-words font-display text-xl font-bold">{config?.title || titleOf(game)}</h2>
+            {config?.description && <p className="mt-1 text-sm text-muted-foreground">{config.description}</p>}
+            {game.tags && game.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {game.tags.map((tag) => <span key={tag} className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-primary">#{tag}</span>)}
+              </div>
+            )}
+          </div>
+          <button type="button" onClick={onClose} aria-label="Закрыть предпросмотр" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+          <div className="mb-3 rounded-xl bg-surface-muted px-3 py-2 text-xs text-muted-foreground">
+            {game.showAnswers ? "Ответы доступны согласно настройкам игры." : "Ответы скрыты настройками игры."}
+          </div>
+          <GameContent game={game} withAnswers={!!game.showAnswers} />
+        </div>
+      </section>
+    </div>
   );
 }

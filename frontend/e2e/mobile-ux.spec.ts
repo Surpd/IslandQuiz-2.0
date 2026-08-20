@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -74,6 +74,39 @@ test("quiz question navigator stays below the mobile builder header", async ({ p
   expect(navigatorBox).not.toBeNull();
   expect(navigatorBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
 });
+
+async function assertQuizSettingsSheet(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 844 });
+  await page.goto("/builder/quiz");
+  await page.waitForTimeout(5000);
+  const settingsButton = page.locator('.builder-mobile-header button[aria-label="Настройки"]');
+  await expect(settingsButton).toHaveAttribute("aria-expanded", "false");
+  await settingsButton.click();
+  const dialog = page.getByRole("dialog", { name: "Настройки игры" });
+  await expect(dialog).toBeVisible();
+  await expect(settingsButton).toHaveAttribute("aria-expanded", "true");
+  const sheet = dialog.locator(":scope > div");
+  const box = await sheet.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(844 - 64);
+  await expect(sheet.getByRole("button", { name: "Сохранить настройки" })).toBeVisible();
+  const scroller = sheet.locator(".overflow-y-auto").first();
+  await expect(scroller).toBeVisible();
+  expect(await scroller.evaluate((element) => element.scrollHeight >= element.clientHeight)).toBe(
+    true,
+  );
+  await sheet.getByRole("button", { name: "Сохранить настройки" }).click();
+  await expect(dialog).toBeHidden();
+}
+
+for (const width of [375, 390, 430]) {
+  test(`quiz settings sheet works at ${width}px`, async ({ page }) => {
+    await assertQuizSettingsSheet(page, width);
+  });
+}
 
 test("formula keyboard stays compact at 360px and 430px", async ({ page }) => {
   for (const width of [360, 430]) {

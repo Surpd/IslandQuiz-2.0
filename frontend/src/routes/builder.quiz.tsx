@@ -620,6 +620,7 @@ function BuilderQuiz() {
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
             onSettings={() => setShowSettings((s) => !s)}
+            settingsOpen={showSettings}
             mobilePrimaryAction={<AIGenerateQuizButton compact currentTitle={config.title} onGenerated={applyGeneratedQuiz} />}
             onBack={handleBack}
             onImportFile={handleImport}

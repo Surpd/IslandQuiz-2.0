@@ -76,11 +76,14 @@ test("mobile official content import validates preview and reports the apply res
   const selector = page.getByRole("dialog", { name: "Разделы админ-панели" });
   await selector.getByRole("button", { name: "Игры" }).click();
   await page.getByRole("button", { name: "Импорт контента" }).click();
-  await page.getByRole("combobox", { name: "Автор игр" }).selectOption("author-1");
   await page.getByRole("tab", { name: "Вставить JSON" }).click();
   await page
     .getByRole("textbox", { name: "Вставить JSON" })
     .fill('{"schema_version":1,"games":[]}');
+  await page.getByRole("button", { name: "Проверить и показать preview" }).click();
+  await expect(page.getByRole("alert")).toHaveText("Выберите автора игр.");
+  await page.getByRole("combobox", { name: "Автор игр" }).selectOption("author-1");
+  await expect(page.getByRole("alert")).toBeHidden();
   await page.getByRole("button", { name: "Проверить и показать preview" }).click();
   await expect(page.getByText("Проверка пройдена. Импорт доступен.")).toBeVisible();
   await expect(page.getByText("Quiz preview")).toBeVisible();

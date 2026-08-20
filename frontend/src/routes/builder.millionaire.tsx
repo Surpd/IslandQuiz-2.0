@@ -436,6 +436,7 @@ function BuilderMillionaire() {
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
             onSettings={() => setShowSettings((s) => !s)}
+            settingsOpen={showSettings}
             onBack={handleBack}
             onImportFile={handleImport}
             onDownloadTemplate={() => downloadExcelTemplate("millionaire")}

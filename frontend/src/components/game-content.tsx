@@ -74,6 +74,13 @@ function QuizContent({ data, withAnswers }: { data: QuizData; withAnswers: boole
               <p className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
                 {QTYPE_LABEL[q.type] ?? q.type} · {q.points} б · {q.time}с
               </p>
+              {q.options.length > 0 && (
+                <ul className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                  {q.options.map((option) => (
+                    <li key={option} className="rounded-md bg-surface-muted px-2 py-1">{option}</li>
+                  ))}
+                </ul>
+              )}
               {withAnswers && (
                 <p className="mt-1 text-xs text-success">
                   Ответ: <b>{formatQuizAnswer(q)}</b>
@@ -99,18 +106,14 @@ function JeopardyContent({ data, withAnswers }: { data: JeopardyData; withAnswer
             {round.map((cat, ci) => (
               <div key={ci} className="rounded-xl border border-border bg-surface p-3">
                 <p className="font-display text-sm font-bold">{cat.category || "Без названия"}</p>
-                {withAnswers ? (
-                  <ul className="mt-1.5 flex flex-col gap-1 text-xs">
-                    {cat.questions.map((q, qi) => (
-                      <li key={qi} className="flex gap-2">
-                        <b className="text-primary">{q.points}</b>
-                        <span className="min-w-0 flex-1">{q.q || "—"} <span className="text-success">→ {q.a || "—"}</span></span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">{cat.questions.length} вопросов</p>
-                )}
+                <ul className="mt-1.5 flex flex-col gap-1 text-xs">
+                  {cat.questions.map((q, qi) => (
+                    <li key={qi} className="flex gap-2">
+                      <b className="text-primary">{q.points}</b>
+                      <span className="min-w-0 flex-1">{q.q || "—"}{withAnswers && <span className="text-success"> → {q.a || "—"}</span>}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
@@ -120,12 +123,8 @@ function JeopardyContent({ data, withAnswers }: { data: JeopardyData; withAnswer
         <div className="rounded-xl border border-amber/30 bg-amber-soft p-3">
           <p className="text-xs font-bold uppercase tracking-wider text-amber">Финал</p>
           <p className="mt-1 text-sm font-semibold">{data.final.category}</p>
-          {withAnswers && (
-            <>
-              <p className="mt-1 text-xs">{data.final.q}</p>
-              <p className="mt-1 text-xs text-success">Ответ: <b>{data.final.a}</b></p>
-            </>
-          )}
+          <p className="mt-1 text-xs">{data.final.q}</p>
+          {withAnswers && <p className="mt-1 text-xs text-success">Ответ: <b>{data.final.a}</b></p>}
         </div>
       )}
     </div>
@@ -148,6 +147,13 @@ function MillionaireContent({ data, withAnswers }: { data: MillionaireData; with
                 <p className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
                   {q.money.toLocaleString("ru-RU")}
                 </p>
+                <ol className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                  {q.options.map((option) => (
+                    <li key={option.text} className={`rounded-md bg-surface-muted px-2 py-1 ${withAnswers && option.correct ? "font-semibold text-success" : ""}`}>
+                      {option.text}
+                    </li>
+                  ))}
+                </ol>
                 {withAnswers && correct && (
                   <p className="mt-1 text-xs text-success">Ответ: <b>{correct.text}</b></p>
                 )}

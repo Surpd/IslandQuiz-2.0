@@ -246,9 +246,9 @@ export function BuilderSettingsSection({
   return (
     <>
       <div className="surface-card animate-fade-up hidden space-y-4 p-4 sm:p-6 md:block md:max-h-none md:overflow-visible">{content}</div>
-      <div className="fixed inset-0 z-[70] flex items-end bg-foreground/50 p-0 pb-[calc(4rem+env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden" role="dialog" aria-modal="true" aria-label="Настройки игры">
-        <div className="flex max-h-[min(82dvh,calc(100dvh-5rem-env(safe-area-inset-bottom)))] min-h-0 w-full flex-col overflow-hidden rounded-t-3xl border-t border-border bg-surface shadow-lift">
-          <div className="shrink-0 border-b border-border px-4 pb-3 pt-2">
+      <div className="fixed inset-0 z-[70] flex items-end bg-foreground/50 px-0 pb-[calc(4rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] backdrop-blur-sm md:hidden" role="dialog" aria-modal="true" aria-label="Настройки игры">
+        <div className="flex max-h-[min(82dvh,calc(100dvh-env(safe-area-inset-top)-4rem-env(safe-area-inset-bottom)))] min-h-0 w-full flex-col overflow-hidden rounded-t-3xl border-t border-border bg-surface shadow-lift">
+          <div className="shrink-0 border-b border-border px-4 pb-3 pt-3">
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border-strong" />
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-display text-base font-bold">Настройки игры</h2>
@@ -264,8 +264,8 @@ export function BuilderSettingsSection({
               )}
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{mobileContent}</div>
-          <div className="shrink-0 border-t border-border bg-surface px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">{mobileContent}</div>
+          <div className="shrink-0 border-t border-border bg-surface px-4 py-3">
             <button type="button" onClick={onClose} className="btn-accent w-full justify-center">
               Сохранить настройки
             </button>
@@ -383,6 +383,7 @@ interface FabsProps {
   onSave: () => string | null | Promise<string | null>;
   onSaveAsCopy: () => string | null | Promise<string | null>;
   onSettings: () => void;
+  settingsOpen?: boolean;
   mobilePrimaryAction?: ReactNode;
   onBack?: () => void;
   onImportFile?: (file: File) => void;
@@ -411,6 +412,7 @@ export function BuilderFabs({
   onSave,
   onSaveAsCopy,
   onSettings,
+  settingsOpen,
   mobilePrimaryAction,
   onBack,
   onImportFile,
@@ -568,7 +570,7 @@ export function BuilderFabs({
             <span className="flex items-center gap-1"><Play className="h-4 w-4" /> Играть</span>
           </button>
           <div className="flex min-w-0 items-center justify-end gap-1">
-            <button type="button" onClick={onSettings} aria-label="Настройки" title="Настройки" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">
+            <button type="button" onClick={onSettings} aria-label="Настройки" title="Настройки" aria-expanded={!!settingsOpen} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">
               <Settings2 className="h-4 w-4" />
             </button>
             <button type="button" onClick={() => setMobileMoreOpen((v) => !v)} aria-label="Дополнительные действия" aria-expanded={mobileMoreOpen} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">

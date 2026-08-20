@@ -1,0 +1,139 @@
+import { expect, test } from "@playwright/test";
+
+const apiOrigin = "https://api.islandquiz.online";
+
+test.use({ viewport: { width: 390, height: 844 } });
+
+test("Library preview respects show_answers and renders all game kinds", async ({ page }) => {
+  let showAnswers = false;
+  await page.route(`${apiOrigin}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path !== "/api/games/")
+      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    const games = [
+      {
+        id: "preview-quiz",
+        kind: "quiz",
+        data: {
+          config: {
+            title: "Preview Quiz",
+            description: "Описание quiz",
+            theme: "amber",
+            orderMode: "sequential",
+            showResult: "end",
+            defaultTime: 30,
+            totalTime: 10,
+          },
+          questions: [
+            {
+              id: "q1",
+              type: "choice",
+              q: "Столица Франции?",
+              options: ["Париж", "Рим", "Берлин", "Мадрид"],
+              answer: "Париж",
+              points: 100,
+              time: 30,
+            },
+          ],
+        },
+        visibility: "public",
+        owner_id: "owner",
+        tags: ["География"],
+        show_answers: showAnswers,
+        updated_at: "2026-08-20T00:00:00Z",
+      },
+      {
+        id: "preview-jeopardy",
+        kind: "jeopardy",
+        data: {
+          config: {
+            title: "Preview Jeopardy",
+            theme: "ocean",
+            timeBase: 30,
+            timeStep: 15,
+            timeFinal: 90,
+          },
+          rounds: [
+            [
+              {
+                category: "Столицы",
+                questions: [{ points: 100, q: "Столица Франции?", a: "Париж" }],
+              },
+            ],
+          ],
+          final: { category: "Европа", q: "Финальный вопрос", a: "Ответ" },
+        },
+        visibility: "public",
+        owner_id: "owner",
+        tags: [],
+        show_answers: true,
+        updated_at: "2026-08-20T00:00:00Z",
+      },
+      {
+        id: "preview-millionaire",
+        kind: "millionaire",
+        data: {
+          config: {
+            title: "Preview Millionaire",
+            theme: "classic",
+            timePerQuestion: 30,
+            moneyScale: "normal",
+            milestones: "three",
+          },
+          questions: [
+            {
+              q: "Столица Германии?",
+              money: 500,
+              options: [
+                { text: "Берлин", correct: true },
+                { text: "Вена", correct: false },
+                { text: "Прага", correct: false },
+                { text: "Рим", correct: false },
+              ],
+            },
+          ],
+        },
+        visibility: "public",
+        owner_id: "owner",
+        tags: [],
+        show_answers: true,
+        updated_at: "2026-08-20T00:00:00Z",
+      },
+    ];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ games, total: games.length, limit: 100, offset: 0 }),
+    });
+  });
+
+  await page.goto("/library");
+  await expect(page.getByRole("heading", { name: "Preview Quiz" })).toBeVisible();
+  await page.getByRole("button", { name: "Просмотреть Preview Quiz" }).click();
+  const dialog = page.getByRole("dialog", { name: "Предпросмотр Preview Quiz" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Описание quiz")).toBeVisible();
+  await expect(dialog.getByText("Париж", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Ответы скрыты настройками игры.")).toBeVisible();
+  await expect(dialog.getByText("Ответ:")).toBeHidden();
+  await dialog.getByRole("button", { name: "Закрыть предпросмотр" }).click();
+
+  showAnswers = true;
+  await page.reload();
+  await page.getByRole("button", { name: "Просмотреть Preview Quiz" }).click();
+  const openDialog = page.getByRole("dialog", { name: "Предпросмотр Preview Quiz" });
+  await expect(openDialog.getByText("Ответы доступны согласно настройкам игры.")).toBeVisible();
+  await expect(openDialog.getByText("Ответ:")).toBeVisible();
+  await openDialog.getByRole("button", { name: "Закрыть предпросмотр" }).click();
+
+  await page.getByRole("button", { name: "Просмотреть Preview Jeopardy" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Предпросмотр Preview Jeopardy" }).getByText("Столицы"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Закрыть предпросмотр" }).click();
+  await page.getByRole("button", { name: "Просмотреть Preview Millionaire" }).click();
+  const millionaire = page.getByRole("dialog", { name: "Предпросмотр Preview Millionaire" });
+  await expect(millionaire.getByText("Берлин", { exact: true }).first()).toBeVisible();
+  await expect(millionaire.getByText("Ответ:")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
