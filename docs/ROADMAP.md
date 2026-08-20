@@ -28,6 +28,7 @@
 - **H10 / DONE:** WebSocket room actions валидируют phase, shape, IDs, bounds, timers, payload limits и replay/duplicate actions для Quiz и Jeopardy; signed snapshot остаётся только серверным, `create_room` имеет отдельный limit, а frontend не отправляет oversized profile avatar при join.
 - **M4 / DONE:** backend routers нормализуют Supabase/API exceptions, `None`, empty и malformed responses; provider failures и room result persistence возвращают controlled errors, добавлены 80 regression tests.
 - **M7 / DONE:** отдельный GitHub CI на PR/push в `main` выполняет frontend clean install/typecheck/build, backend compile/tests, dependency audit и hygiene check без изменения production deploy workflow. Только owner-approved advisories `GHSA-4r6h-8v6p-xvw6` и `GHSA-5pgg-2g8v-p4x9` для `xlsx@0.18.5` временно allowlisted с видимым warning; остальные high/critical findings блокируют gate. Branch protection остаётся отдельным follow-up.
+- **P7 / DONE:** Quiz Excel import распознаёт schema v2 по `_islandquiz` или человекочитаемым заголовкам, сохраняет существующие question models, валидирует matching/close/ordering, поддерживает legacy XLSX/CSV и скачивает стилизованный v2-шаблон.
 - **CODEX_MODEL_GUIDE:** для задач добавлен выбор Luna/Terra/Sol с условиями escalation.
 
 ## Broken / needs fix now

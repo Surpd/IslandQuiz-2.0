@@ -1,6 +1,7 @@
 // Export helpers — Excel (xlsx) is primary; browser print for PDF.
 
 import * as XLSX from "xlsx";
+import Papa from "papaparse";
 import type {
   JeopardyCategory,
   JeopardyData,
@@ -105,19 +106,19 @@ export function exportMillionaireExcel(data: MillionaireData) {
 /* ---------------- Excel templates ---------------- */
 
 export function downloadExcelTemplate(kind: "quiz" | "jeopardy" | "millionaire") {
+  if (kind === "quiz") {
+    const link = document.createElement("a");
+    link.href = "/templates/islandquiz-quiz-import-v2.xlsx";
+    link.download = "islandquiz-quiz-import-v2.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return;
+  }
   const wb = XLSX.utils.book_new();
   let rows: Record<string, string | number>[] = [];
   let name = "template";
-  if (kind === "quiz") {
-    name = "quiz-template";
-    rows = [
-      { type: "choice", question: "Столица Франции?", options: "Париж|Лондон|Берлин|Мадрид", answer: "Париж", points: 100, time: 30 },
-      { type: "bool", question: "Вода мокрая?", options: "", answer: "true", points: 50, time: 20 },
-      { type: "text", question: "Что такое H2O?", options: "", answer: "вода", points: 100, time: 30 },
-      { type: "close", question: "Столица Франции — ___, Германии — ___", options: "", answer: "Париж | Берлин", points: 100, time: 30 },
-      { type: "ordering", question: "Расставьте по возрастанию:", options: "", answer: "Один | Два | Три", points: 100, time: 30 },
-    ];
-  } else if (kind === "jeopardy") {
+  if (kind === "jeopardy") {
     name = "своя-игра-template";
     rows = [
       { round: 1, category: "История", points: 100, question: "Год начала ВОВ?", answer: "1941" },
@@ -142,40 +143,261 @@ async function readXlsx(file: File): Promise<Record<string, string>[]> {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "", raw: false });
+  return ws ? XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "", raw: false }) : [];
+}
+
+type ImportRow = { cells: string[]; rowNumber: number };
+type ImportSchema = "v2" | "legacy";
+
+class QuizImportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QuizImportError";
+  }
+}
+
+const V2_HEADERS = ["тип вопроса", "вопрос", "варианты ответа", "правильный ответ", "баллы", "время, сек"];
+const LEGACY_HEADERS = ["type", "question", "options", "answer", "points", "time"];
+const TYPE_ALIASES: Record<string, QuizQuestionType> = {
+  choice: "choice",
+  bool: "bool",
+  text: "text",
+  matching: "matching",
+  close: "close",
+  ordering: "ordering",
+  "выбор ответа": "choice",
+  "да / нет": "bool",
+  "текстовый ответ": "text",
+  сопоставление: "matching",
+  пропуски: "close",
+  порядок: "ordering",
+};
+
+function cleanCell(value: unknown): string {
+  return String(value ?? "").replace(/^\uFEFF/, "").trim();
+}
+
+function normalizeHeader(value: unknown): string {
+  return cleanCell(value).toLowerCase().replace(/\s+/g, " ");
+}
+
+function isEmptyRow(cells: string[]): boolean {
+  return cells.every((cell) => !cleanCell(cell));
+}
+
+function rowMatches(cells: string[], expected: string[]): boolean {
+  const actual = cells.map(normalizeHeader);
+  return expected.every((header) => actual.includes(header));
+}
+
+function toRows(data: unknown[][]): ImportRow[] {
+  return data.map((row, index) => ({
+    cells: row.map(cleanCell),
+    rowNumber: index + 1,
+  }));
+}
+
+async function readImportFile(file: File): Promise<{ sheets: Record<string, ImportRow[]>; isCsv: boolean }> {
+  if (file.name.toLowerCase().endsWith(".csv")) {
+    const parsed = Papa.parse<string[]>(await file.text(), { skipEmptyLines: false });
+    if (parsed.errors.length) {
+      throw new QuizImportError("Не удалось прочитать CSV-файл. Проверьте разделители и заголовки.");
+    }
+    return { sheets: { CSV: toRows(parsed.data) }, isCsv: true };
+  }
+
+  const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const sheets: Record<string, ImportRow[]> = {};
+  wb.SheetNames.forEach((name) => {
+    const ws = wb.Sheets[name];
+    if (ws) {
+      sheets[name] = toRows(
+        XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "", raw: false }),
+      );
+    }
+  });
+  return { sheets, isCsv: false };
+}
+
+function metadataFor(sheets: Record<string, ImportRow[]>): Map<string, string> {
+  const metadataSheet = Object.entries(sheets).find(([name]) => name.toLowerCase() === "_islandquiz")?.[1];
+  const metadata = new Map<string, string>();
+  metadataSheet?.forEach(({ cells }) => {
+    const key = normalizeHeader(cells[0]);
+    if (key) metadata.set(key, cleanCell(cells[1]));
+  });
+  return metadata;
+}
+
+function findHeader(rows: ImportRow[], expected: string[]): ImportRow | undefined {
+  return rows.find(({ cells }) => rowMatches(cells, expected));
+}
+
+function fail(rowNumber: number, message: string): never {
+  throw new QuizImportError(`Строка ${rowNumber}: ${message}`);
+}
+
+function splitDelimited(raw: string, allowSemicolon = false): string[] {
+  if (!cleanCell(raw)) return [];
+  const delimiter = allowSemicolon && !raw.includes("|") ? /[;]/ : /[|]/;
+  return raw.split(delimiter).map(cleanCell).filter(Boolean);
+}
+
+function parseJsonOrDelimited(raw: string, allowSemicolon = false): string[] {
+  const value = cleanCell(raw);
+  if (value.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.map(cleanCell).filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+  return splitDelimited(value, allowSemicolon);
+}
+
+function parseNumber(raw: string, label: string, rowNumber: number, fallback: number): number {
+  const value = cleanCell(raw);
+  if (!value) return fallback;
+  const parsed = Number(value.replace(/\s/g, "").replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    fail(rowNumber, `в поле «${label}» укажите положительное число.`);
+  }
+  return parsed;
+}
+
+function parseType(raw: string, rowNumber: number, schema: ImportSchema): QuizQuestionType {
+  const value = normalizeHeader(raw);
+  if (!value) {
+    if (schema === "legacy") return "choice";
+    fail(rowNumber, "необходимо указать тип вопроса.");
+  }
+  const type = TYPE_ALIASES[value];
+  if (!type) fail(rowNumber, `неизвестный тип вопроса «${cleanCell(raw)}». Выберите тип из шаблона.`);
+  return type;
+}
+
+function parseBool(raw: string, rowNumber: number): string {
+  const value = cleanCell(raw).toLowerCase();
+  if (value === "да" || value === "true") return "true";
+  if (value === "нет" || value === "false") return "false";
+  fail(rowNumber, "для типа «Да / Нет» ответ должен быть «Да», «Нет», true или false.");
+}
+
+function parseMatching(raw: string, rowNumber: number, schema: ImportSchema): string {
+  const value = cleanCell(raw);
+  if (value.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        const pairs = parsed.map((pair) => {
+          const item = pair as { left?: unknown; right?: unknown };
+          return { left: cleanCell(item?.left), right: cleanCell(item?.right) };
+        });
+        if (pairs.length >= 2 && pairs.every((pair) => pair.left && pair.right)) return JSON.stringify(pairs);
+      }
+    } catch {
+      // Continue with the human-readable legacy format.
+    }
+  }
+  const tokens = splitDelimited(value, schema === "legacy");
+  if (tokens.length < 2) fail(rowNumber, "для типа «Сопоставление» необходимо указать минимум 2 пары.");
+  const pairs = tokens.map((token) => {
+    const arrow = token.indexOf("→");
+    if (arrow < 0) fail(rowNumber, "каждая пара сопоставления должна иметь формат «левое → правое».");
+    const left = cleanCell(token.slice(0, arrow));
+    const right = cleanCell(token.slice(arrow + 1));
+    if (!left || !right) fail(rowNumber, "в каждой паре сопоставления должны быть заполнены обе части.");
+    return { left, right };
+  });
+  return JSON.stringify(pairs);
+}
+
+function sameItems(left: string[], right: string[]): boolean {
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+  return sortedLeft.length === sortedRight.length && sortedLeft.every((item, index) => item === sortedRight[index]);
+}
+
+function parseQuizRow(
+  cells: string[],
+  rowNumber: number,
+  indexes: Record<string, number>,
+  schema: ImportSchema,
+  defaultTime: number,
+): QuizQuestion {
+  const value = (field: string) => cleanCell(cells[indexes[field]]);
+  const type = parseType(value("type"), rowNumber, schema);
+  const question = value("question");
+  if (!question) fail(rowNumber, "необходимо заполнить вопрос.");
+  const points = parseNumber(value("points"), "Баллы", rowNumber, 100);
+  const time = parseNumber(value("time"), "Время, сек", rowNumber, defaultTime);
+  const options = splitDelimited(value("options"));
+  let answer = value("answer");
+  let internalOptions: string[] = [];
+
+  if (type === "choice") {
+    if (options.length < 2) fail(rowNumber, "для типа «Выбор ответа» необходимо указать минимум 2 варианта ответа.");
+    if (!answer) fail(rowNumber, "для типа «Выбор ответа» необходимо указать правильный ответ.");
+    if (!options.includes(answer)) fail(rowNumber, "правильный ответ должен входить в список вариантов ответа.");
+    internalOptions = options;
+  } else if (type === "bool") {
+    answer = parseBool(answer, rowNumber);
+  } else if (type === "text") {
+    if (!answer) fail(rowNumber, "для типа «Текстовый ответ» необходимо указать правильный ответ.");
+  } else if (type === "matching") {
+    answer = parseMatching(value("options") || answer, rowNumber, schema);
+  } else if (type === "close") {
+    const blanks = (question.match(/___/g) ?? []).length;
+    const answers = parseJsonOrDelimited(answer, schema === "legacy");
+    if (!blanks) fail(rowNumber, "в вопросе «Пропуски» должен быть хотя бы один маркер ___.");
+    if (answers.length !== blanks) fail(rowNumber, `количество ответов должно совпадать с количеством пропусков (___): ${blanks}.`);
+    answer = JSON.stringify(answers);
+  } else if (type === "ordering") {
+    const correct = parseJsonOrDelimited(answer, schema === "legacy");
+    if (schema === "v2") {
+      if (options.length < 2) fail(rowNumber, "для типа «Порядок» необходимо указать минимум 2 варианта ответа.");
+      if (correct.length < 2) fail(rowNumber, "для типа «Порядок» необходимо указать правильный порядок.");
+      if (!sameItems(options, correct)) fail(rowNumber, "варианты ответа и правильный порядок должны содержать один и тот же набор элементов.");
+    }
+    if (correct.length < 2) fail(rowNumber, "для типа «Порядок» необходимо указать минимум 2 элемента.");
+    answer = JSON.stringify(correct);
+  }
+
+  return {
+    id: newId(),
+    type,
+    q: question,
+    image: "",
+    options: internalOptions,
+    answer,
+    points,
+    time,
+  };
 }
 
 export async function importQuizXlsx(file: File, defaultTime: number): Promise<QuizQuestion[]> {
-  const rows = await readXlsx(file);
-  return rows.map((r) => {
-    const type = ((r.type ?? "choice") as QuizQuestionType) || "choice";
-    const opts = r.options ? String(r.options).split("|").map((s) => s.trim()) : [];
-    let answer = String(r.answer ?? "");
-    if (type === "close" || type === "ordering") {
-      let arr: string[] = [];
-      if (answer.trim().startsWith("[")) {
-        try {
-          const parsed = JSON.parse(answer);
-          if (Array.isArray(parsed)) arr = parsed.map((x) => String(x ?? ""));
-        } catch {
-          arr = [];
-        }
-      } else {
-        arr = answer.split("|").map((s) => s.trim()).filter(Boolean);
-      }
-      answer = JSON.stringify(arr);
-    }
-    return {
-      id: newId(),
-      type,
-      q: String(r.question ?? ""),
-      image: "",
-      options: type === "choice" ? (opts.length ? opts : ["", "", "", ""]) : [],
-      answer,
-      points: parseInt(String(r.points ?? "100")) || 100,
-      time: parseInt(String(r.time ?? defaultTime)) || defaultTime,
-    };
-  });
+  const { sheets } = await readImportFile(file);
+  const metadata = metadataFor(sheets);
+  const metadataV2 = metadata.get("format") === "islandquiz_quiz" && metadata.get("schema_version") === "2";
+  const questionEntry = Object.entries(sheets).find(([name]) => name.toLowerCase() === "вопросы") ?? Object.entries(sheets)[0];
+  if (!questionEntry) throw new QuizImportError("В файле не найден лист с вопросами.");
+  const [sheetName, rows] = questionEntry;
+  const v2Header = findHeader(rows, V2_HEADERS);
+  if (metadataV2 && !v2Header) throw new QuizImportError("В файле не найден лист «Вопросы» с заголовками шаблона.");
+  const header = v2Header ?? findHeader(rows, LEGACY_HEADERS);
+  if (!header) throw new QuizImportError("Не удалось определить формат файла. Используйте шаблон IslandQuiz или старый формат type | question | options | answer | points | time.");
+  const schema: ImportSchema = metadataV2 || !!v2Header || (sheetName.toLowerCase() === "вопросы" && rowMatches(header.cells, V2_HEADERS)) ? "v2" : "legacy";
+  const normalizedHeaders = header.cells.map(normalizeHeader);
+  const expected = schema === "v2" ? V2_HEADERS : LEGACY_HEADERS;
+  const indexes = Object.fromEntries(expected.map((field) => [field, normalizedHeaders.indexOf(field)]));
+  const fieldIndexes = schema === "v2"
+    ? { type: indexes[V2_HEADERS[0]], question: indexes[V2_HEADERS[1]], options: indexes[V2_HEADERS[2]], answer: indexes[V2_HEADERS[3]], points: indexes[V2_HEADERS[4]], time: indexes[V2_HEADERS[5]] }
+    : { type: indexes.type, question: indexes.question, options: indexes.options, answer: indexes.answer, points: indexes.points, time: indexes.time };
+  return rows
+    .filter(({ rowNumber }) => rowNumber > header.rowNumber)
+    .filter(({ cells }) => !isEmptyRow(cells))
+    .map(({ cells, rowNumber }) => parseQuizRow(cells, rowNumber, fieldIndexes, schema, defaultTime));
 }
 
 export async function importJeopardyXlsx(

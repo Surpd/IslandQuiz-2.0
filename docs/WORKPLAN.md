@@ -416,6 +416,13 @@
 - **Готово, когда:** выбранные основные сценарии работают с клавиатурой, корректным focus/contrast, screen reader labels и узкими touch-экранами.
 - **Проверки:** keyboard walkthrough, axe/accessibility scan, responsive viewport matrix, touch interaction regression, `tsc`, lint, build.
 
+#### P7. Обновить Quiz Excel import до schema v2 — `DONE`
+
+- **Фактический результат:** добавлен parser человекочитаемого XLSX v2 с metadata/header detection, строковыми ошибками, нормализацией типов/чисел/разделителей и валидацией всех шести типов. Подключён готовый шаблон из `frontend/public/templates` с сохранёнными стилями, dropdown validation и freeze pane.
+- **Совместимость:** legacy XLSX и CSV продолжают импортироваться; внутренние объекты не менялись. Matching преобразуется в существующий JSON `{left,right}`, close/ordering — в существующие JSON-массивы.
+- **Проверки:** targeted importer suite `17/17 passed`, `npx tsc --noEmit`, `npm run build`. Полный `npm run test:e2e` достиг 24 успешных тестов, но smoke имеет pre-existing redirect на `/login`, а runner не завершил дочерний Vite process в sandbox.
+- **Файлы:** `frontend/src/lib/exports.ts`, `frontend/src/components/builder-actions.tsx`, `frontend/src/routes/builder.quiz.tsx`, `frontend/public/templates/islandquiz-quiz-import-v2.xlsx`, `frontend/e2e/quiz-import.spec.ts`.
+
 ## Рекомендуемая первая задача
 
 Первая задача — **H1: устранить текущий TypeScript baseline**.

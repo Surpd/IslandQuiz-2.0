@@ -331,8 +331,7 @@ function BuilderQuiz() {
         showToast(`Загружено вопросов: ${imported.length}`);
       }
     } catch (err) {
-      console.error(err);
-      showToast("Не удалось прочитать Excel");
+      showToast(err instanceof Error ? err.message : "Не удалось прочитать файл импорта");
     }
   };
 
