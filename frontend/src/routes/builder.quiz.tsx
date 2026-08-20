@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FileText,
   Plus,
@@ -34,7 +34,7 @@ import { loadGame } from "@/lib/api";    // загрузка игры с бэк�
 import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
-import { BuilderToolbar, BuilderFabs, BuilderSettingsSection } from "@/components/builder-actions";
+import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
 import {
   downloadExcelTemplate,
   exportQuizExcel,
@@ -153,6 +153,7 @@ function BuilderQuiz() {
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
   const [visibility, setVisibility] = useState<GameVisibility>("private");
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -191,6 +192,7 @@ function BuilderQuiz() {
           setQuestions(data.questions);
           setTags(rec.tags ?? []);
           if (rec.visibility) setVisibility(rec.visibility);
+          setSavedSnapshot(JSON.stringify({ config: data.config, questions: data.questions, tags: rec.tags ?? [] }));
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -261,20 +263,27 @@ function BuilderQuiz() {
 
   // Bug 1.3: если есть savedId — обновляем, иначе создаём.
 
-  const handleSave = (): string | null => {
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({ config, questions, tags }),
+    [config, questions, tags],
+  );
+  const saveState = savedSnapshot === currentSnapshot ? "saved" : "dirty";
+
+  const handleSave = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility });
+    await saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility });
+    setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("quiz");
     showToast(savedId ? "Изменения сохранены" : "Квиз сохранён!");
     return id;
   };
 
-  const handleSaveAsCopy = (): string | null => {
+  const handleSaveAsCopy = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = newId();
-    saveGame({
+    await saveGame({
       kind: "quiz",
       id,
       data: {
@@ -283,6 +292,7 @@ function BuilderQuiz() {
       },
       tags,
     });
+    setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("quiz");
     showToast("Создана копия квиза");
@@ -290,8 +300,8 @@ function BuilderQuiz() {
   };
 
 
-  const openResults = () => {
-    const id = handleSave();
+  const openResults = async () => {
+    const id = await handleSave();
     if (id) window.open(`/quiz/${id}/results`, "_blank", "noopener");
   };
 
@@ -588,10 +598,13 @@ function BuilderQuiz() {
           <BuilderFabs
             kind="quiz"
             savedId={savedId}
+            title={config.title || "Квиз"}
             visibility={visibility}
+            saveState={saveState}
             onVisibilityChange={setVisibility}
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
+            onSettings={() => setShowSettings((s) => !s)}
           />
           <HelpButton title="Как пользоваться конструктором квиза">
             <p><b>Типы вопросов:</b> ABCD — 4 варианта. Да/Нет — бинарный вопрос. Текст — принимаются несколько вариантов через запятую. Пары — сопоставление списков. Пропуски — вставьте <code>___</code> в текст и укажите ответ для каждого. Порядок — список пунктов; игрок должен расставить их правильно.</p>
@@ -624,8 +637,9 @@ function BuilderQuiz() {
         questions={questions}
         activeQuestionId={activeQuestionId}
         onSelect={scrollToQuestion}
+        onAddQuestion={addQuestion}
       />
-      <div className="surface-card space-y-3 p-4 sm:p-6">
+      <BuilderGameInfoSection title={config.title} onSettings={() => setShowSettings((s) => !s)}>
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
             Название
@@ -656,7 +670,7 @@ function BuilderQuiz() {
           <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">Теги</span>
           <TagInput value={tags} onChange={setTags} />
         </div>
-      </div>
+      </BuilderGameInfoSection>
 
 
       <div ref={listRef} className="space-y-4">
@@ -706,17 +720,20 @@ function MobileQuestionNavigator({
   questions,
   activeQuestionId,
   onSelect,
+  onAddQuestion,
 }: {
   questions: QuizQuestion[];
   activeQuestionId: string | null;
   onSelect: (index: number) => void;
+  onAddQuestion: (type: QuizQuestionType) => void;
 }) {
+  const [addOpen, setAddOpen] = useState(false);
   if (!questions.length) return null;
   const activeIndex = Math.max(0, questions.findIndex((question) => question.id === activeQuestionId));
   const activeQuestion = questions[activeIndex];
 
   return (
-    <div className="sticky top-16 z-30 -mx-1 mb-3 rounded-2xl border border-border bg-surface/95 p-2.5 shadow-soft backdrop-blur-md md:hidden">
+    <div className="sticky top-[8.75rem] z-30 -mx-1 mb-3 rounded-2xl border border-border bg-surface/95 p-2.5 shadow-soft backdrop-blur-md md:hidden">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-bold text-foreground">
@@ -775,8 +792,38 @@ function MobileQuestionNavigator({
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setAddOpen((open) => !open)}
+            aria-label="Добавить вопрос"
+            aria-expanded={addOpen}
+            className={`grid h-8 min-w-8 shrink-0 place-items-center rounded-lg border border-dashed px-2 text-xs font-bold text-primary transition-colors hover:bg-primary-soft ${addOpen ? "bg-primary-soft" : ""}`}
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
       </div>
+      {addOpen && (
+        <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border pt-2">
+          {(Object.keys(TYPE_META) as QuizQuestionType[]).map((type) => {
+            const Icon = TYPE_META[type].icon;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => {
+                  onAddQuestion(type);
+                  setAddOpen(false);
+                }}
+                className="flex min-h-9 items-center gap-1.5 rounded-lg bg-surface-muted px-2 text-left text-xs font-semibold hover:bg-primary-soft hover:text-primary"
+              >
+                <Icon className={`h-3.5 w-3.5 shrink-0 ${TYPE_META[type].tone}`} />
+                <span className="truncate">{TYPE_META[type].label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

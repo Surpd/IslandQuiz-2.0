@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Coins, Plus, Trash2, GripVertical } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
 import { HelpButton } from "@/components/help-modal";
@@ -18,7 +18,7 @@ import { loadGame } from "@/lib/api";    // загрузка игры с бэк�
 import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
-import { BuilderToolbar, BuilderFabs, BuilderSettingsSection } from "@/components/builder-actions";
+import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
 import {
   downloadExcelTemplate,
   exportMillionaireExcel,
@@ -88,6 +88,7 @@ function BuilderMillionaire() {
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
   const [visibility, setVisibility] = useState<GameVisibility>("private");
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -100,6 +101,7 @@ function BuilderMillionaire() {
           setQuestions(rec.data.questions);
           setTags(rec.tags ?? []);
           if (rec.visibility) setVisibility(rec.visibility);
+          setSavedSnapshot(JSON.stringify({ config: rec.data.config, questions: rec.data.questions, tags: rec.tags ?? [] }));
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -198,20 +200,28 @@ function BuilderMillionaire() {
     return true;
   };
 
-  const handleSave = (): string | null => {
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({ config, questions, tags }),
+    [config, questions, tags],
+  );
+  const saveState = savedSnapshot === currentSnapshot ? "saved" : "dirty";
+
+  const handleSave = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility });
+    await saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility });
+    setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("millionaire");
     showToast(savedId ? "Изменения сохранены" : "Игра сохранена!");
     return id;
   };
 
-  const handleSaveAsCopy = (): string | null => {
+  const handleSaveAsCopy = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = newId();
-    saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility: "private" });
+    await saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility: "private" });
+    setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("millionaire");
     showToast("Создана копия");
@@ -396,10 +406,13 @@ function BuilderMillionaire() {
           <BuilderFabs
             kind="millionaire"
             savedId={savedId}
+            title={config.title || "Миллионер"}
             visibility={visibility}
+            saveState={saveState}
             onVisibilityChange={setVisibility}
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
+            onSettings={() => setShowSettings((s) => !s)}
           />
           <HelpButton title="Как пользоваться конструктором «Миллионера»">
             <p><b>Лестница:</b> 15 вопросов от лёгких к сложным. Сумма растёт по выбранной шкале.</p>
@@ -427,7 +440,7 @@ function BuilderMillionaire() {
           onClose={() => setShowSettings(false)}
         />
       )}
-      <div className="surface-card space-y-3 p-6">
+      <BuilderGameInfoSection title={config.title ?? ""} onSettings={() => setShowSettings((s) => !s)}>
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
             Название игры
@@ -445,7 +458,7 @@ function BuilderMillionaire() {
           <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">Теги</span>
           <TagInput value={tags} onChange={setTags} />
         </div>
-      </div>
+      </BuilderGameInfoSection>
 
 
       <SortableQuestionCards

@@ -44,7 +44,7 @@ export function BuilderShell({
       )}
       <div className="relative z-10">
         <SiteHeader />
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <div className="mx-auto max-w-7xl px-4 py-8 pt-[5.5rem] sm:px-6 md:pt-8">
           <Link
             to="/"
             className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -95,7 +95,7 @@ export function BuilderShell({
                 <div className="surface-card p-3">{sidebar}</div>
               </aside>
             )}
-            <main className="min-w-0 flex-1 space-y-4 pb-36 sm:pb-24">{children}</main>
+            <main className="min-w-0 flex-1 space-y-4 pb-24 sm:pb-24">{children}</main>
           </div>
         </div>
       </div>

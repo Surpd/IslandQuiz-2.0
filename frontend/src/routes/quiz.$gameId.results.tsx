@@ -172,7 +172,7 @@ function ResultsPage() {
               <StatCard label="Средняя точность" value={`${stats.avgPct}%`} />
             </div>
 
-            <div className="surface-card overflow-hidden">
+            <div className="surface-card hidden overflow-hidden md:block">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -286,6 +286,59 @@ function ResultsPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+            <div className="grid gap-2 md:hidden">
+              {rows.map((r) => {
+                const pct = r.totalQuestions
+                  ? Math.round((r.correctCount / r.totalQuestions) * 100)
+                  : 0;
+                const isOffline = r.kind === "offline";
+                const expanded = isOffline ? expandedOffline === r.id : expandedRoom === r.id;
+                return (
+                  <article key={`mobile-${r.id}`} className="surface-card overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isOffline) setExpandedOffline((p) => (p === r.id ? null : r.id));
+                        else {
+                          setExpandedRoom((p) => (p === r.id ? null : r.id));
+                          setExpandedPlayer(null);
+                        }
+                      }}
+                      className="w-full p-3 text-left hover:bg-surface-muted/50"
+                    >
+                      <div className="flex items-start gap-2">
+                        <PlayerCell
+                          name={r.playerName}
+                          avatar={isOffline ? r.raw.avatar : undefined}
+                          userId={isOffline ? r.raw.userId : undefined}
+                        />
+                        <ChevronRight className={`ml-auto mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`} />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {isOffline ? "Офлайн" : `Онлайн · ${r.raw.roomCode}`}
+                        </span>
+                        <span className="font-mono text-sm font-bold">
+                          {r.score}{isOffline && <span className="text-muted-foreground">/{r.maxScore}</span>}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pct >= 80 ? "bg-success-soft text-success" : pct >= 50 ? "bg-amber-soft text-amber" : "bg-danger-soft text-danger"}`}>
+                          {pct}%
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground">{new Date(r.finishedAt).toLocaleString("ru-RU")} · {fmtTime(r.timeSec)}</p>
+                    </button>
+                    {expanded && isOffline && r.raw.answers && (
+                      <div className="border-t border-border bg-surface-muted/40 p-3"><OfflineAnswers result={r.raw} /></div>
+                    )}
+                    {expanded && !isOffline && (
+                      <div className="border-t border-border bg-surface-muted/40 p-3">
+                        <OnlineRoomPlayers room={r.raw} expandedPlayer={expandedPlayer} onTogglePlayer={(id) => setExpandedPlayer((p) => (p === id ? null : id))} />
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </>
         ) : (

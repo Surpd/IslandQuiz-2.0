@@ -38,40 +38,45 @@ export function LogoMenu() {
   }, []);
 
   return (
-    <div ref={logoRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setLogoOpen((v) => !v)}
-        aria-expanded={logoOpen}
-        aria-haspopup="menu"
-        className="flex items-center gap-1.5 rounded-lg px-1 py-1 hover:bg-surface-muted"
-      >
+    <>
+      <div className="md:hidden">
         <LogoMark />
-        <ChevronDown className={`h-4 w-4 opacity-60 transition-transform ${logoOpen ? "rotate-180" : ""}`} />
-      </button>
-      {logoOpen && (
-        <div className="absolute left-0 top-full z-40 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-surface shadow-lift md:w-56">
-          <Link
-            to="/"
-            onClick={() => setLogoOpen(false)}
-            className={`block px-3 py-2 text-sm hover:bg-surface-muted ${pathname === "/" ? "font-semibold text-primary" : ""}`}
-          >
-            Главная
-          </Link>
-          <div className="border-t border-border" />
-          {logoNavItems.map((item) => (
+      </div>
+      <div ref={logoRef} className="relative hidden md:block">
+        <button
+          type="button"
+          onClick={() => setLogoOpen((v) => !v)}
+          aria-expanded={logoOpen}
+          aria-haspopup="menu"
+          className="flex items-center gap-1.5 rounded-lg px-1 py-1 hover:bg-surface-muted"
+        >
+          <LogoMark />
+          <ChevronDown className={`h-4 w-4 opacity-60 transition-transform ${logoOpen ? "rotate-180" : ""}`} />
+        </button>
+        {logoOpen && (
+          <div className="absolute left-0 top-full z-40 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-surface shadow-lift md:w-56">
             <Link
-              key={item.to}
-              to={item.to}
+              to="/"
               onClick={() => setLogoOpen(false)}
-              className={`block px-3 py-2 text-sm hover:bg-surface-muted ${pathname === item.to ? "font-semibold text-primary" : ""}`}
+              className={`block px-3 py-2 text-sm hover:bg-surface-muted ${pathname === "/" ? "font-semibold text-primary" : ""}`}
             >
-              {item.label}
+              Главная
             </Link>
-          ))}
-        </div>
-      )}
-    </div>
+            <div className="border-t border-border" />
+            {logoNavItems.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setLogoOpen(false)}
+                className={`block px-3 py-2 text-sm hover:bg-surface-muted ${pathname === item.to ? "font-semibold text-primary" : ""}`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -127,7 +132,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
         </nav>
 
         {user ? (
-          <div ref={menuRef} className="relative z-50">
+          <div ref={menuRef} className="relative z-50 hidden md:block">
             <button
               onClick={() => setOpen((v) => !v)}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-2 py-1.5 text-sm font-semibold hover:bg-surface-muted"
@@ -168,7 +173,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
         ) : (
           <Link
             to="/login"
-            className="rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-105 active:scale-95"
+            className="hidden rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-105 active:scale-95 md:inline-flex"
           >
             Войти
           </Link>

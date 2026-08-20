@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   Play,
@@ -13,6 +13,9 @@ import {
   Link2,
   Globe,
   Check,
+  Copy,
+  MoreHorizontal,
+  Share2,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { PlayModal } from "@/components/play-modal";
@@ -67,6 +70,8 @@ function GameDashboard() {
   const [toast, setToast] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState("");
+  const [exportOpen, setExportOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const showToast = (m: string) => {
     setToast(m);
@@ -125,6 +130,23 @@ function GameDashboard() {
     if (r) {
       showToast("Игра добавлена в «Мои»");
       navigate({ to: "/game/$id", params: { id: r.id } });
+    } else {
+      showToast("Не удалось создать копию");
+    }
+  };
+
+  const shareGame = async () => {
+    if (!game) return;
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: titleOf(game), url });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        showToast("Ссылка скопирована");
+      }
+    } catch {
+      // Sharing can be cancelled by the user; keep the page state unchanged.
     }
   };
 
@@ -179,6 +201,7 @@ function GameDashboard() {
     { v: "link", label: "По ссылке", Icon: Link2 },
     { v: "public", label: "Публичная", Icon: Globe },
   ];
+  const description = (game.data as { config?: { description?: string } }).config?.description;
 
 
 
@@ -186,13 +209,35 @@ function GameDashboard() {
   return (
     <div className="min-h-screen bg-surface">
       <SiteHeader />
-      <main className="mx-auto max-w-5xl px-6 py-10">
-        <Link
-          to="/library"
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> В библиотеку
-        </Link>
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <Link
+            to="/library"
+            className="inline-flex min-h-9 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> В библиотеку
+          </Link>
+          <div className="flex items-center gap-1 md:hidden">
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              aria-label="Экспорт и поделиться"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+            {isMine && (
+              <button
+                type="button"
+                onClick={() => setMoreOpen(true)}
+                aria-label="Дополнительные действия"
+                className="grid h-9 w-9 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
 
         <div className="mb-6">
           <div className="mb-2 inline-flex rounded-full bg-primary-soft px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary">
@@ -261,6 +306,7 @@ function GameDashboard() {
           <p className="text-xs text-muted-foreground">
             Обновлено: {new Date(game.updatedAt).toLocaleString("ru-RU")}
           </p>
+          {description && <p className="mt-3 max-w-2xl whitespace-pre-wrap text-sm text-muted-foreground">{description}</p>}
           {game.tags && game.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {game.tags.map((t) => (
@@ -310,19 +356,39 @@ function GameDashboard() {
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Видимость:
             </span>
-            {visOptions.map(({ v, label, Icon }) => (
+            <div className="hidden flex-wrap gap-2 md:flex">
+              {visOptions.map(({ v, label, Icon }) => (
+                <button
+                  key={v}
+                  onClick={() => changeVis(v)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    game.visibility === v
+                      ? "bg-foreground text-white"
+                      : "bg-surface-muted text-muted-foreground hover:bg-border"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" /> {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex rounded-xl border border-border bg-background p-0.5 md:hidden" role="group" aria-label="Видимость игры">
               <button
-                key={v}
-                onClick={() => changeVis(v)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  game.visibility === v
-                    ? "bg-foreground text-white"
-                    : "bg-surface-muted text-muted-foreground hover:bg-border"
-                }`}
+                type="button"
+                onClick={() => changeVis("private")}
+                aria-pressed={game.visibility === "private"}
+                className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold ${game.visibility === "private" ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
               >
-                <Icon className="h-3.5 w-3.5" /> {label}
+                <Lock className="h-3.5 w-3.5" /> Приватная
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => changeVis("public")}
+                aria-pressed={game.visibility !== "private"}
+                className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold ${game.visibility !== "private" ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
+              >
+                <Globe className="h-3.5 w-3.5" /> Публичная
+              </button>
+            </div>
             {game.visibility === "public" && (
               <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted-foreground">
                 <input
@@ -347,27 +413,27 @@ function GameDashboard() {
             <p className="text-sm text-muted-foreground">Автор скрыл эту игру.</p>
           </div>
         ) : isMine ? (
-          <div className="surface-card mb-6 flex flex-wrap gap-2 p-4">
-            <button onClick={() => setOpenPlay(true)} className="btn-accent">
+          <div className="surface-card mb-6 grid grid-cols-2 gap-2 p-3 sm:flex sm:p-4">
+            <button onClick={() => setOpenPlay(true)} className="btn-accent min-h-10 justify-center">
               <Play className="h-4 w-4" /> Играть
             </button>
-            <a href={`/builder/${game.kind}?id=${game.id}`} className="btn-ghost">
+            <a href={`/builder/${game.kind}?id=${game.id}`} className="btn-ghost min-h-10 justify-center">
               <Pencil className="h-4 w-4" /> Редактировать
             </a>
-            <button onClick={doExport} className="btn-ghost">
+            <button onClick={doExport} className="btn-ghost hidden md:inline-flex">
               <FileSpreadsheet className="h-4 w-4" /> Экспорт
             </button>
-            <button onClick={doPrint} className="btn-ghost">
+            <button onClick={doPrint} className="btn-ghost hidden md:inline-flex">
               <Printer className="h-4 w-4" /> Печать
             </button>
-            <button onClick={doDelete} className="btn-ghost ml-auto text-danger hover:bg-danger-soft">
+            <button onClick={doDelete} className="btn-ghost ml-auto hidden text-danger hover:bg-danger-soft md:inline-flex">
               <Trash2 className="h-4 w-4" /> Удалить
             </button>
           </div>
         ) : (
-          <div className="surface-card mb-6 flex flex-wrap gap-2 p-4">
+          <div className="surface-card mb-6 flex flex-wrap gap-2 p-3 sm:p-4">
             {user ? (
-              <button onClick={doFork} className="btn-accent">
+              <button onClick={doFork} className="btn-accent min-h-10">
                 <UserPlus className="h-4 w-4" /> Добавить себе
               </button>
             ) : (
@@ -375,16 +441,79 @@ function GameDashboard() {
                 Войдите, чтобы добавить
               </Link>
             )}
-            <button onClick={() => setOpenPlay(true)} className="btn-ghost">
+            <button onClick={() => setOpenPlay(true)} className="btn-ghost min-h-10">
               <Play className="h-4 w-4" /> Играть
             </button>
           </div>
         )}
 
+        {exportOpen && (
+          <GameActionSheet title="Экспорт и поделиться" onClose={() => setExportOpen(false)}>
+            {isMine && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportOpen(false);
+                    doExport();
+                  }}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold hover:bg-surface-muted"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-primary" /> Скачать Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportOpen(false);
+                    doPrint();
+                  }}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold hover:bg-surface-muted"
+                >
+                  <Printer className="h-4 w-4 text-primary" /> Печать / PDF с ответами
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setExportOpen(false);
+                void shareGame();
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold hover:bg-surface-muted"
+            >
+              <Copy className="h-4 w-4 text-primary" /> Скопировать ссылку
+            </button>
+          </GameActionSheet>
+        )}
+        {moreOpen && isMine && (
+          <GameActionSheet title="Действия" onClose={() => setMoreOpen(false)}>
+            <button
+              type="button"
+              onClick={() => {
+                setMoreOpen(false);
+                void doFork();
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold hover:bg-surface-muted"
+            >
+              <Copy className="h-4 w-4 text-primary" /> Создать копию
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMoreOpen(false);
+                void doDelete();
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-danger hover:bg-danger-soft"
+            >
+              <Trash2 className="h-4 w-4" /> Удалить игру
+            </button>
+          </GameActionSheet>
+        )}
+
         {/* Results (owner) vs Content (foreign) */}
         {!isPrivateOther && (
           isMine ? (
-            <div className="surface-card p-6">
+            <div className="surface-card p-4 sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="font-display text-base font-bold">Результаты прохождений</h2>
@@ -396,7 +525,7 @@ function GameDashboard() {
                   <Link
                     to="/quiz/$gameId/results"
                     params={{ gameId: game.id }}
-                    className="btn-accent inline-flex items-center gap-2"
+                    className="btn-accent inline-flex min-h-10 items-center justify-center gap-2"
                   >
                     <Trophy className="h-4 w-4" /> Открыть результаты
                   </Link>
@@ -404,7 +533,7 @@ function GameDashboard() {
                   <Link
                     to="/jeopardy/$gameId/results"
                     params={{ gameId: game.id }}
-                    className="btn-accent inline-flex items-center gap-2"
+                    className="btn-accent inline-flex min-h-10 items-center justify-center gap-2"
                   >
                     <Trophy className="h-4 w-4" /> Открыть результаты
                   </Link>
@@ -412,7 +541,7 @@ function GameDashboard() {
                   <Link
                     to="/millionaire/$gameId/results"
                     params={{ gameId: game.id }}
-                    className="btn-accent inline-flex items-center gap-2"
+                    className="btn-accent inline-flex min-h-10 items-center justify-center gap-2"
                   >
                     <Trophy className="h-4 w-4" /> Открыть результаты
                   </Link>
@@ -446,6 +575,37 @@ function GameDashboard() {
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+function GameActionSheet({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] bg-foreground/30 md:hidden" onClick={onClose}>
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-border bg-surface px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 shadow-lift"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-border-strong" />
+        <div className="mb-2 flex items-center justify-between gap-3 px-1">
+          <h2 className="font-display text-lg font-bold">{title}</h2>
+          <button type="button" onClick={onClose} className="text-sm font-semibold text-muted-foreground hover:text-foreground">
+            Закрыть
+          </button>
+        </div>
+        <div className="grid gap-1">{children}</div>
+      </section>
     </div>
   );
 }

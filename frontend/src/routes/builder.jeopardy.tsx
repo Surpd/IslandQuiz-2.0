@@ -24,7 +24,7 @@ import { loadGame } from "@/lib/api";    // загрузка игры с бэк�
 import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
-import { BuilderToolbar, BuilderFabs, BuilderSettingsSection } from "@/components/builder-actions";
+import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
 import {
   downloadExcelTemplate,
   exportJeopardyExcel,
@@ -91,6 +91,7 @@ function BuilderJeopardy() {
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
   const [visibility, setVisibility] = useState<GameVisibility>("private");
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -113,6 +114,7 @@ function BuilderJeopardy() {
           setFinal(rec.data.final);
           setTags(rec.tags ?? []);
           if (rec.visibility) setVisibility(rec.visibility);
+          setSavedSnapshot(JSON.stringify({ config: rec.data.config, rounds: rec.data.rounds, final: rec.data.final, tags: rec.tags ?? [] }));
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -244,19 +246,27 @@ function BuilderJeopardy() {
     setRounds((prev) => prev.filter((_, ri) => ri !== roundIdx));
   };
 
-  const handleSave = (): string | null => {
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({ config, rounds, final, tags }),
+    [config, rounds, final, tags],
+  );
+  const saveState = savedSnapshot === currentSnapshot ? "saved" : "dirty";
+
+  const handleSave = async (): Promise<string | null> => {
     const id = savedId ?? newId();
     const data: JeopardyData = { config, rounds, final };
-    saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility });
+    await saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility });
+    setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("jeopardy");
     showToast(savedId ? "Изменения сохранены" : "Игра сохранена!");
     return id;
   };
 
-  const handleSaveAsCopy = (): string | null => {
+  const handleSaveAsCopy = async (): Promise<string | null> => {
     const id = newId();
-    saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility: "private" });
+    await saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility: "private" });
+    setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("jeopardy");
     showToast("Создана копия");
@@ -454,10 +464,13 @@ function BuilderJeopardy() {
           <BuilderFabs
             kind="jeopardy"
             savedId={savedId}
+            title={config.title || "Своя игра"}
             visibility={visibility}
+            saveState={saveState}
             onVisibilityChange={setVisibility}
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
+            onSettings={() => setShowSettings((s) => !s)}
           />
           <HelpButton title="Как пользоваться конструктором Своей игры">
             <p><b>Раунды и категории:</b> в раунде — несколько категорий, в каждой 5 вопросов разной стоимости.</p>
@@ -485,7 +498,7 @@ function BuilderJeopardy() {
           onClose={() => setShowSettings(false)}
         />
       )}
-      <div className="surface-card space-y-3 p-4 sm:p-6">
+      <BuilderGameInfoSection title={config.title ?? ""} onSettings={() => setShowSettings((s) => !s)}>
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
             Название игры
@@ -503,7 +516,7 @@ function BuilderJeopardy() {
           <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">Теги</span>
           <TagInput value={tags} onChange={setTags} />
         </div>
-      </div>
+      </BuilderGameInfoSection>
 
 
 

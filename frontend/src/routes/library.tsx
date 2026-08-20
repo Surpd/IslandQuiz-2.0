@@ -372,11 +372,11 @@ function GameCard({
     <Link
       to="/game/$id"
       params={{ id: g.id }}
-      className="surface-card group relative flex flex-col gap-2.5 overflow-hidden p-4 transition-all hover:-translate-y-0.5 hover:shadow-lift sm:gap-3 sm:p-5"
+      className="surface-card group relative flex flex-col gap-2 overflow-hidden p-3 transition-all hover:-translate-y-0.5 hover:shadow-lift md:gap-3 md:p-5"
     >
       <div className="flex items-center justify-between">
         <div
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${KIND_ACCENT[g.kind]}`}
+          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider md:px-2.5 md:text-[11px] ${KIND_ACCENT[g.kind]}`}
         >
           <Icon className="h-3 w-3" />
           {KIND_LABEL[g.kind]}
@@ -390,10 +390,10 @@ function GameCard({
           </span>
         )}
       </div>
-      <h3 className="line-clamp-2 font-display text-lg font-bold">{titleOf(g)}</h3>
-      <p className="text-xs text-muted-foreground">{gameSummary(g)}</p>
+      <h3 className="line-clamp-2 font-display text-base font-bold md:text-lg">{titleOf(g)}</h3>
+      <p className="truncate text-xs text-muted-foreground">{gameSummary(g)}</p>
       {g.forkedOwnerName && (
-        <p className="text-xs text-muted-foreground">на основе игры от {g.forkedOwnerName}</p>
+        <p className="hidden truncate text-xs text-muted-foreground md:block">на основе игры от {g.forkedOwnerName}</p>
       )}
       {!isMine && g.ownerName && ownerId && (
         <button
@@ -403,7 +403,7 @@ function GameCard({
             e.stopPropagation();
             nav({ to: "/profile/$userId", params: { userId: ownerId } });
           }}
-          className="inline-flex items-center gap-1.5 self-start text-xs text-muted-foreground hover:text-primary hover:underline"
+          className="hidden items-center gap-1.5 self-start text-xs text-muted-foreground hover:text-primary hover:underline md:inline-flex"
         >
           <Avatar
             name={g.ownerName}
@@ -415,11 +415,16 @@ function GameCard({
       )}
       {g.tags && g.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {g.tags.slice(0, 4).map((t) => (
+          {g.tags.slice(0, 2).map((t) => (
             <span key={t} className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
               #{t}
             </span>
           ))}
+          {g.tags.length > 2 && (
+            <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+              +{g.tags.length - 2}
+            </span>
+          )}
         </div>
       )}
       {(() => {
@@ -427,24 +432,24 @@ function GameCard({
         return count > 0 ? <RatingStars value={avg} count={count} size={12} /> : null;
       })()}
 
-      <div className="relative mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3">
-        <p className="mr-auto text-xs text-muted-foreground">
+      <div className="relative mt-auto flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5 md:gap-2 md:pt-3">
+        <p className="mr-auto text-[11px] text-muted-foreground md:text-xs">
           {new Date(g.updatedAt).toLocaleDateString("ru-RU")}
         </p>
-        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Количество прохождений">
+        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground md:text-xs" title="Количество прохождений">
           <Play className="h-3 w-3" /> {g.playCount ?? 0}
         </span>
         {tab === "public" && user && (
           <button
             onClick={doFork}
-            className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
+            className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
           >
             <UserPlus className="h-3 w-3" /> Добавить
           </button>
         )}
         <button
           onClick={openPlay}
-          className="inline-flex items-center gap-1 rounded-full bg-foreground px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90"
+          className="inline-flex min-h-8 items-center gap-1 rounded-full bg-foreground px-3 py-1 text-xs font-semibold text-white hover:opacity-90"
         >
           <Play className="h-3 w-3" /> Играть
         </button>
@@ -452,7 +457,7 @@ function GameCard({
           <button
             type="button"
             onClick={editGame}
-            className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
+            className="hidden items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 md:inline-flex"
           >
             <Pencil className="h-3 w-3" /> Редактировать
           </button>
@@ -466,7 +471,7 @@ function GameCard({
             e.stopPropagation();
             setMenuOpen((open) => !open);
           }}
-          className="grid h-7 w-7 place-items-center rounded-full border border-border-strong text-muted-foreground hover:bg-surface-muted hover:text-foreground"
+          className="hidden h-7 w-7 place-items-center rounded-full border border-border-strong text-muted-foreground hover:bg-surface-muted hover:text-foreground md:grid"
         >
           <MoreHorizontal className="h-4 w-4" />
         </button>

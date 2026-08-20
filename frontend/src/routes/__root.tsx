@@ -136,12 +136,19 @@ function RootComponent() {
     pathname === "/" ||
     pathname.startsWith("/library") ||
     pathname.startsWith("/builder") ||
-    pathname.startsWith("/profile");
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/game/") ||
+    pathname.startsWith("/quiz/") ||
+    pathname.startsWith("/millionaire/") ||
+    pathname.startsWith("/jeopardy/") ||
+    pathname === "/join";
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
+        <div className={showMobileNav ? "pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0" : undefined}>
+          <Outlet />
+        </div>
         {!hideFooter && (
           <footer className={`border-t border-border py-10 ${showMobileNav ? "pb-24 md:pb-10" : ""}`}>
             <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 md:flex-row">

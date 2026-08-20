@@ -68,11 +68,11 @@ function ProfilePage() {
     <div className="min-h-screen bg-surface">
       <SiteHeader />
       <main className="mx-auto max-w-2xl px-6 py-10">
-        <div className="mb-6 flex items-center gap-4">
+        <div className="mb-6 flex min-w-0 items-center gap-4">
           <Avatar name={user.name} avatar={user.avatar} size={64} />
-          <div>
-            <h1 className="font-display text-3xl font-black">{user.name}</h1>
-            <p className="text-sm text-muted-foreground">{user.email ?? "Telegram-аккаунт"}</p>
+          <div className="min-w-0">
+            <h1 className="truncate font-display text-3xl font-black">{user.name}</h1>
+            <p className="truncate text-sm text-muted-foreground">{user.email ?? "Telegram-аккаунт"}</p>
           </div>
         </div>
 
@@ -137,28 +137,18 @@ function ProfilePage() {
               className="input-base mt-1 w-full resize-none"
             />
           </label>
-          <div className="flex items-center gap-2">
-            <button onClick={onSave} disabled={saving} className="btn-accent">
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+            <button onClick={onSave} disabled={saving} className="btn-accent justify-center sm:justify-start">
               {saving ? "Сохраняем…" : "Сохранить"}
             </button>
             {saved && <span className="text-sm text-success">Сохранено</span>}
             <Link
               to="/profile/$userId"
               params={{ userId: user.id }}
-              className="btn-ghost"
+              className="btn-ghost justify-center sm:justify-start"
             >
               Открыть публичный профиль
             </Link>
-
-            <button
-              onClick={async () => {
-                await logout();
-                nav({ to: "/" });
-              }}
-              className="btn-ghost ml-auto text-danger hover:bg-danger-soft"
-            >
-              Выйти
-            </button>
           </div>
         </div>
 
@@ -178,12 +168,23 @@ function ProfilePage() {
         <div className="surface-card mt-6 border border-danger/30 p-6">
           <h2 className="font-display text-lg font-bold text-danger">Удаление аккаунта</h2>
           <p className="mt-2 text-sm text-muted-foreground">Удалятся аккаунт и созданные игры.</p>
-          <button className="btn-ghost mt-4 text-danger hover:bg-danger-soft" onClick={async () => {
-            if (!window.confirm("Удалить аккаунт и все созданные игры?")) return;
-            await deleteAccount();
-            await logout();
-            nav({ to: "/" });
-          }}>Удалить аккаунт</button>
+          <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+            <button
+              onClick={async () => {
+                await logout();
+                nav({ to: "/" });
+              }}
+              className="btn-ghost justify-center text-danger hover:bg-danger-soft sm:justify-start"
+            >
+              Выйти
+            </button>
+            <button className="btn-ghost justify-center text-danger hover:bg-danger-soft sm:justify-start" onClick={async () => {
+              if (!window.confirm("Удалить аккаунт и все созданные игры?")) return;
+              await deleteAccount();
+              await logout();
+              nav({ to: "/" });
+            }}>Удалить аккаунт</button>
+          </div>
         </div>
       </main>
     </div>
@@ -232,7 +233,7 @@ function AvatarPicker() {
   return (
     <div className="surface-card mb-6 flex flex-col gap-3 p-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-base font-bold">Аватарка</h2>
+        <h2 className="font-display text-base font-bold">Аватар</h2>
         {currentAvatar && (
           <button
             onClick={clearAvatar}
