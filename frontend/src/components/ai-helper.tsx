@@ -11,6 +11,8 @@ import {
   generateQuestion,
   type GeneratedQuestion,
 } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+import { AIAuthPrompt } from "@/components/ai-auth-prompt";
 
 interface Props {
   /** Текущее содержимое поля (пустая строка = пусто). */
@@ -37,6 +39,7 @@ export function AIHelperButton({
   onPick,
   title = "Спросить AI",
 }: Props) {
+  const { user } = useAuth();
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -48,6 +51,7 @@ export function AIHelperButton({
   const [rerollCount, setRerollCount] = useState(0);
   const [lastHash, setLastHash] = useState<string | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [authPrompt, setAuthPrompt] = useState(false);
 
   const hasContent = currentValue.trim().length > 0;
   const effectiveTopic = (topic?.trim() || localTopic.trim() || undefined);
@@ -101,6 +105,10 @@ export function AIHelperButton({
   }, [open]);
 
   const run = async (reroll = false) => {
+    if (!user) {
+      setAuthPrompt(true);
+      return;
+    }
     setStatus("loading");
     setError(null);
     try {
@@ -123,6 +131,10 @@ export function AIHelperButton({
   };
 
   const openPanel = () => {
+    if (!user) {
+      setAuthPrompt(true);
+      return;
+    }
     setOpen(true);
     if (hasContent) {
       // Улучшение — сразу запрос, без модалки.
@@ -156,6 +168,7 @@ export function AIHelperButton({
       >
         <Sparkles className="h-3.5 w-3.5" />
       </button>
+      {authPrompt && <AIAuthPrompt onClose={() => setAuthPrompt(false)} />}
       {open &&
         pos &&
         typeof document !== "undefined" &&

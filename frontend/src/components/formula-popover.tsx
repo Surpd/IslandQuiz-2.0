@@ -87,6 +87,7 @@ export function FormulaButton({
   onChange: (next: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [activeGroup, setActiveGroup] = useState(0);
   const [preview, setPreview] = useState("\\(x^{2} + y^{2} = r^{2}\\)");
   const popRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -159,6 +160,14 @@ export function FormulaButton({
     };
     positionPanel();
     setOpen(true);
+    if (window.matchMedia("(max-width: 767px)").matches && el) {
+      requestAnimationFrame(() => {
+        const sheetHeight = Math.min(352, Math.max(200, window.innerHeight - 176));
+        const visibleBottom = window.innerHeight - sheetHeight - 16;
+        const rect = el.getBoundingClientRect();
+        window.scrollBy({ top: rect.bottom - visibleBottom, behavior: "auto" });
+      });
+    }
   };
 
   const insert = (tpl: Template) => {
@@ -206,6 +215,7 @@ export function FormulaButton({
           style={position ?? { top: 12, left: 12, width: Math.min(320, Math.max(0, window.innerWidth - 24)) }}
           className="formula-panel fixed z-50 max-w-[calc(100vw-1.5rem)] animate-fade-up overflow-y-auto rounded-2xl border border-border-strong bg-surface p-3 shadow-lift [max-height:calc(100dvh-1.5rem)]"
         >
+          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border-strong md:hidden" />
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Формулы LaTeX
@@ -219,7 +229,33 @@ export function FormulaButton({
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+          <div className="formula-mobile-groups mb-2 flex gap-1 overflow-x-auto pb-1 md:hidden">
+            {TEMPLATES.map((group, index) => (
+              <button
+                key={group.title}
+                type="button"
+                onClick={() => setActiveGroup(index)}
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${activeGroup === index ? "border-primary bg-primary-soft text-primary" : "border-border text-muted-foreground"}`}
+              >
+                {group.title}
+              </button>
+            ))}
+          </div>
+          <div className="formula-mobile-items max-h-24 overflow-y-auto pr-1 md:hidden">
+            <div className="grid grid-cols-4 gap-1">
+              {TEMPLATES[activeGroup].items.map((tpl) => (
+                <button
+                  key={tpl.label}
+                  type="button"
+                  onClick={() => insert(tpl)}
+                  className="rounded-lg border border-border bg-surface-muted px-1 py-1.5 text-sm text-foreground transition-colors hover:border-primary hover:bg-primary-soft hover:text-primary"
+                >
+                  {tpl.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="hidden max-h-72 space-y-2 overflow-y-auto pr-1 md:block">
             {TEMPLATES.map((group) => (
               <div key={group.title}>
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -240,7 +276,7 @@ export function FormulaButton({
               </div>
             ))}
           </div>
-          <div className="mt-3 rounded-xl border border-dashed border-border-strong bg-surface-muted p-3 text-center text-lg">
+          <div className="mt-2 rounded-xl border border-dashed border-border-strong bg-surface-muted p-2 text-center text-base md:mt-3 md:p-3 md:text-lg">
             <LaTeX>{preview}</LaTeX>
           </div>
           <div className="mt-2 grid grid-cols-4 gap-1 border-t border-border pt-2">

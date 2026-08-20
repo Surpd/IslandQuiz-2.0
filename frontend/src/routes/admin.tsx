@@ -39,10 +39,10 @@ function AdminPage() {
   return (
     <div className="min-h-screen bg-surface">
       <SiteHeader />
-      <main className="mx-auto max-w-7xl px-6 py-10">
-        <h1 className="font-display text-4xl font-bold tracking-tight">Админ-панель</h1>
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+        <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Админ-панель</h1>
 
-        <div className="mb-8 mt-6 flex flex-wrap gap-2">
+        <div className="mb-8 mt-6 flex gap-2 overflow-x-auto pb-1">
           {([
             { key: "ai", label: "AI-лаборатория", icon: Sparkles },
             { key: "users", label: "Пользователи", icon: Users },
@@ -54,7 +54,7 @@ function AdminPage() {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+              className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
                 tab === t.key ? "bg-foreground text-white" : "bg-surface-muted text-muted-foreground hover:bg-border"
               }`}
             >

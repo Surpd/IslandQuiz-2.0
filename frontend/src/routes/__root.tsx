@@ -132,7 +132,11 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const { pathname } = useLocation();
   const hideFooter = pathname === "/login" || pathname === "/register" || pathname.startsWith("/profile");
-  const showMobileNav =
+  const immersiveRuntime =
+    pathname.startsWith("/play/") ||
+    pathname.startsWith("/room/") ||
+    pathname === "/test-player";
+  const showMobileNav = !immersiveRuntime && (
     pathname === "/" ||
     pathname.startsWith("/library") ||
     pathname.startsWith("/builder") ||
@@ -141,7 +145,14 @@ function RootComponent() {
     pathname.startsWith("/quiz/") ||
     pathname.startsWith("/millionaire/") ||
     pathname.startsWith("/jeopardy/") ||
-    pathname === "/join";
+    pathname === "/join" ||
+    pathname === "/faq" ||
+    pathname === "/feedback" ||
+    pathname === "/support" ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/admin"
+  );
 
   return (
     <QueryClientProvider client={queryClient}>
