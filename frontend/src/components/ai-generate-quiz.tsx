@@ -22,12 +22,14 @@ interface Props {
     questions: GeneratedQuizQuestion[];
   }) => void;
   className?: string;
+  compact?: boolean;
 }
 
 export function AIGenerateQuizButton({
   currentTitle,
   onGenerated,
   className,
+  compact = false,
 }: Props) {
   const [open, setOpen] = useState(false);
 
@@ -170,10 +172,12 @@ export function AIGenerateQuizButton({
           setOpen(true);
           setError(null);
         }}
-        className={`btn-ghost cmd-primary ${className ?? ""}`}
+        className={`btn-ghost cmd-primary ${compact ? "grid h-9 w-9 shrink-0 place-items-center rounded-xl p-0" : ""} ${className ?? ""}`}
+        aria-label="Сгенерировать квиз"
+        title="Сгенерировать квиз"
       >
         <Sparkles className="h-4 w-4" />
-        Сгенерировать
+        <span className={compact ? "sr-only" : undefined}>Сгенерировать</span>
       </button>
 
       {open &&

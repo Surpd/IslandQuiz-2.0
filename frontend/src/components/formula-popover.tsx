@@ -2,7 +2,7 @@
 // snippets at the cursor position of an associated input/textarea.
 // Live preview uses the LaTeX component (KaTeX under the hood).
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Check, Eraser, RotateCcw, Trash2, X } from "lucide-react";
 import { LaTeX } from "@/lib/latex";
 
 type FieldRef = React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
@@ -91,6 +91,7 @@ export function FormulaButton({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const restoreRef = useRef<{ start: number; end: number; scrollY: number } | null>(null);
+  const previousValueRef = useRef(value);
 
   const restoreField = () => {
     const el = inputRef.current;
@@ -164,6 +165,7 @@ export function FormulaButton({
     const start = el?.selectionStart ?? value.length;
     const end = el?.selectionEnd ?? value.length;
     const next = value.slice(0, start) + tpl.insert + value.slice(end);
+    previousValueRef.current = value;
     onChange(next);
     // Restore focus & caret after React updates the DOM value.
     requestAnimationFrame(() => {
@@ -177,6 +179,11 @@ export function FormulaButton({
       }
     });
     setPreview(tpl.insert);
+  };
+
+  const updateValue = (next: string) => {
+    previousValueRef.current = value;
+    onChange(next);
   };
 
   return (
@@ -196,7 +203,7 @@ export function FormulaButton({
           ref={popRef}
           data-testid="formula-palette"
           style={position ?? { top: 12, left: 12, width: Math.min(320, Math.max(0, window.innerWidth - 24)) }}
-          className="fixed z-50 max-w-[calc(100vw-1.5rem)] animate-fade-up overflow-y-auto rounded-2xl border border-border-strong bg-surface p-3 shadow-lift [max-height:calc(100dvh-1.5rem)]"
+          className="formula-panel fixed z-50 max-w-[calc(100vw-1.5rem)] animate-fade-up overflow-y-auto rounded-2xl border border-border-strong bg-surface p-3 shadow-lift [max-height:calc(100dvh-1.5rem)]"
         >
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -234,6 +241,12 @@ export function FormulaButton({
           </div>
           <div className="mt-3 rounded-xl border border-dashed border-border-strong bg-surface-muted p-3 text-center text-lg">
             <LaTeX>{preview}</LaTeX>
+          </div>
+          <div className="mt-2 grid grid-cols-4 gap-1 border-t border-border pt-2">
+            <button type="button" onClick={() => updateValue(previousValueRef.current)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-surface-muted"><RotateCcw className="h-3 w-3" /> Отмена</button>
+            <button type="button" onClick={() => updateValue(value.slice(0, -1))} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-surface-muted"><Trash2 className="h-3 w-3" /> Удалить</button>
+            <button type="button" onClick={() => updateValue("")} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-surface-muted"><Eraser className="h-3 w-3" /> Очистить</button>
+            <button type="button" onClick={closePanel} className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-[11px] font-semibold text-primary-foreground"><Check className="h-3 w-3" /> Готово</button>
           </div>
           <p className="mt-1 text-center text-[10px] text-muted-foreground">
             Клик — вставит на месте курсора

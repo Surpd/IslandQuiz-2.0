@@ -575,11 +575,9 @@ function BuilderQuiz() {
           extraButtons={resultsButton}
         />
       </div>
-      <AIGenerateQuizButton
-        currentTitle={config.title}
-        onGenerated={applyGeneratedQuiz}
-        className="w-full md:w-auto justify-center"
-      />
+      <div className="hidden md:flex">
+        <AIGenerateQuizButton currentTitle={config.title} onGenerated={applyGeneratedQuiz} />
+      </div>
     </div>
   );
 
@@ -623,6 +621,7 @@ function BuilderQuiz() {
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
             onSettings={() => setShowSettings((s) => !s)}
+            mobilePrimaryAction={<AIGenerateQuizButton compact currentTitle={config.title} onGenerated={applyGeneratedQuiz} />}
             onBack={handleBack}
             onImportFile={handleImport}
             onDownloadTemplate={() => downloadExcelTemplate("quiz")}
@@ -1091,8 +1090,18 @@ function MatchingEditor({
   return (
     <div className="space-y-2">
       {pairs.map((p, i) => (
-        <div key={i} className="flex items-start gap-2">
-          <div className="grid min-w-0 flex-1 gap-2 sm:flex sm:items-center">
+        <div key={i} className="rounded-xl border border-border bg-surface-muted/40 p-2.5 sm:border-0 sm:bg-transparent sm:p-0">
+          <div className="mb-2 flex items-center justify-between sm:hidden">
+            <span className="text-xs font-semibold text-muted-foreground">Пара {i + 1}</span>
+            <button
+              onClick={() => setPairs(pairs.filter((_, k) => k !== i))}
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-danger-soft hover:text-danger"
+              aria-label="Удалить пару"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="grid min-w-0 gap-2 sm:flex sm:items-center">
           <input
             className="input-base min-w-0"
             placeholder="Слева"
@@ -1103,7 +1112,7 @@ function MatchingEditor({
               setPairs(next);
             }}
           />
-          <span className="text-center text-muted-foreground sm:shrink-0">→</span>
+          <span className="text-center text-muted-foreground sm:shrink-0">↕</span>
           <input
             className="input-base min-w-0"
             placeholder="Справа"
@@ -1117,7 +1126,7 @@ function MatchingEditor({
           </div>
           <button
             onClick={() => setPairs(pairs.filter((_, k) => k !== i))}
-            className="rounded-lg p-2 text-muted-foreground hover:bg-danger-soft hover:text-danger"
+            className="hidden rounded-lg p-2 text-muted-foreground hover:bg-danger-soft hover:text-danger sm:block"
             aria-label="Удалить пару"
           >
             <Trash2 className="h-4 w-4" />
@@ -1128,7 +1137,7 @@ function MatchingEditor({
         onClick={() => setPairs([...pairs, { left: "", right: "" }])}
         className="btn-ghost"
       >
-        <Plus className="h-4 w-4" /> Пара
+        <Plus className="h-4 w-4" /> Добавить пару
       </button>
     </div>
   );

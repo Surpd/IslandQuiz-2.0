@@ -44,7 +44,7 @@ export function BuilderShell({
       )}
       <div className="relative z-10">
         <SiteHeader />
-        <div className="mx-auto max-w-7xl px-4 py-8 pt-[5.5rem] sm:px-6 md:pt-8">
+        <div className="mx-auto max-w-7xl px-4 py-4 pt-[7.25rem] sm:px-6 md:py-8 md:pt-8">
           <Link
             to="/"
             className="mb-4 hidden items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground md:inline-flex"
@@ -53,7 +53,7 @@ export function BuilderShell({
             На главную
           </Link>
 
-          <div className="mb-3 md:mb-6">
+          <div className="mb-2 md:mb-6">
             <div className="builder-hero animate-fade-up">
               <div data-builder-promo className="hidden min-w-0 items-center gap-4 md:flex">
                 {icon && (
