@@ -1,7 +1,15 @@
 import { HelpCircle, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-export function HelpButton({ children, title = "Как это работает" }: { children: ReactNode; title?: string }) {
+export function HelpButton({
+  children,
+  title = "Как это работает",
+  inline = false,
+}: {
+  children: ReactNode;
+  title?: string;
+  inline?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -9,9 +17,12 @@ export function HelpButton({ children, title = "Как это работает" 
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Помощь"
-        className="fixed bottom-20 left-6 z-40 grid h-11 w-11 place-items-center rounded-full border border-border-strong bg-surface text-muted-foreground shadow-lift transition-colors hover:text-primary md:bottom-6"
+        className={inline
+          ? "flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm text-muted-foreground hover:bg-surface-muted hover:text-foreground"
+          : "fixed bottom-20 left-6 z-40 grid h-11 w-11 place-items-center rounded-full border border-border-strong bg-surface text-muted-foreground shadow-lift transition-colors hover:text-primary md:bottom-6"}
       >
         <HelpCircle className="h-5 w-5" />
+        {inline && "Помощь"}
       </button>
       {open && (
         <div

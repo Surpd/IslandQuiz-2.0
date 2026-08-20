@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FileText,
@@ -17,7 +17,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
-import { HelpButton } from "@/components/help-modal";
 import { FormulaButton } from "@/components/formula-popover";
 import { AIHelperButton } from "@/components/ai-helper";
 import { AIGenerateQuizButton } from "@/components/ai-generate-quiz";
@@ -30,8 +29,7 @@ import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
 import { ThemeSelect } from "@/components/theme-select";
 import { newId } from "@/lib/storage";  // генерация id
-import { loadGame } from "@/lib/api";    // загрузка игры с бэкенда
-import { saveGame } from "@/lib/api";
+import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
 import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
@@ -144,6 +142,7 @@ function makeQuestion(type: QuizQuestionType, points = 100, time = 30): QuizQues
 
 function BuilderQuiz() {
   const { id: urlId } = Route.useSearch();
+  const navigate = useNavigate();
   const [config, setConfig] = useState<QuizConfig>(DEFAULT_QUIZ_CONFIG);
   const [questions, setQuestions] = useState<QuizQuestion[]>([makeQuestion("choice")]);
   const [tags, setTags] = useState<string[]>([]);
@@ -297,6 +296,25 @@ function BuilderQuiz() {
     clearDraft("quiz");
     showToast("Создана копия квиза");
     return id;
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    if (urlId) navigate({ to: "/game/$id", params: { id: urlId } });
+    else navigate({ to: "/library" });
+  };
+
+  const handleDelete = async () => {
+    if (!savedId || !window.confirm("Удалить этот квиз?")) return;
+    try {
+      await deleteGame("quiz", savedId);
+      navigate({ to: "/library" });
+    } catch {
+      showToast("Не удалось удалить квиз");
+    }
   };
 
 
@@ -605,14 +623,23 @@ function BuilderQuiz() {
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
             onSettings={() => setShowSettings((s) => !s)}
+            onBack={handleBack}
+            onImportFile={handleImport}
+            onDownloadTemplate={() => downloadExcelTemplate("quiz")}
+            onExportExcel={() => exportQuizExcel({ config, questions })}
+            onPrint={(withAnswers) => printQuiz({ config, questions }, { withAnswers })}
+            printAnswers={printAnswers}
+            onResults={openResults}
+            onDelete={handleDelete}
+            helpTitle="Как пользоваться конструктором квиза"
+            helpContent={
+              <>
+                <p><b>Типы вопросов:</b> ABCD — 4 варианта. Да/Нет — бинарный вопрос. Текст — несколько вариантов через запятую. Пары — сопоставление. Пропуски и Порядок — специальные типы.</p>
+                <p><b>Картинка:</b> перетащите файл в зону или вставьте URL.</p>
+                <p><b>Играть:</b> для квиза доступен выбор онлайн-комнаты или офлайн-режима.</p>
+              </>
+            }
           />
-          <HelpButton title="Как пользоваться конструктором квиза">
-            <p><b>Типы вопросов:</b> ABCD — 4 варианта. Да/Нет — бинарный вопрос. Текст — принимаются несколько вариантов через запятую. Пары — сопоставление списков. Пропуски — вставьте <code>___</code> в текст и укажите ответ для каждого. Порядок — список пунктов; игрок должен расставить их правильно.</p>
-            <p><b>Картинка:</b> перетащите файл в зону или вставьте URL.</p>
-            <p><b>Тема плеера:</b> в «Настройки» → выбираете тему; конструктор сразу подсветит её акцентом.</p>
-            <p><b>Панель слева:</b> клик по номеру — переход к вопросу. Клик «+ …» — добавить новый.</p>
-            <p><b>Играть:</b> для квиза — выбор между онлайн-комнатой и офлайн-режимом с QR.</p>
-          </HelpButton>
         </>
       }
     >
@@ -639,7 +666,7 @@ function BuilderQuiz() {
         onSelect={scrollToQuestion}
         onAddQuestion={addQuestion}
       />
-      <BuilderGameInfoSection title={config.title} onSettings={() => setShowSettings((s) => !s)}>
+      <BuilderGameInfoSection title={config.title}>
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
             Название

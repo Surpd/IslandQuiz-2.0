@@ -47,7 +47,7 @@ export function BuilderShell({
         <div className="mx-auto max-w-7xl px-4 py-8 pt-[5.5rem] sm:px-6 md:pt-8">
           <Link
             to="/"
-            className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            className="mb-4 hidden items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground md:inline-flex"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             На главную
