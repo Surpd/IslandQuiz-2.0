@@ -206,10 +206,13 @@ RLS disabled; no policies.
 
 The migration `supabase/migrations/20260820000000_tag_system_v1.sql` adds the
 dictionary. Games continue to store the compatibility `tags` jsonb array; the
-backend normalizes writes and maintains dictionary rows. Existing game rows are
-not rewritten automatically; the admin `import-legacy` operation safely seeds
-dictionary rows from them, while `normalize-legacy` provides a dry-run/apply
-path that skips invalid or over-limit games instead of silently dropping data.
+backend normalizes writes and maintains dictionary rows. RLS is enabled with an
+explicit deny-by-default policy for `anon` and `authenticated`: the frontend
+uses the backend API, while the backend's privileged key accesses tags after
+IslandQuiz JWT/admin authorization. Existing game rows are not rewritten
+automatically; the admin `import-legacy` operation safely seeds dictionary rows
+from them, while `normalize-legacy` provides a dry-run/apply path that skips
+invalid or over-limit games instead of silently dropping data.
 
 ### password_resets
 
@@ -259,6 +262,7 @@ Result routes use game_id for all result tables, but only ratings.game_id is an 
 - Confirmed security dependency: RLS policies use `auth.uid()`, while IslandQuiz authenticates with its own JWT and the backend creates a Supabase client from `SUPABASE_KEY`. Do not assume RLS sees the IslandQuiz user; verify key/role behavior before relying on RLS for authorization.
 - Result routes use game_id links without database FKs for four result tables; orphan results are not prevented by the database.
 - Six application tables (`settings`, `error_logs`, `ai_logs`, `ai_usage`, `feedback`, `password_resets`) have RLS disabled and no policies. This is a production security issue; no remediation was applied.
+- `tags` is protected by deny-by-default RLS; direct Supabase Data API access is intentionally blocked because tag access is mediated by the backend.
 - `jeopardy_results` and `online_quiz_results` have RLS enabled but no policies, so the advisor reports them as RLS-enabled-without-policy.
 - Reviewed backend queries otherwise matched the audited public columns. No confirmed missing-column or type mismatch was found.
 
