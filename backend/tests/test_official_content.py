@@ -112,6 +112,21 @@ class OfficialContentValidationTests(unittest.TestCase):
             result = validate_pack(json.loads(example), TAGS)
             self.assertTrue(result["valid"], result["errors"])
 
+    def test_published_schema_binds_kind_data_and_quiz_fields(self):
+        with open(os.path.join(os.path.dirname(__file__), "..", "..", "content", "library-v1.schema.json"), encoding="utf-8") as handle:
+            schema = json.load(handle)
+        self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertEqual(schema["$defs"]["game"]["oneOf"], [
+            {"$ref": "#/$defs/quizGame"},
+            {"$ref": "#/$defs/jeopardyGame"},
+            {"$ref": "#/$defs/millionaireGame"},
+        ])
+        question_base = schema["$defs"]["quizQuestionBase"]
+        self.assertIn("type", question_base["properties"])
+        self.assertNotIn("additionalProperties", question_base)
+        for question_name in ("choiceQuestion", "boolQuestion", "textQuestion", "matchingQuestion", "closeQuestion", "orderingQuestion"):
+            self.assertFalse(schema["$defs"][question_name]["unevaluatedProperties"])
+
 
 class OfficialContentAdminTests(unittest.TestCase):
     def test_non_admin_is_rejected(self):

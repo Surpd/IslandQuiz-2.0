@@ -15,14 +15,39 @@
     "contentId": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*-v[0-9]+$"},
     "image": {"type": "string"},
     "game": {
+      "oneOf": [{"$ref": "#/$defs/quizGame"}, {"$ref": "#/$defs/jeopardyGame"}, {"$ref": "#/$defs/millionaireGame"}]
+    },
+    "quizGame": {
       "type": "object",
       "additionalProperties": false,
       "required": ["content_id", "kind", "data"],
       "properties": {
         "content_id": {"$ref": "#/$defs/contentId"},
-        "kind": {"enum": ["quiz", "jeopardy", "millionaire"]},
+        "kind": {"const": "quiz"},
         "tags": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 20}},
-        "data": {"oneOf": [{"$ref": "#/$defs/quizData"}, {"$ref": "#/$defs/jeopardyData"}, {"$ref": "#/$defs/millionaireData"}]}
+        "data": {"$ref": "#/$defs/quizData"}
+      }
+    },
+    "jeopardyGame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_id", "kind", "data"],
+      "properties": {
+        "content_id": {"$ref": "#/$defs/contentId"},
+        "kind": {"const": "jeopardy"},
+        "tags": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 20}},
+        "data": {"$ref": "#/$defs/jeopardyData"}
+      }
+    },
+    "millionaireGame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_id", "kind", "data"],
+      "properties": {
+        "content_id": {"$ref": "#/$defs/contentId"},
+        "kind": {"const": "millionaire"},
+        "tags": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 20}},
+        "data": {"$ref": "#/$defs/millionaireData"}
       }
     },
     "quizConfig": {
@@ -42,10 +67,10 @@
     },
     "quizQuestionBase": {
       "type": "object",
-      "additionalProperties": false,
       "required": ["id", "type", "q", "options", "answer", "points", "time"],
       "properties": {
         "id": {"type": "string", "minLength": 1},
+        "type": {"enum": ["choice", "bool", "text", "matching", "close", "ordering"]},
         "q": {"type": "string", "minLength": 1, "maxLength": 500},
         "image": {"$ref": "#/$defs/image"},
         "options": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 200}},
@@ -55,23 +80,29 @@
       }
     },
     "choiceQuestion": {
-      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "choice"}, "options": {"type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 200}}}, "required": ["type"]}]
+      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "choice"}, "options": {"type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 200}}}, "required": ["type"]}],
+      "unevaluatedProperties": false
     },
     "boolQuestion": {
-      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "bool"}, "options": {"const": []}, "answer": {"enum": ["true", "false"]}}, "required": ["type"]}]
+      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "bool"}, "options": {"const": []}, "answer": {"enum": ["true", "false"]}}, "required": ["type"]}],
+      "unevaluatedProperties": false
     },
     "textQuestion": {
-      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "text"}, "options": {"const": []}}, "required": ["type"]}]
+      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "text"}, "options": {"const": []}}, "required": ["type"]}],
+      "unevaluatedProperties": false
     },
     "matchingPair": {"type": "object", "additionalProperties": false, "required": ["left", "right"], "properties": {"left": {"type": "string", "minLength": 1}, "right": {"type": "string", "minLength": 1}}},
     "matchingQuestion": {
-      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "matching"}, "options": {"const": []}, "answer": {"type": "string", "pattern": "^\\["}}, "required": ["type"]}]
+      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "matching"}, "options": {"const": []}, "answer": {"type": "string", "pattern": "^\\["}}, "required": ["type"]}],
+      "unevaluatedProperties": false
     },
     "closeQuestion": {
-      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "close"}, "options": {"const": []}, "q": {"type": "string", "pattern": "___"}, "answer": {"type": "string", "pattern": "^\\["}}, "required": ["type"]}]
+      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "close"}, "options": {"const": []}, "q": {"type": "string", "pattern": "___"}, "answer": {"type": "string", "pattern": "^\\["}}, "required": ["type"]}],
+      "unevaluatedProperties": false
     },
     "orderingQuestion": {
-      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "ordering"}, "options": {"const": []}, "answer": {"type": "string", "pattern": "^\\["}}, "required": ["type"]}]
+      "allOf": [{"$ref": "#/$defs/quizQuestionBase"}, {"type": "object", "properties": {"type": {"const": "ordering"}, "options": {"const": []}, "answer": {"type": "string", "pattern": "^\\["}}, "required": ["type"]}],
+      "unevaluatedProperties": false
     },
     "quizQuestion": {"oneOf": [{"$ref": "#/$defs/choiceQuestion"}, {"$ref": "#/$defs/boolQuestion"}, {"$ref": "#/$defs/textQuestion"}, {"$ref": "#/$defs/matchingQuestion"}, {"$ref": "#/$defs/closeQuestion"}, {"$ref": "#/$defs/orderingQuestion"}]},
     "quizData": {"type": "object", "additionalProperties": false, "required": ["config", "questions"], "properties": {"config": {"$ref": "#/$defs/quizConfig"}, "questions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/quizQuestion"}}}},
