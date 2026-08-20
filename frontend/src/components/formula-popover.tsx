@@ -88,14 +88,35 @@ export function FormulaButton({
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState("\\(x^{2} + y^{2} = r^{2}\\)");
   const popRef = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<{ start: number; end: number; scrollY: number } | null>(null);
+
+  const restoreField = () => {
+    const el = inputRef.current;
+    const restore = restoreRef.current;
+    if (!el || !restore) return;
+    requestAnimationFrame(() => {
+      el.focus({ preventScroll: true });
+      try {
+        el.setSelectionRange(restore.start, restore.end);
+      } catch {
+        /* noop */
+      }
+      window.scrollTo({ top: restore.scrollY, behavior: "auto" });
+    });
+  };
+
+  const closePanel = () => {
+    setOpen(false);
+    restoreField();
+  };
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
       if (!popRef.current) return;
-      if (!popRef.current.contains(e.target as Node)) setOpen(false);
+      if (!popRef.current.contains(e.target as Node)) closePanel();
     };
-    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && closePanel();
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onEsc);
     return () => {
@@ -103,6 +124,20 @@ export function FormulaButton({
       document.removeEventListener("keydown", onEsc);
     };
   }, [open]);
+
+  const togglePanel = () => {
+    if (open) {
+      closePanel();
+      return;
+    }
+    const el = inputRef.current;
+    restoreRef.current = {
+      start: el?.selectionStart ?? value.length,
+      end: el?.selectionEnd ?? value.length,
+      scrollY: window.scrollY,
+    };
+    setOpen(true);
+  };
 
   const insert = (tpl: Template) => {
     const el = inputRef.current;
@@ -128,7 +163,7 @@ export function FormulaButton({
     <div className="relative inline-block">
       <button
         type="button"
-        onClick={() => setOpen((s) => !s)}
+        onClick={togglePanel}
         aria-label="Вставить формулу"
         title="Вставить формулу LaTeX"
         className="grid h-7 w-7 place-items-center rounded-md border border-border-strong bg-surface font-serif text-[13px] italic text-primary transition-colors hover:border-primary hover:bg-primary-soft"
@@ -146,7 +181,7 @@ export function FormulaButton({
             </p>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={closePanel}
               aria-label="Закрыть"
               className="rounded-md p-1 text-muted-foreground hover:bg-surface-muted hover:text-foreground"
             >
