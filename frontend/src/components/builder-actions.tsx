@@ -1,6 +1,10 @@
+import { Link } from "@tanstack/react-router";
 import type { ReactElement, ReactNode } from "react";
 import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from "react";
 import {
+  AlertCircle,
+  ArrowLeft,
+  Check,
   Save,
   Play,
   ChevronDown,
@@ -14,6 +18,8 @@ import {
   Lock,
   Link2,
   Globe,
+  LoaderCircle,
+  MoreHorizontal,
 } from "lucide-react";
 import { findGame, setGameVisibility as apiSetGameVisibility } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -74,7 +80,7 @@ export function BuilderToolbar({
   return (
     <div className={cn("relative flex w-full flex-nowrap items-stretch gap-1", className)}>
       <button
-        className="btn-ghost flex flex-1 items-center justify-center gap-2 md:justify-start"
+        className="btn-ghost hidden flex-1 items-center justify-center gap-2 md:flex md:justify-start"
         onClick={() => setOpenImport(true)}
         aria-label="Импорт"
         title="Импорт"
@@ -276,20 +282,42 @@ function ImportModal({
 interface FabsProps {
   kind: GameKind;
   savedId: string | null;
+  title: string;
   visibility: GameVisibility;
+  saveState?: BuilderSaveState;
   onVisibilityChange: (visibility: GameVisibility) => void;
-  onSave: () => string | null;
-  onSaveAsCopy: () => string | null;
+  onSave: () => string | null | Promise<string | null>;
+  onSaveAsCopy: () => string | null | Promise<string | null>;
+  onSettings: () => void;
   themeAccent?: string;
 }
 
-export function BuilderFabs({ kind, savedId, visibility, onVisibilityChange, onSave, onSaveAsCopy, themeAccent }: FabsProps) {
+export type BuilderSaveState = "saved" | "dirty" | "saving" | "error";
+
+export function BuilderFabs({
+  kind,
+  savedId,
+  title,
+  visibility,
+  saveState = "dirty",
+  onVisibilityChange,
+  onSave,
+  onSaveAsCopy,
+  onSettings,
+  themeAccent,
+}: FabsProps) {
   const { user } = useAuth();
   const [openSaveMenu, setOpenSaveMenu] = useState(false);
   const [openPlay, setOpenPlay] = useState(false);
   const [visOpen, setVisOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [actionState, setActionState] = useState<BuilderSaveState>(saveState);
   const saveRef = useRef<HTMLDivElement>(null);
   const visRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (actionState !== "saving") setActionState(saveState);
+  }, [saveState, actionState]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -318,10 +346,21 @@ export function BuilderFabs({ kind, savedId, visibility, onVisibilityChange, onS
     if (savedId && user) await apiSetGameVisibility(savedId, v);
   };
 
-  const handlePlay = () => {
-    const id = onSave();
-    if (!id) return;
-    setOpenPlay(true);
+  const performSave = async (save: typeof onSave = onSave) => {
+    setActionState("saving");
+    try {
+      const id = await save();
+      setActionState(id ? "saved" : "error");
+      return id;
+    } catch {
+      setActionState("error");
+      return null;
+    }
+  };
+
+  const handlePlay = async () => {
+    const id = await performSave();
+    if (id) setOpenPlay(true);
   };
 
   const visOptions: Array<{ v: GameVisibility; label: string; Icon: typeof Lock; disabled?: boolean }> = [
@@ -331,10 +370,107 @@ export function BuilderFabs({ kind, savedId, visibility, onVisibilityChange, onS
   ];
   const current = visOptions.find((o) => o.v === visibility) ?? visOptions[0];
   const CurrentIcon = current.Icon;
+  const mobilePublic = visibility !== "private";
+  const status = {
+    saved: { label: "Сохранено", Icon: Check, className: "text-success" },
+    dirty: { label: "Не сохранено", Icon: AlertCircle, className: "text-amber" },
+    saving: { label: "Сохранение…", Icon: LoaderCircle, className: "animate-spin text-primary" },
+    error: { label: "Ошибка сохранения", Icon: AlertCircle, className: "text-danger" },
+  }[actionState];
+  const StatusIcon = status.Icon;
 
   return (
     <>
-      <div className="fixed bottom-20 right-4 left-4 z-40 flex items-center justify-end gap-1.5 sm:bottom-6 sm:right-6 sm:left-auto sm:gap-2">
+      <div className="fixed inset-x-0 top-16 z-40 border-b border-border bg-surface/95 px-3 py-2 shadow-soft backdrop-blur-md md:hidden">
+        <div className="mx-auto flex h-10 max-w-7xl items-center gap-1.5">
+          <Link
+            to="/"
+            aria-label="На главную"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-surface-muted"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{title}</p>
+            <span className={`flex items-center gap-1 text-[10px] font-semibold ${status.className}`}>
+              <StatusIcon className="h-3 w-3" /> {status.label}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void performSave()}
+            aria-label="Сохранить"
+            title={status.label}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-foreground text-white hover:opacity-90"
+          >
+            <Save className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handlePlay()}
+            aria-label="Играть"
+            title="Играть"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground hover:opacity-90"
+          >
+            <Play className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onSettings}
+            aria-label="Настройки"
+            title="Настройки"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted"
+          >
+            <Settings2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileMoreOpen((v) => !v)}
+            aria-label="Дополнительные действия"
+            aria-expanded={mobileMoreOpen}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mx-auto mt-2 flex max-w-7xl items-center justify-between gap-2 border-t border-border pt-2">
+          <span className="text-[11px] font-semibold text-muted-foreground">Видимость</span>
+          <div className="flex rounded-xl border border-border bg-background p-0.5" role="group" aria-label="Видимость игры">
+            <button
+              type="button"
+              onClick={() => void changeVisibility("private")}
+              aria-pressed={!mobilePublic}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold ${!mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
+            >
+              <Lock className="h-3.5 w-3.5" /> Приватная
+            </button>
+            <button
+              type="button"
+              onClick={() => void changeVisibility("public")}
+              disabled={!user}
+              aria-pressed={mobilePublic}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold ${mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"} ${!user ? "cursor-not-allowed opacity-50" : ""}`}
+            >
+              <Globe className="h-3.5 w-3.5" /> Публичная
+            </button>
+          </div>
+        </div>
+        {mobileMoreOpen && (
+          <div className="mx-auto mt-2 max-w-7xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMoreOpen(false);
+                void performSave(onSaveAsCopy);
+              }}
+              className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted"
+            >
+              <Copy className="h-4 w-4 text-primary" /> Создать копию
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="fixed bottom-20 right-4 left-4 z-40 hidden items-center justify-end gap-1.5 sm:bottom-6 sm:right-6 sm:left-auto sm:gap-2 md:flex">
         {/* Visibility */}
         <div ref={visRef} className="relative" data-visibility={visibility}>
           <button
@@ -406,7 +542,7 @@ export function BuilderFabs({ kind, savedId, visibility, onVisibilityChange, onS
         {/* Play */}
         <button
           type="button"
-          onClick={handlePlay}
+          onClick={() => void handlePlay()}
           className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold shadow-lift transition-transform hover:scale-[1.03] active:scale-95 sm:px-6 sm:py-3"
           style={{ background: themeAccent ?? "var(--primary)", color: themeAccent ? "#000" : "#fff" }}
         >

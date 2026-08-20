@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FileText,
   Plus,
@@ -153,6 +153,7 @@ function BuilderQuiz() {
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
   const [visibility, setVisibility] = useState<GameVisibility>("private");
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -191,6 +192,7 @@ function BuilderQuiz() {
           setQuestions(data.questions);
           setTags(rec.tags ?? []);
           if (rec.visibility) setVisibility(rec.visibility);
+          setSavedSnapshot(JSON.stringify({ config: data.config, questions: data.questions, tags: rec.tags ?? [] }));
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -261,20 +263,27 @@ function BuilderQuiz() {
 
   // Bug 1.3: если есть savedId — обновляем, иначе создаём.
 
-  const handleSave = (): string | null => {
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({ config, questions, tags }),
+    [config, questions, tags],
+  );
+  const saveState = savedSnapshot === currentSnapshot ? "saved" : "dirty";
+
+  const handleSave = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility });
+    await saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility });
+    setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("quiz");
     showToast(savedId ? "Изменения сохранены" : "Квиз сохранён!");
     return id;
   };
 
-  const handleSaveAsCopy = (): string | null => {
+  const handleSaveAsCopy = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = newId();
-    saveGame({
+    await saveGame({
       kind: "quiz",
       id,
       data: {
@@ -283,6 +292,7 @@ function BuilderQuiz() {
       },
       tags,
     });
+    setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("quiz");
     showToast("Создана копия квиза");
@@ -290,8 +300,8 @@ function BuilderQuiz() {
   };
 
 
-  const openResults = () => {
-    const id = handleSave();
+  const openResults = async () => {
+    const id = await handleSave();
     if (id) window.open(`/quiz/${id}/results`, "_blank", "noopener");
   };
 
@@ -588,10 +598,13 @@ function BuilderQuiz() {
           <BuilderFabs
             kind="quiz"
             savedId={savedId}
+            title={config.title || "Квиз"}
             visibility={visibility}
+            saveState={saveState}
             onVisibilityChange={setVisibility}
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
+            onSettings={() => setShowSettings((s) => !s)}
           />
           <HelpButton title="Как пользоваться конструктором квиза">
             <p><b>Типы вопросов:</b> ABCD — 4 варианта. Да/Нет — бинарный вопрос. Текст — принимаются несколько вариантов через запятую. Пары — сопоставление списков. Пропуски — вставьте <code>___</code> в текст и укажите ответ для каждого. Порядок — список пунктов; игрок должен расставить их правильно.</p>

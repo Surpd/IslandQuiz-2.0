@@ -44,6 +44,10 @@ Mobile остаётся компактной responsive-адаптацией т�
 - Mobile logo menu и account dropdown скрыты; desktop menu и account actions сохранены.
 - Bottom navigation показывается на Home, Library, Game Details, Builder, Results, Profile и Join; immersive `/play` и `/room` routes остаются без неё.
 - Root layout добавляет mobile safe-area bottom padding для application screens.
+- Builder получил mobile contextual header вместо fixed action rail над bottom nav: Save/status, Play, Settings, More и Private/Public control.
+- Builder save status сравнивает текущий config/questions/tags с последним сохранённым snapshot и показывает dirty/saving/saved/error states.
+- Desktop Builder actions и технический `link` visibility state сохранены.
+- Builder help button поднят выше mobile bottom nav.
 - Убран дублирующий footer на главной: теперь footer рендерится только из root layout.
 - Builder floating actions подняты выше mobile navigation.
 - Formula panel, длинные ответы, matching/pairs и result stats получили первый mobile polish slice.

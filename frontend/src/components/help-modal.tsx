@@ -9,7 +9,7 @@ export function HelpButton({ children, title = "Как это работает" 
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Помощь"
-        className="fixed bottom-6 left-6 z-40 grid h-11 w-11 place-items-center rounded-full border border-border-strong bg-surface text-muted-foreground shadow-lift transition-colors hover:text-primary"
+        className="fixed bottom-20 left-6 z-40 grid h-11 w-11 place-items-center rounded-full border border-border-strong bg-surface text-muted-foreground shadow-lift transition-colors hover:text-primary md:bottom-6"
       >
         <HelpCircle className="h-5 w-5" />
       </button>
