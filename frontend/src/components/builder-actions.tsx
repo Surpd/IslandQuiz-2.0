@@ -342,6 +342,7 @@ interface FabsProps {
   onSave: () => string | null | Promise<string | null>;
   onSaveAsCopy: () => string | null | Promise<string | null>;
   onSettings: () => void;
+  mobilePrimaryAction?: ReactNode;
   onBack?: () => void;
   onImportFile?: (file: File) => void;
   onDownloadTemplate?: () => void;
@@ -369,6 +370,7 @@ export function BuilderFabs({
   onSave,
   onSaveAsCopy,
   onSettings,
+  mobilePrimaryAction,
   onBack,
   onImportFile,
   onDownloadTemplate,
@@ -468,7 +470,7 @@ export function BuilderFabs({
   return (
     <>
       <div className="builder-mobile-header fixed inset-x-0 top-16 z-40 border-b border-border bg-surface/95 px-3 py-2 shadow-soft backdrop-blur-md md:hidden">
-        <div className="mx-auto flex h-10 max-w-7xl items-center gap-1.5">
+        <div className="mx-auto flex min-h-9 max-w-7xl items-center gap-1.5">
           <Link
             to="/library"
             onClick={(event) => {
@@ -508,42 +510,30 @@ export function BuilderFabs({
               <Globe className="h-3.5 w-3.5" />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => void performSave()}
-            aria-label="Сохранить"
-            title={status.label}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-foreground text-white hover:opacity-90"
-          >
-            <Save className="h-4 w-4" />
+        </div>
+        <div className="mx-auto mt-1 grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <div className="flex min-w-0 items-center justify-start gap-1">
+            {mobilePrimaryAction}
+            <button type="button" onClick={() => void performSave()} aria-label="Сохранить" title={status.label} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-foreground text-white hover:opacity-90">
+              <Save className="h-4 w-4" />
+            </button>
+            {onResults && savedId && (
+              <button type="button" onClick={onResults} aria-label="Результаты" title="Результаты" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">
+                <BarChart3 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <button type="button" onClick={() => void handlePlay()} aria-label="Играть" title="Играть" className="grid h-10 min-w-20 shrink-0 place-items-center gap-1 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground shadow-lift hover:opacity-90">
+            <span className="flex items-center gap-1"><Play className="h-4 w-4" /> Играть</span>
           </button>
-          <button
-            type="button"
-            onClick={() => void handlePlay()}
-            aria-label="Играть"
-            title="Играть"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground hover:opacity-90"
-          >
-            <Play className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onSettings}
-            aria-label="Настройки"
-            title="Настройки"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted"
-          >
-            <Settings2 className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileMoreOpen((v) => !v)}
-            aria-label="Дополнительные действия"
-            aria-expanded={mobileMoreOpen}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
+          <div className="flex min-w-0 items-center justify-end gap-1">
+            <button type="button" onClick={onSettings} aria-label="Настройки" title="Настройки" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">
+              <Settings2 className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={() => setMobileMoreOpen((v) => !v)} aria-label="Дополнительные действия" aria-expanded={mobileMoreOpen} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         {mobileMoreOpen && (
           <div className="mx-auto mt-2 max-w-7xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">
@@ -567,11 +557,6 @@ export function BuilderFabs({
             {onPrint && (
               <button type="button" onClick={() => { setMobileMoreOpen(false); onPrint(printAnswers); }} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted">
                 <Printer className="h-4 w-4 text-primary" /> Печать / PDF
-              </button>
-            )}
-            {onResults && savedId && (
-              <button type="button" onClick={() => { setMobileMoreOpen(false); onResults(); }} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted">
-                <BarChart3 className="h-4 w-4 text-primary" /> Результаты
               </button>
             )}
             {onViewToggle && viewLabel && (
