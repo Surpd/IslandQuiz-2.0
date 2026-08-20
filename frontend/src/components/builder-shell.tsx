@@ -36,10 +36,12 @@ export function BuilderShell({
         <>
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-64 opacity-40"
+            className="pointer-events-none absolute inset-x-0 top-0 hidden h-64 opacity-40 md:block"
             style={{ background: "var(--pt-bg)" }}
           />
-          <AnimatedBackground theme={theme} />
+          <div className="hidden md:block">
+            <AnimatedBackground theme={theme} />
+          </div>
         </>
       )}
       <div className="relative z-10">
@@ -53,7 +55,7 @@ export function BuilderShell({
             На главную
           </Link>
 
-          <div className="mb-2 md:mb-6">
+          <div className="mb-0 md:mb-6">
             <div className="builder-hero animate-fade-up">
               <div data-builder-promo className="hidden min-w-0 items-center gap-4 md:flex">
                 {icon && (
@@ -81,7 +83,7 @@ export function BuilderShell({
                 </div>
               </div>
               {toolbar && (
-                <div data-builder-toolbar className="-mx-1 flex w-full px-1">
+                <div data-builder-toolbar className="-mx-1 hidden w-full px-1 md:flex">
                   <div className="builder-cmd-deck mx-auto w-full md:mx-0">{toolbar}</div>
                 </div>
               )}

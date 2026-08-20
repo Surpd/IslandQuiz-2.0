@@ -2,6 +2,7 @@
 // snippets at the cursor position of an associated input/textarea.
 // Live preview uses the LaTeX component (KaTeX under the hood).
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Eraser, RotateCcw, Trash2, X } from "lucide-react";
 import { LaTeX } from "@/lib/latex";
 
@@ -198,7 +199,7 @@ export function FormulaButton({
       >
         ƒx
       </button>
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div
           ref={popRef}
           data-testid="formula-palette"
@@ -251,7 +252,8 @@ export function FormulaButton({
           <p className="mt-1 text-center text-[10px] text-muted-foreground">
             Клик — вставит на месте курсора
           </p>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
