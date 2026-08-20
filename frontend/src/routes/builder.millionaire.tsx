@@ -385,7 +385,7 @@ function BuilderMillionaire() {
   );
 
   const toolbar = (
-    <div className="flex w-full items-stretch">
+    <div className="hidden w-full items-stretch md:flex">
       <BuilderToolbar
         kind="millionaire"
         onImportFile={handleImport}

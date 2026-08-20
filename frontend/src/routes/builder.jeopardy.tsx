@@ -442,7 +442,7 @@ function BuilderJeopardy() {
   );
 
   const toolbar = (
-    <div className="flex w-full items-stretch">
+    <div className="hidden w-full items-stretch md:flex">
       <BuilderToolbar
         kind="jeopardy"
         onImportFile={handleImport}

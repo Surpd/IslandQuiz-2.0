@@ -467,7 +467,7 @@ export function BuilderFabs({
 
   return (
     <>
-      <div className="fixed inset-x-0 top-16 z-40 border-b border-border bg-surface/95 px-3 py-2 shadow-soft backdrop-blur-md md:hidden">
+      <div className="builder-mobile-header fixed inset-x-0 top-16 z-40 border-b border-border bg-surface/95 px-3 py-2 shadow-soft backdrop-blur-md md:hidden">
         <div className="mx-auto flex h-10 max-w-7xl items-center gap-1.5">
           <Link
             to="/library"
@@ -486,6 +486,27 @@ export function BuilderFabs({
             <span className={`flex items-center gap-1 text-[10px] font-semibold ${status.className}`}>
               <StatusIcon className="h-3 w-3" /> {status.label}
             </span>
+          </div>
+          <div className="flex shrink-0 rounded-lg border border-border bg-background p-0.5" role="group" aria-label="Видимость игры">
+            <button
+              type="button"
+              onClick={() => void changeVisibility("private")}
+              aria-label="Приватная"
+              aria-pressed={!mobilePublic}
+              className={`grid h-8 w-8 place-items-center rounded-md ${!mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
+            >
+              <Lock className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void changeVisibility("public")}
+              disabled={!user}
+              aria-label="Публичная"
+              aria-pressed={mobilePublic}
+              className={`grid h-8 w-8 place-items-center rounded-md ${mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"} ${!user ? "cursor-not-allowed opacity-50" : ""}`}
+            >
+              <Globe className="h-3.5 w-3.5" />
+            </button>
           </div>
           <button
             type="button"
@@ -523,27 +544,6 @@ export function BuilderFabs({
           >
             <MoreHorizontal className="h-4 w-4" />
           </button>
-        </div>
-        <div className="mx-auto mt-2 flex max-w-7xl justify-end">
-          <div className="flex rounded-xl border border-border bg-background p-0.5" role="group" aria-label="Видимость игры">
-            <button
-              type="button"
-              onClick={() => void changeVisibility("private")}
-              aria-pressed={!mobilePublic}
-              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold ${!mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
-            >
-              <Lock className="h-3.5 w-3.5" /> <span className="sr-only sm:not-sr-only">Приватная</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void changeVisibility("public")}
-              disabled={!user}
-              aria-pressed={mobilePublic}
-              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold ${mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"} ${!user ? "cursor-not-allowed opacity-50" : ""}`}
-            >
-              <Globe className="h-3.5 w-3.5" /> <span className="sr-only sm:not-sr-only">Публичная</span>
-            </button>
-          </div>
         </div>
         {mobileMoreOpen && (
           <div className="mx-auto mt-2 max-w-7xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">

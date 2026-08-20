@@ -72,6 +72,9 @@ Mobile остаётся компактной responsive-адаптацией т�
 - Public Library Add защищён от повторного fork: loading/disabled state, явное «Добавлено» и определение существующей копии через `forkedFrom`.
 - Profile получил avatar в mobile bottom nav, отдельный account block с admin entry point и нейтральным Logout; Delete account остался отдельной danger zone.
 - Results «Своей игры» возвращаются в Game Details; mobile top account/burger navigation не возвращалась.
+- Текущий mobile fix-pass: promo hero скрыт на узких Builder-экранах всех трёх типов, AI Generate Quiz оставлен компактным CTA; visibility встроена в один contextual header.
+- Formula palette переведена в viewport-clamped fixed presentation без расширения document/body; Quiz navigator использует устойчивый offset под Builder header с safe-area.
+- Results Quiz/Jeopardy/Millionaire возвращают на исходную Game Details вместо Home; добавлен 390px Playwright regression spec для hero, palette, sticky navigator и Results Back.
 
 ## Остаётся
 

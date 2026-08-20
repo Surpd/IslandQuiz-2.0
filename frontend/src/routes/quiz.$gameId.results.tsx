@@ -141,11 +141,12 @@ function ResultsPage() {
       <SiteHeader />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <Link
-          to="/"
+          to="/game/$id"
+          params={{ id: gameId }}
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          На главную
+          К игре
         </Link>
 
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
