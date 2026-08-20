@@ -637,6 +637,7 @@ function BuilderQuiz() {
         questions={questions}
         activeQuestionId={activeQuestionId}
         onSelect={scrollToQuestion}
+        onAddQuestion={addQuestion}
       />
       <div className="surface-card space-y-3 p-4 sm:p-6">
         <label className="block">
@@ -719,17 +720,20 @@ function MobileQuestionNavigator({
   questions,
   activeQuestionId,
   onSelect,
+  onAddQuestion,
 }: {
   questions: QuizQuestion[];
   activeQuestionId: string | null;
   onSelect: (index: number) => void;
+  onAddQuestion: (type: QuizQuestionType) => void;
 }) {
+  const [addOpen, setAddOpen] = useState(false);
   if (!questions.length) return null;
   const activeIndex = Math.max(0, questions.findIndex((question) => question.id === activeQuestionId));
   const activeQuestion = questions[activeIndex];
 
   return (
-    <div className="sticky top-16 z-30 -mx-1 mb-3 rounded-2xl border border-border bg-surface/95 p-2.5 shadow-soft backdrop-blur-md md:hidden">
+    <div className="sticky top-[8.75rem] z-30 -mx-1 mb-3 rounded-2xl border border-border bg-surface/95 p-2.5 shadow-soft backdrop-blur-md md:hidden">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-bold text-foreground">
@@ -788,8 +792,38 @@ function MobileQuestionNavigator({
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setAddOpen((open) => !open)}
+            aria-label="Добавить вопрос"
+            aria-expanded={addOpen}
+            className={`grid h-8 min-w-8 shrink-0 place-items-center rounded-lg border border-dashed px-2 text-xs font-bold text-primary transition-colors hover:bg-primary-soft ${addOpen ? "bg-primary-soft" : ""}`}
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
       </div>
+      {addOpen && (
+        <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border pt-2">
+          {(Object.keys(TYPE_META) as QuizQuestionType[]).map((type) => {
+            const Icon = TYPE_META[type].icon;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => {
+                  onAddQuestion(type);
+                  setAddOpen(false);
+                }}
+                className="flex min-h-9 items-center gap-1.5 rounded-lg bg-surface-muted px-2 text-left text-xs font-semibold hover:bg-primary-soft hover:text-primary"
+              >
+                <Icon className={`h-3.5 w-3.5 shrink-0 ${TYPE_META[type].tone}`} />
+                <span className="truncate">{TYPE_META[type].label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -48,6 +48,8 @@ Mobile остаётся компактной responsive-адаптацией т�
 - Builder save status сравнивает текущий config/questions/tags с последним сохранённым snapshot и показывает dirty/saving/saved/error states.
 - Desktop Builder actions и технический `link` visibility state сохранены.
 - Builder help button поднят выше mobile bottom nav.
+- Quiz Builder navigator получил `+` с компактным выбором существующих типов вопросов; добавление использует тот же `addQuestion(type)` flow.
+- Sticky Quiz navigator сдвинут ниже contextual Builder header и сохраняет обычный vertical question scroll.
 - Убран дублирующий footer на главной: теперь footer рендерится только из root layout.
 - Builder floating actions подняты выше mobile navigation.
 - Formula panel, длинные ответы, matching/pairs и result stats получили первый mobile polish slice.
