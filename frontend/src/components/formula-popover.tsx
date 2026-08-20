@@ -95,6 +95,16 @@ export function FormulaButton({
   const restoreRef = useRef<{ start: number; end: number; scrollY: number } | null>(null);
   const previousValueRef = useRef(value);
 
+  const setKeyboardViewport = (height: number) => {
+    document.documentElement.style.setProperty("--formula-keyboard-height", `${height}px`);
+    document.documentElement.classList.add("formula-keyboard-open");
+  };
+
+  const clearKeyboardViewport = () => {
+    document.documentElement.classList.remove("formula-keyboard-open");
+    document.documentElement.style.removeProperty("--formula-keyboard-height");
+  };
+
   const restoreField = () => {
     const el = inputRef.current;
     const restore = restoreRef.current;
@@ -113,6 +123,7 @@ export function FormulaButton({
   const closePanel = () => {
     setOpen(false);
     setPosition(null);
+    clearKeyboardViewport();
     restoreField();
   };
 
@@ -130,13 +141,13 @@ export function FormulaButton({
     const el = inputRef.current;
     if (!el || !window.matchMedia("(max-width: 767px)").matches) return;
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-    const keyboardHeight = Math.min(360, Math.max(220, viewportHeight * 0.42));
+    const keyboardHeight = popRef.current?.getBoundingClientRect().height
+      ?? Math.min(360, Math.max(220, viewportHeight * 0.42));
+    setKeyboardViewport(keyboardHeight);
     const visibleBottom = viewportHeight - keyboardHeight - 10;
     const rect = el.getBoundingClientRect();
     if (rect.bottom > visibleBottom) {
       window.scrollBy({ top: rect.bottom - visibleBottom, behavior: "auto" });
-    } else if (rect.top < 96) {
-      window.scrollBy({ top: rect.top - 96, behavior: "auto" });
     }
   };
 
@@ -156,11 +167,15 @@ export function FormulaButton({
     document.addEventListener("keydown", onEsc);
     window.addEventListener("resize", onViewportChange);
     window.addEventListener("scroll", onViewportChange, true);
+    window.visualViewport?.addEventListener("resize", onViewportChange);
+    window.visualViewport?.addEventListener("scroll", onViewportChange);
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onEsc);
       window.removeEventListener("resize", onViewportChange);
       window.removeEventListener("scroll", onViewportChange, true);
+      window.visualViewport?.removeEventListener("resize", onViewportChange);
+      window.visualViewport?.removeEventListener("scroll", onViewportChange);
     };
   }, [open]);
 
@@ -170,16 +185,24 @@ export function FormulaButton({
       return;
     }
     const el = inputRef.current;
+    const initialScrollY = window.scrollY;
+    const initialRect = el?.getBoundingClientRect();
+    const estimatedKeyboardHeight = Math.min(360, Math.max(220, window.innerHeight * 0.42));
+    const targetScrollY = initialRect
+      ? Math.max(initialScrollY, initialScrollY + initialRect.bottom - (window.innerHeight - estimatedKeyboardHeight - 10))
+      : initialScrollY;
     restoreRef.current = {
       start: el?.selectionStart ?? value.length,
       end: el?.selectionEnd ?? value.length,
-      scrollY: window.scrollY,
+      scrollY: initialScrollY,
     };
     el?.blur();
     positionPanel();
     setOpen(true);
     if (window.matchMedia("(max-width: 767px)").matches && el) {
       requestAnimationFrame(() => {
+        // Keep the blur transition from restoring the page below the active field.
+        if (window.scrollY < targetScrollY) window.scrollTo({ top: targetScrollY, behavior: "auto" });
         keepFieldAboveKeyboard();
       });
     }

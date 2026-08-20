@@ -323,6 +323,11 @@
 :root {
   --mobile-site-header-height: 4rem;
   --mobile-builder-header-height: 6.5rem;
+  --formula-keyboard-height: 0px;
+}
+
+html.formula-keyboard-open {
+  scroll-padding-bottom: var(--formula-keyboard-height);
 }
 
 @media (max-width: 767px) {

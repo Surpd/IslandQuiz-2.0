@@ -27,6 +27,8 @@ test("mobile builders hide promo hero and keep quiz formula palette in viewport"
   const questionBox = await questionField.boundingBox();
   expect(questionBox).not.toBeNull();
   expect(questionBox!.y + questionBox!.height).toBeLessThanOrEqual(box!.y + 2);
+  expect(await page.evaluate(() => document.documentElement.classList.contains("formula-keyboard-open"))).toBe(true);
+  const scrollWhileOpen = await page.evaluate(() => window.scrollY);
   await palette.getByRole("button", { name: "Готово" }).click();
   const answer = page.getByPlaceholder("Вариант A").first();
   const answerButton = page.getByRole("button", { name: "Вставить формулу" }).nth(1);
@@ -52,6 +54,9 @@ test("mobile builders hide promo hero and keep quiz formula palette in viewport"
   await expect(answerB).toHaveValue(/sqrt/);
   await palette.getByRole("button", { name: "Готово" }).click();
   await expect(answerB).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.classList.contains("formula-keyboard-open"))).toBe(false);
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(0);
+  expect(scrollWhileOpen).toBeGreaterThanOrEqual(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
