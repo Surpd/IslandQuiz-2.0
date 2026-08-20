@@ -34,7 +34,7 @@ import { loadGame } from "@/lib/api";    // загрузка игры с бэк�
 import { saveGame } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
-import { BuilderToolbar, BuilderFabs, BuilderSettingsSection } from "@/components/builder-actions";
+import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
 import {
   downloadExcelTemplate,
   exportQuizExcel,
@@ -639,7 +639,7 @@ function BuilderQuiz() {
         onSelect={scrollToQuestion}
         onAddQuestion={addQuestion}
       />
-      <div className="surface-card space-y-3 p-4 sm:p-6">
+      <BuilderGameInfoSection title={config.title} onSettings={() => setShowSettings((s) => !s)}>
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
             Название
@@ -670,7 +670,7 @@ function BuilderQuiz() {
           <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">Теги</span>
           <TagInput value={tags} onChange={setTags} />
         </div>
-      </div>
+      </BuilderGameInfoSection>
 
 
       <div ref={listRef} className="space-y-4">

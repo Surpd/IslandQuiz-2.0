@@ -50,6 +50,8 @@ Mobile остаётся компактной responsive-адаптацией т�
 - Builder help button поднят выше mobile bottom nav.
 - Quiz Builder navigator получил `+` с компактным выбором существующих типов вопросов; добавление использует тот же `addQuestion(type)` flow.
 - Sticky Quiz navigator сдвинут ниже contextual Builder header и сохраняет обычный vertical question scroll.
+- Quiz/Jeopardy/Millionaire builders получили collapsible `Об игре` с title/context, существующими description/tags и отдельным входом в Settings.
+- Settings panel на mobile ограничен viewport по высоте и прокручивается внутри, desktop presentation сохранена.
 - Убран дублирующий footer на главной: теперь footer рендерится только из root layout.
 - Builder floating actions подняты выше mobile navigation.
 - Formula panel, длинные ответы, matching/pairs и result stats получили первый mobile polish slice.

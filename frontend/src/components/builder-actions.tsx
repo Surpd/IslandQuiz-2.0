@@ -177,7 +177,7 @@ export function BuilderSettingsSection({
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   return (
-    <div className="surface-card animate-fade-up space-y-4 p-6">
+    <div className="surface-card animate-fade-up max-h-[calc(100dvh-9rem)] space-y-4 overflow-y-auto p-4 sm:p-6 md:max-h-none md:overflow-visible">
       {onClose && (
         <div className="flex justify-end">
           <button
@@ -209,6 +209,46 @@ export function BuilderSettingsSection({
         </div>
       )}
     </div>
+  );
+}
+
+export function BuilderGameInfoSection({
+  title,
+  onSettings,
+  children,
+}: {
+  title: string;
+  onSettings: () => void;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <section className="surface-card overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3 sm:px-6">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+          <span className="min-w-0">
+            <span className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Об игре</span>
+            <span className="mt-0.5 block truncate text-sm font-semibold">{title || "Без названия"}</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={onSettings}
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border px-2.5 text-xs font-semibold text-muted-foreground hover:bg-surface-muted hover:text-foreground"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Настройки</span>
+        </button>
+      </div>
+      {open && <div className="space-y-3 p-4 sm:p-6">{children}</div>}
+    </section>
   );
 }
 
