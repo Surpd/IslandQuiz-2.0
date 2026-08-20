@@ -33,6 +33,7 @@ import { RatingStars } from "@/components/rating-stars";
 import { Avatar } from "@/components/avatar";
 import { gameSummary } from "@/components/game-content";
 import type { GameKind, QuizData, StoredGame } from "@/lib/types";
+import { safeCanonicalTag } from "@/lib/tags";
 
 
 type TabKey = "my" | "public" | "added" | "played";
@@ -130,18 +131,22 @@ function LibraryPage() {
   }, [games, activeTab, user, playedIds]);
 
   const popularTags = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const g of tabFiltered) for (const t of g.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([t]) => t);
+    const counts = new Map<string, { name: string; count: number }>();
+    for (const g of tabFiltered) for (const t of g.tags ?? []) {
+      const key = safeCanonicalTag(t);
+      const current = counts.get(key);
+      counts.set(key, { name: current?.name ?? t.replace(/\s+/g, " ").trim(), count: (current?.count ?? 0) + 1 });
+    }
+    return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 12).map(({ name }) => name);
   }, [tabFiltered]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = tabFiltered.filter((g) => {
       const title = ((g.data as { config?: { title?: string } })?.config?.title ?? "").toLowerCase();
-      const tagsLower = (g.tags ?? []).map((t) => t.toLowerCase());
+      const tagsLower = (g.tags ?? []).map((t) => safeCanonicalTag(t));
       const matchQ = !q || title.includes(q) || tagsLower.some((t) => t.includes(q));
-      const matchTags = !selectedTags.length || selectedTags.every((t) => tagsLower.includes(t.toLowerCase()));
+      const matchTags = !selectedTags.length || selectedTags.every((t) => tagsLower.includes(safeCanonicalTag(t)));
       return matchQ && matchTags;
     });
     if (sortBy === "rating") {

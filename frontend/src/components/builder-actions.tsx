@@ -286,7 +286,7 @@ export function BuilderGameInfoSection({
   const [open, setOpen] = useState(true);
 
   return (
-    <section className="surface-card overflow-hidden">
+    <section className="surface-card overflow-visible">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3 sm:px-6">
         <button
           type="button"

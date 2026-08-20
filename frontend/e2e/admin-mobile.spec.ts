@@ -61,6 +61,26 @@ test("mobile admin selector changes sections and keeps contextual game actions u
           details: "sanitized",
         },
       ]);
+    if (url.pathname === "/api/admin/tags")
+      return json(route, {
+        tags: [
+          {
+            id: "tag-history",
+            name: "История",
+            canonical_name: "история",
+            is_system: true,
+            usage_count: 2,
+          },
+        ],
+        possible_duplicates: [],
+      });
+    if (url.pathname === "/api/admin/tags/bulk-preview")
+      return json(route, {
+        create: ["География"],
+        existing: ["История"],
+        invalid: [],
+        create_count: 1,
+      });
     return json(route, {});
   });
 
@@ -78,5 +98,13 @@ test("mobile admin selector changes sections and keeps contextual game actions u
   await expect(page.getByRole("heading", { name: "Ошибки" })).toBeVisible();
   await page.getByText("Safe failure").click();
   await expect(page.getByRole("dialog", { name: "Детали ошибки" })).toContainText("sanitized");
+  await page.getByRole("button", { name: "Закрыть детали ошибки" }).click();
+  await page.getByRole("button", { name: "Ошибки", exact: true }).click();
+  await selector.getByRole("button", { name: "Теги" }).click();
+  await expect(page.getByRole("heading", { name: "Теги" })).toBeVisible();
+  await page.getByRole("button", { name: "Добавить теги" }).click();
+  await page.getByRole("textbox", { name: "Список тегов" }).fill("История\nГеография");
+  await page.getByRole("button", { name: "Проверить список" }).click();
+  await expect(page.getByText("Будет создано: 1")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

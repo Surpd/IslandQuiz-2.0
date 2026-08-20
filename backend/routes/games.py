@@ -8,6 +8,7 @@ from pydantic import BaseModel, field_validator
 from database import supabase
 from routes.auth import get_current_user, get_current_user_optional
 from services.role_limits import get_user_limit
+from services.tags import TagValidationError, normalize_game_tags, normalize_legacy_tags
 
 router = APIRouter(prefix="/api/games", tags=["games"])
 
@@ -38,6 +39,12 @@ def _response_rows(response) -> list[dict]:
 
 def _db_rows(query) -> list[dict]:
     return _response_rows(_db_response(query))
+
+
+def _db_count(query) -> int:
+    response = _db_response(query)
+    count = getattr(response, "count", None)
+    return count if isinstance(count, int) else len(_response_rows(response))
 
 
 class GameOut(BaseModel):
@@ -81,6 +88,29 @@ class SaveGameInput(BaseModel):
         if v is not None and v not in VALID_VISIBILITY:
             raise ValueError(f"Недопустимая видимость: {v}")
         return v
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return None
+        try:
+            return normalize_game_tags(v)
+        except TagValidationError as exc:
+            raise ValueError(str(exc)) from exc
+
+
+def _ensure_tag_dictionary(tags: list[str]) -> None:
+    try:
+        for tag in tags:
+            canonical = tag.casefold()
+            rows = _db_rows(supabase.table("tags").select("id").eq("canonical_name", canonical))
+            if not rows:
+                _db_rows(supabase.table("tags").insert({"name": tag, "canonical_name": canonical, "is_system": False}))
+    except HTTPException:
+        # The games JSONB field remains the compatibility source until the
+        # optional Tag System migration has been applied.
+        return
 
 
 def _can_view(game: dict, user: Optional[dict]) -> bool:
@@ -144,9 +174,11 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
         
         update = {
             "data": input.data,
-            "tags": input.tags,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
+        if input.tags is not None:
+            _ensure_tag_dictionary(input.tags)
+            update["tags"] = input.tags
         if input.visibility is not None:
             _enforce_game_limits(
                 user,
@@ -159,6 +191,8 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
     else:
         visibility = input.visibility or "private"
         _enforce_game_limits(user, visibility, creating=True)
+        if input.tags is not None:
+            _ensure_tag_dictionary(input.tags)
         _db_rows(supabase.table("games").insert({
             "id": game_id,
             "kind": input.kind,
@@ -166,6 +200,7 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
             "owner_id": user["id"] if user else None,
             "owner_name": user["name"] if user else None,
             "visibility": visibility,
+            "tags": input.tags,
         }))
 
     return {"id": game_id, "play_url": f"/play/{input.kind}/{game_id}"}

@@ -20,6 +20,7 @@ from routes.rooms import router as rooms_router
 from routes.admin import router as admin_router
 from routes.feedback import router as feedback_router
 from routes.telegram_auth import router as telegram_auth_router
+from routes.tags import router as tags_router
 from services.error_logging import persist_error_log
 
 
@@ -101,6 +102,7 @@ app.include_router(rooms_router)
 app.include_router(admin_router)
 app.include_router(feedback_router)
 app.include_router(telegram_auth_router)
+app.include_router(tags_router)
 @app.on_event("startup")
 async def startup():
     global bot_task

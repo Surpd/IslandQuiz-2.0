@@ -21,6 +21,7 @@ import type {
 import type { User } from "./auth";
 import { formatQuizAnswer, formatGivenAnswer } from "./format-answer";
 import { clearAuthToken, getAuthToken, setAuthToken } from "./auth";
+import type { TagSuggestion } from "./tags";
 
 // Re-export types consumed by other modules so the facade stays the single entry point.
 export type { User } from "./auth";
@@ -354,6 +355,15 @@ export async function saveGame<T = AnyGameData>(input: SaveGameInput<T>) {
       visibility: input.visibility,
     }),
   }) as Promise<{ id: string; play_url: string }>;
+}
+
+export async function getTagSuggestions(
+  query = "",
+  limit = 10,
+  signal?: AbortSignal,
+): Promise<TagSuggestion[]> {
+  const data = await apiFetch(`/api/tags?query=${encodeURIComponent(query)}&limit=${limit}`, { signal });
+  return Array.isArray(data?.tags) ? data.tags : [];
 }
 
 export async function forkGame(gameId: string): Promise<{ id: string } | null> {
