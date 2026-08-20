@@ -16,6 +16,19 @@ import { AIAuthPrompt } from "@/components/ai-auth-prompt";
 const COOLDOWN_MS = 30_000;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
+const MIN_QUESTION_COUNT = 5;
+const MAX_QUESTION_COUNT = 20;
+const QUESTION_COUNT_ERROR = "Количество вопросов должно быть от 5 до 20.";
+
+function parseQuestionCount(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+
+  const count = Number(trimmed);
+  return Number.isInteger(count) && count >= MIN_QUESTION_COUNT && count <= MAX_QUESTION_COUNT
+    ? count
+    : null;
+}
 
 interface Props {
   currentTitle: string;
@@ -38,7 +51,8 @@ export function AIGenerateQuizButton({
   const [authPrompt, setAuthPrompt] = useState(false);
 
   const [topic, setTopic] = useState(currentTitle);
-  const [count, setCount] = useState(10);
+  const [count, setCount] = useState("10");
+  const [countError, setCountError] = useState<string | null>(null);
 
   const [difficulty, setDifficulty] =
     useState<QuizDifficulty>("mixed");
@@ -83,6 +97,7 @@ export function AIGenerateQuizButton({
     setOpen(false);
     setFile(null);
     setError(null);
+    setCountError(null);
     setStatus("idle");
   };
 
@@ -94,6 +109,13 @@ export function AIGenerateQuizButton({
     if (onCooldown || status === "loading") {
       return;
     }
+
+    const parsedCount = parseQuestionCount(count);
+    if (parsedCount === null) {
+      setCountError(QUESTION_COUNT_ERROR);
+      return;
+    }
+    setCount(String(parsedCount));
 
     /*
      * ============================
@@ -107,7 +129,7 @@ export function AIGenerateQuizButton({
       try {
         const result = await generateQuizFromFile({
           file,
-          count,
+          count: parsedCount,
           difficulty,
           wishes: wishes.trim() || undefined,
         });
@@ -148,7 +170,7 @@ export function AIGenerateQuizButton({
     try {
       const result = await generateQuiz({
         topic: topic.trim(),
-        count,
+        count: parsedCount,
         difficulty,
         wishes: wishes.trim() || undefined,
       });
@@ -183,6 +205,7 @@ export function AIGenerateQuizButton({
           setTopic(currentTitle);
           setOpen(true);
           setError(null);
+          setCountError(null);
         }}
         className={`btn-ghost cmd-primary ${compact ? "grid h-9 w-9 shrink-0 place-items-center rounded-xl p-0" : ""} ${className ?? ""}`}
         aria-label="Сгенерировать квиз"
@@ -349,24 +372,32 @@ export function AIGenerateQuizButton({
 
                 <input
                   type="number"
-                  min={5}
-                  max={20}
-                  className="input-base"
+                  min={MIN_QUESTION_COUNT}
+                  max={MAX_QUESTION_COUNT}
+                  step={1}
+                  className="input-base w-full min-w-0"
                   value={count}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value, 10);
-
-                    setCount(
-                      Math.min(
-                        20,
-                        Math.max(5, Number.isNaN(value) ? 10 : value),
-                      ),
-                    );
+                    setCount(e.target.value);
+                    setCountError(null);
                   }}
+                  onBlur={() => {
+                    const parsedCount = parseQuestionCount(count);
+                    if (parsedCount === null) {
+                      setCountError(QUESTION_COUNT_ERROR);
+                      return;
+                    }
+                    setCount(String(parsedCount));
+                  }}
+                  aria-invalid={countError !== null}
+                  aria-describedby={countError ? "ai-question-count-error" : undefined}
                 />
 
-                <span className="mt-1 block text-[11px] text-muted-foreground">
-                  От 5 до 20 вопросов.
+                <span
+                  id="ai-question-count-error"
+                  className={`mt-1 block text-[11px] ${countError ? "text-danger" : "text-muted-foreground"}`}
+                >
+                  {countError ?? "От 5 до 20 вопросов."}
                 </span>
               </label>
 
