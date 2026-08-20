@@ -560,7 +560,7 @@ function BuilderQuiz() {
 
   const toolbar = (
     <div className="flex w-full flex-col gap-2 md:flex-row md:items-stretch">
-      <div className="flex flex-1">
+      <div className="hidden flex-1 md:flex">
         <BuilderToolbar
           kind="quiz"
           onImportFile={handleImport}
@@ -760,7 +760,7 @@ function MobileQuestionNavigator({
   const activeQuestion = questions[activeIndex];
 
   return (
-    <div className="sticky top-[8.75rem] z-30 -mx-1 mb-3 rounded-2xl border border-border bg-surface/95 p-2.5 shadow-soft backdrop-blur-md md:hidden">
+    <div className="builder-mobile-question-nav sticky z-30 -mx-1 mb-3 rounded-2xl border border-border bg-surface/95 p-2.5 shadow-soft backdrop-blur-md md:hidden">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-bold text-foreground">

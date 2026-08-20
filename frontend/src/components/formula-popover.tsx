@@ -88,6 +88,8 @@ export function FormulaButton({
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState("\\(x^{2} + y^{2} = r^{2}\\)");
   const popRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const restoreRef = useRef<{ start: number; end: number; scrollY: number } | null>(null);
 
   const restoreField = () => {
@@ -107,11 +109,24 @@ export function FormulaButton({
 
   const closePanel = () => {
     setOpen(false);
+    setPosition(null);
     restoreField();
+  };
+
+  const positionPanel = () => {
+    const button = buttonRef.current;
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const width = Math.min(320, Math.max(0, window.innerWidth - 24));
+    const left = Math.max(12, Math.min(window.innerWidth - width - 12, rect.right - width));
+    const top = Math.min(rect.bottom + 8, Math.max(12, window.innerHeight - 420));
+    setPosition({ top, left, width });
   };
 
   useEffect(() => {
     if (!open) return;
+    positionPanel();
+    const onViewportChange = () => positionPanel();
     const onDoc = (e: MouseEvent) => {
       if (!popRef.current) return;
       if (!popRef.current.contains(e.target as Node)) closePanel();
@@ -119,9 +134,13 @@ export function FormulaButton({
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && closePanel();
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onEsc);
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("scroll", onViewportChange, true);
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onEsc);
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("scroll", onViewportChange, true);
     };
   }, [open]);
 
@@ -136,6 +155,7 @@ export function FormulaButton({
       end: el?.selectionEnd ?? value.length,
       scrollY: window.scrollY,
     };
+    positionPanel();
     setOpen(true);
   };
 
@@ -162,6 +182,7 @@ export function FormulaButton({
   return (
     <div className="relative inline-block">
       <button
+        ref={buttonRef}
         type="button"
         onClick={togglePanel}
         aria-label="Вставить формулу"
@@ -173,7 +194,9 @@ export function FormulaButton({
       {open && (
         <div
           ref={popRef}
-          className="absolute left-1/2 top-9 z-50 w-[min(320px,calc(100vw-2rem))] -translate-x-1/2 animate-fade-up rounded-2xl border border-border-strong bg-surface p-3 shadow-lift sm:left-auto sm:right-0 sm:translate-x-0"
+          data-testid="formula-palette"
+          style={position ?? { top: 12, left: 12, width: Math.min(320, Math.max(0, window.innerWidth - 24)) }}
+          className="fixed z-50 max-w-[calc(100vw-1.5rem)] animate-fade-up overflow-y-auto rounded-2xl border border-border-strong bg-surface p-3 shadow-lift [max-height:calc(100dvh-1.5rem)]"
         >
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">

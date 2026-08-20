@@ -309,6 +309,25 @@
   border-radius: 1.5rem;
   box-shadow: 0 10px 30px -14px rgb(0 0 0 / 0.1);
 }
+@media (max-width: 767px) {
+  .builder-hero {
+    gap: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+:root {
+  --mobile-site-header-height: 4rem;
+  --mobile-builder-header-height: 3.5rem;
+}
+
+.builder-mobile-question-nav {
+  top: calc(var(--mobile-site-header-height) + var(--mobile-builder-header-height) + env(safe-area-inset-top));
+}
 @media (min-width: 1440px) {
   .builder-hero {
     flex-direction: row;

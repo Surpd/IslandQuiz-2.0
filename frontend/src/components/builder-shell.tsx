@@ -53,9 +53,9 @@ export function BuilderShell({
             На главную
           </Link>
 
-          <div className="mb-6">
+          <div className="mb-3 md:mb-6">
             <div className="builder-hero animate-fade-up">
-              <div className="flex min-w-0 items-center gap-4">
+              <div data-builder-promo className="hidden min-w-0 items-center gap-4 md:flex">
                 {icon && (
                   <span
                     className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-2xl text-white shadow-lg"
@@ -81,7 +81,7 @@ export function BuilderShell({
                 </div>
               </div>
               {toolbar && (
-                <div className="-mx-1 flex w-full px-1">
+                <div data-builder-toolbar className="-mx-1 flex w-full px-1">
                   <div className="builder-cmd-deck mx-auto w-full md:mx-0">{toolbar}</div>
                 </div>
               )}
