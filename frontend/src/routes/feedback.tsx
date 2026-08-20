@@ -43,7 +43,7 @@ function FeedbackPage() {
     return (
       <div className="min-h-screen bg-surface">
         <SiteHeader />
-        <main className="mx-auto max-w-md px-6 py-20 text-center">
+        <main className="mx-auto max-w-md px-4 py-12 text-center sm:px-6 sm:py-20">
           <Link
             to="/faq"
             className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -66,7 +66,7 @@ function FeedbackPage() {
   return (
     <div className="min-h-screen bg-surface">
       <SiteHeader />
-      <main className="mx-auto max-w-lg px-6 py-12">
+      <main className="mx-auto max-w-lg px-4 py-8 sm:px-6 sm:py-12">
         <Link
           to="/faq"
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -74,12 +74,12 @@ function FeedbackPage() {
           ← Назад к FAQ
         </Link>
         <h1 className="font-display text-3xl font-black">Обратная связь</h1>
-        <p className="mt-2 text-muted-foreground">
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
           Нашли баг? Есть идея? Напишите нам — мы читаем всё.
         </p>
 
-        <form onSubmit={submit} className="surface-card mt-6 flex flex-col gap-4 p-6">
-          <div className="flex gap-2">
+        <form onSubmit={submit} className="surface-card mt-6 flex flex-col gap-4 p-4 sm:p-6">
+          <div className="grid grid-cols-3 gap-2">
             {([
               { key: "bug" as const, label: "Баг", icon: Bug },
               { key: "idea" as const, label: "Идея", icon: Lightbulb },

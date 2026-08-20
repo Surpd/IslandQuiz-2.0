@@ -22,6 +22,7 @@ test("mobile builders hide promo hero and keep quiz formula palette in viewport"
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  expect(box!.height).toBeLessThan(500);
   await palette.getByRole("button", { name: "Готово" }).click();
   const answer = page.getByPlaceholder("Вариант A").first();
   const answerButton = page.getByRole("button", { name: "Вставить формулу" }).nth(1);
@@ -51,6 +52,27 @@ test("quiz question navigator stays below the mobile builder header", async ({ p
   expect(headerBox).not.toBeNull();
   expect(navigatorBox).not.toBeNull();
   expect(navigatorBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
+});
+
+test("ordinary mobile pages keep nav while immersive runtime hides it", async ({ page }) => {
+  await page.goto("/faq");
+  await expect(page.getByRole("navigation", { name: "Основная навигация" })).toBeVisible();
+  await page.goto("/feedback");
+  await expect(page.getByRole("navigation", { name: "Основная навигация" })).toBeVisible();
+  await page.goto("/play/quiz/mobile-nav-check");
+  await expect(page.getByRole("navigation", { name: "Основная навигация" })).toBeHidden();
+});
+
+test("unauthenticated quiz AI offers sign in without sending an AI request", async ({ page }) => {
+  let aiRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/ai")) aiRequests += 1;
+  });
+  await page.goto("/builder/quiz");
+  await page.waitForTimeout(1200);
+  await page.getByRole("button", { name: "Сгенерировать квиз" }).click();
+  await expect(page.getByRole("dialog", { name: "Вход для AI" })).toBeVisible();
+  expect(aiRequests).toBe(0);
 });
 
 test("results back links target the source game", async ({ page }) => {

@@ -149,9 +149,9 @@ function FAQPage() {
   return (
     <div className="min-h-screen bg-surface">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-6 py-12">
-        <h1 className="font-display text-4xl font-black tracking-tight">FAQ</h1>
-        <p className="mt-2 text-muted-foreground">
+      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+        <h1 className="font-display text-3xl font-black tracking-tight sm:text-4xl">FAQ</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
           Ответы на частые вопросы. Не нашли ответ?{" "}
           <Link to="/feedback" className="text-primary hover:underline font-semibold">
             Напишите нам
@@ -179,16 +179,16 @@ function FAQPage() {
                     <div key={item.q} className="surface-card overflow-hidden">
                       <button
                         onClick={() => setExpanded(isOpen ? null : `${cat.category}-${item.q}`)}
-                        className="flex w-full items-center justify-between px-5 py-4 text-left font-semibold hover:bg-surface-muted/50"
+                        className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left font-semibold hover:bg-surface-muted/50 sm:px-5"
                       >
                         <span className="flex items-center gap-2">
-                          <HelpCircle className="h-4 w-4 text-primary shrink-0" />
-                          {item.q}
+                          <HelpCircle className="h-4 w-4 shrink-0 text-primary" />
+                          <span className="min-w-0 break-words">{item.q}</span>
                         </span>
                         <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
                       </button>
                       {isOpen && (
-                        <div className="px-5 pb-4 text-sm text-muted-foreground leading-relaxed">
+                        <div className="break-words px-4 pb-4 text-sm leading-relaxed text-muted-foreground sm:px-5">
                           {item.a}
                         </div>
                       )}

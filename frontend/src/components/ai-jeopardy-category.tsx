@@ -12,6 +12,8 @@ import {
   type GeneratedJeopardyCategory,
   type GeneratedJeopardyQuestion,
 } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+import { AIAuthPrompt } from "@/components/ai-auth-prompt";
 
 interface Props {
   categoryName: string;
@@ -28,7 +30,9 @@ export function AIJeopardyCategoryButton({
   onPickCategory,
   onFillQuestions,
 }: Props) {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [wishes, setWishes] = useState("");
@@ -41,6 +45,10 @@ export function AIJeopardyCategoryButton({
   };
 
   const fillQuestions = async (category: string) => {
+    if (!user) {
+      setAuthPrompt(true);
+      return;
+    }
     if (emptySlots.length === 0) {
       showToast("Все слоты уже заполнены");
       return;
@@ -63,6 +71,10 @@ export function AIJeopardyCategoryButton({
   };
 
   const openCategoryFlow = async () => {
+    if (!user) {
+      setAuthPrompt(true);
+      return;
+    }
     setStatus("loading");
     setError(null);
     try {
@@ -80,6 +92,10 @@ export function AIJeopardyCategoryButton({
   };
 
   const handleClick = () => {
+    if (!user) {
+      setAuthPrompt(true);
+      return;
+    }
     if (categoryName.trim()) {
       // Категория уже названа — сразу заполняем пустые слоты.
       void fillQuestions(categoryName.trim());
@@ -118,6 +134,7 @@ export function AIJeopardyCategoryButton({
           <Sparkles className="h-3.5 w-3.5" />
         )}
       </button>
+      {authPrompt && <AIAuthPrompt onClose={() => setAuthPrompt(false)} />}
       <button
         type="button"
         onClick={handleWishes}

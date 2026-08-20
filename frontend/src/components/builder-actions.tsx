@@ -222,13 +222,54 @@ export function BuilderSettingsSection({
     </>
   );
 
+  const mobileContent = (
+    <>
+      {panel}
+      {advancedPanel && (
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((s) => !s)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+          >
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
+            />
+            {showAdvanced ? "Скрыть расширенные" : "Ещё · расширенные настройки"}
+          </button>
+          {showAdvanced && <div className="mt-3 border-t border-border pt-3">{advancedPanel}</div>}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <>
       <div className="surface-card animate-fade-up hidden space-y-4 p-4 sm:p-6 md:block md:max-h-none md:overflow-visible">{content}</div>
-      <div className="fixed inset-0 z-[70] flex items-end bg-foreground/50 p-0 backdrop-blur-sm md:hidden" role="dialog" aria-modal="true" aria-label="Настройки игры">
-        <div className="max-h-[calc(100dvh-4.5rem)] w-full overflow-y-auto rounded-t-3xl border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-lift">
-          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
-          {content}
+      <div className="fixed inset-0 z-[70] flex items-end bg-foreground/50 p-0 pb-[calc(4rem+env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden" role="dialog" aria-modal="true" aria-label="Настройки игры">
+        <div className="flex max-h-[min(82dvh,calc(100dvh-5rem-env(safe-area-inset-bottom)))] min-h-0 w-full flex-col overflow-hidden rounded-t-3xl border-t border-border bg-surface shadow-lift">
+          <div className="shrink-0 border-b border-border px-4 pb-3 pt-2">
+            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border-strong" />
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-base font-bold">Настройки игры</h2>
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="grid h-9 w-9 place-items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground"
+                  aria-label="Закрыть настройки"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{mobileContent}</div>
+          <div className="shrink-0 border-t border-border bg-surface px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            <button type="button" onClick={onClose} className="btn-accent w-full justify-center">
+              Сохранить настройки
+            </button>
+          </div>
         </div>
       </div>
     </>

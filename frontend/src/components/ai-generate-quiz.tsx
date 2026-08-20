@@ -10,6 +10,8 @@ import {
   type GeneratedQuizQuestion,
   type QuizDifficulty,
 } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+import { AIAuthPrompt } from "@/components/ai-auth-prompt";
 
 const COOLDOWN_MS = 30_000;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -31,7 +33,9 @@ export function AIGenerateQuizButton({
   className,
   compact = false,
 }: Props) {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState(false);
 
   const [topic, setTopic] = useState(currentTitle);
   const [count, setCount] = useState(10);
@@ -83,6 +87,10 @@ export function AIGenerateQuizButton({
   };
 
   const run = async () => {
+    if (!user) {
+      setAuthPrompt(true);
+      return;
+    }
     if (onCooldown || status === "loading") {
       return;
     }
@@ -168,6 +176,10 @@ export function AIGenerateQuizButton({
       <button
         type="button"
         onClick={() => {
+          if (!user) {
+            setAuthPrompt(true);
+            return;
+          }
           setTopic(currentTitle);
           setOpen(true);
           setError(null);
@@ -179,6 +191,8 @@ export function AIGenerateQuizButton({
         <Sparkles className="h-4 w-4" />
         <span className={compact ? "sr-only" : undefined}>Сгенерировать</span>
       </button>
+
+      {authPrompt && <AIAuthPrompt onClose={() => setAuthPrompt(false)} />}
 
       {open &&
         createPortal(
