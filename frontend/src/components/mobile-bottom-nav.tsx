@@ -1,6 +1,8 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Coins, FileText, Grid3X3, Home, Library, Plus, ScanLine, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Avatar } from "@/components/avatar";
+import { useAuth } from "@/hooks/use-auth";
 
 const items = [
   { to: "/" as const, label: "Главная", Icon: Home, match: (path: string) => path === "/" },
@@ -18,6 +20,7 @@ const createOptions = [
 
 export function MobileBottomNav() {
   const { pathname } = useLocation();
+  const { user } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
@@ -94,7 +97,11 @@ export function MobileBottomNav() {
                     create ? "bg-primary text-primary-foreground shadow-sm" : active ? "bg-primary-soft" : ""
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${active && !create ? "text-primary" : ""}`} />
+                  {label === "Профиль" && user ? (
+                    <Avatar name={user.name} avatar={user.avatar} size={18} />
+                  ) : (
+                    <Icon className={`h-4 w-4 ${active && !create ? "text-primary" : ""}`} />
+                  )}
                 </span>
                 <span className="truncate px-0.5">{label}</span>
               </>

@@ -1,8 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Coins, Plus, Trash2, GripVertical } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
-import { HelpButton } from "@/components/help-modal";
 import { ImageDrop } from "@/lib/image-drop";
 import { ThemeSelect } from "@/components/theme-select";
 import { FormulaButton } from "@/components/formula-popover";
@@ -14,8 +13,7 @@ import { SortableQuestionCards } from "@/components/sortable-question-cards";
 
 import { LIMITS } from "@/lib/limits";
 import { newId } from "@/lib/storage";  // генерация id
-import { loadGame } from "@/lib/api";    // загрузка игры с бэкенда
-import { saveGame } from "@/lib/api";
+import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
 import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
@@ -71,6 +69,7 @@ function makeQuestion(money: number): MillionaireQuestion {
 
 function BuilderMillionaire() {
   const { id: urlId } = Route.useSearch();
+  const navigate = useNavigate();
   const [config, setConfig] = useState<MillionaireConfig>({
     theme: "amber",
     timePerQuestion: 30,
@@ -226,6 +225,30 @@ function BuilderMillionaire() {
     clearDraft("millionaire");
     showToast("Создана копия");
     return id;
+  };
+
+  const openResults = async () => {
+    const id = await handleSave();
+    if (id) window.open(`/millionaire/${id}/results`, "_blank", "noopener");
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    if (urlId) navigate({ to: "/game/$id", params: { id: urlId } });
+    else navigate({ to: "/library" });
+  };
+
+  const handleDelete = async () => {
+    if (!savedId || !window.confirm("Удалить эту игру?")) return;
+    try {
+      await deleteGame("millionaire", savedId);
+      navigate({ to: "/library" });
+    } catch {
+      showToast("Не удалось удалить игру");
+    }
   };
 
   const handleImport = async (file: File) => {
@@ -413,13 +436,24 @@ function BuilderMillionaire() {
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
             onSettings={() => setShowSettings((s) => !s)}
+            onBack={handleBack}
+            onImportFile={handleImport}
+            onDownloadTemplate={() => downloadExcelTemplate("millionaire")}
+            onExportExcel={() => exportMillionaireExcel({ config, questions })}
+            onPrint={(withAnswers) => printMillionaire({ config, questions }, { withAnswers })}
+            printAnswers={printAnswers}
+            onResults={openResults}
+            onDelete={handleDelete}
+            helpTitle="Как пользоваться конструктором «Миллионера»"
+            helpContent={
+              <>
+                <p><b>Лестница:</b> вопросы идут от лёгких к сложным, сумма растёт по выбранной шкале.</p>
+                <p><b>Верный ответ:</b> кликните по букве A/B/C/D — она станет зелёной.</p>
+                <p><b>Несгораемые:</b> в настройках можно выбрать классические точки, три точки или отключить их.</p>
+                <p><b>Играть:</b> открывает существующий игровой flow.</p>
+              </>
+            }
           />
-          <HelpButton title="Как пользоваться конструктором «Миллионера»">
-            <p><b>Лестница:</b> 15 вопросов от лёгких к сложным. Сумма растёт по выбранной шкале.</p>
-            <p><b>Верный ответ:</b> кликните по букве A/B/C/D — она станет зелёной.</p>
-            <p><b>Несгораемые:</b> в настройках — «Классика», «Три точки» или «Без».</p>
-            <p><b>Играть:</b> открывает плеер в новой вкладке.</p>
-          </HelpButton>
         </>
       }
     >
@@ -440,7 +474,7 @@ function BuilderMillionaire() {
           onClose={() => setShowSettings(false)}
         />
       )}
-      <BuilderGameInfoSection title={config.title ?? ""} onSettings={() => setShowSettings((s) => !s)}>
+      <BuilderGameInfoSection title={config.title ?? ""}>
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
             Название игры

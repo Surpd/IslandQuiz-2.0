@@ -20,10 +20,13 @@ import {
   Globe,
   LoaderCircle,
   MoreHorizontal,
+  BarChart3,
+  AlertTriangle,
 } from "lucide-react";
 import { findGame, setGameVisibility as apiSetGameVisibility } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { PlayModal } from "@/components/play-modal";
+import { HelpButton } from "@/components/help-modal";
 import { cn } from "@/lib/utils";
 import type { GameKind, GameVisibility } from "@/lib/types";
 
@@ -78,7 +81,7 @@ export function BuilderToolbar({
   }, []);
 
   return (
-    <div className={cn("relative flex w-full flex-nowrap items-stretch gap-1", className)}>
+    <div className={cn("relative hidden w-full flex-nowrap items-stretch gap-1 md:flex", className)}>
       <button
         className="btn-ghost hidden flex-1 items-center justify-center gap-2 md:flex md:justify-start"
         onClick={() => setOpenImport(true)}
@@ -176,15 +179,25 @@ export function BuilderSettingsSection({
   onClose?: () => void;
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
-  return (
-    <div className="surface-card animate-fade-up max-h-[calc(100dvh-9rem)] space-y-4 overflow-y-auto p-4 sm:p-6 md:max-h-none md:overflow-visible">
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia("(max-width: 767px)").matches) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  const content = (
+    <>
       {onClose && (
         <div className="flex justify-end">
           <button
             type="button"
             onClick={onClose}
             className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-muted hover:text-foreground"
-            aria-label="Свернуть настройки"
+            aria-label="Закрыть настройки"
           >
             <X className="h-4 w-4" />
           </button>
@@ -203,22 +216,30 @@ export function BuilderSettingsSection({
             />
             {showAdvanced ? "Скрыть расширенные" : "Ещё · расширенные настройки"}
           </button>
-          {showAdvanced && (
-            <div className="mt-3 border-t border-border pt-3">{advancedPanel}</div>
-          )}
+          {showAdvanced && <div className="mt-3 border-t border-border pt-3">{advancedPanel}</div>}
         </div>
       )}
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      <div className="surface-card animate-fade-up hidden space-y-4 p-4 sm:p-6 md:block md:max-h-none md:overflow-visible">{content}</div>
+      <div className="fixed inset-0 z-[70] flex items-end bg-foreground/50 p-0 backdrop-blur-sm md:hidden" role="dialog" aria-modal="true" aria-label="Настройки игры">
+        <div className="max-h-[calc(100dvh-4.5rem)] w-full overflow-y-auto rounded-t-3xl border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-lift">
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
+          {content}
+        </div>
+      </div>
+    </>
   );
 }
 
 export function BuilderGameInfoSection({
   title,
-  onSettings,
   children,
 }: {
   title: string;
-  onSettings: () => void;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(true);
@@ -237,14 +258,6 @@ export function BuilderGameInfoSection({
             <span className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Об игре</span>
             <span className="mt-0.5 block truncate text-sm font-semibold">{title || "Без названия"}</span>
           </span>
-        </button>
-        <button
-          type="button"
-          onClick={onSettings}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border px-2.5 text-xs font-semibold text-muted-foreground hover:bg-surface-muted hover:text-foreground"
-        >
-          <Settings2 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Настройки</span>
         </button>
       </div>
       {open && <div className="space-y-3 p-4 sm:p-6">{children}</div>}
@@ -329,6 +342,18 @@ interface FabsProps {
   onSave: () => string | null | Promise<string | null>;
   onSaveAsCopy: () => string | null | Promise<string | null>;
   onSettings: () => void;
+  onBack?: () => void;
+  onImportFile?: (file: File) => void;
+  onDownloadTemplate?: () => void;
+  onExportExcel?: () => void;
+  onPrint?: (withAnswers: boolean) => void;
+  printAnswers?: boolean;
+  onResults?: () => void;
+  onViewToggle?: () => void;
+  viewLabel?: string;
+  onDelete?: () => void;
+  helpTitle?: string;
+  helpContent?: ReactNode;
   themeAccent?: string;
 }
 
@@ -344,6 +369,18 @@ export function BuilderFabs({
   onSave,
   onSaveAsCopy,
   onSettings,
+  onBack,
+  onImportFile,
+  onDownloadTemplate,
+  onExportExcel,
+  onPrint,
+  printAnswers = true,
+  onResults,
+  onViewToggle,
+  viewLabel,
+  onDelete,
+  helpTitle,
+  helpContent,
   themeAccent,
 }: FabsProps) {
   const { user } = useAuth();
@@ -351,13 +388,14 @@ export function BuilderFabs({
   const [openPlay, setOpenPlay] = useState(false);
   const [visOpen, setVisOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [mobileImportOpen, setMobileImportOpen] = useState(false);
   const [actionState, setActionState] = useState<BuilderSaveState>(saveState);
   const saveRef = useRef<HTMLDivElement>(null);
   const visRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (actionState !== "saving") setActionState(saveState);
-  }, [saveState, actionState]);
+    if (saveState !== "dirty" || actionState !== "error") setActionState(saveState);
+  }, [saveState]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -403,6 +441,14 @@ export function BuilderFabs({
     if (id) setOpenPlay(true);
   };
 
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      window.history.back();
+    }
+  };
+
   const visOptions: Array<{ v: GameVisibility; label: string; Icon: typeof Lock; disabled?: boolean }> = [
     { v: "private", label: "Только я", Icon: Lock },
     { v: "link", label: "По ссылке", Icon: Link2, disabled: !user },
@@ -424,8 +470,13 @@ export function BuilderFabs({
       <div className="fixed inset-x-0 top-16 z-40 border-b border-border bg-surface/95 px-3 py-2 shadow-soft backdrop-blur-md md:hidden">
         <div className="mx-auto flex h-10 max-w-7xl items-center gap-1.5">
           <Link
-            to="/"
-            aria-label="На главную"
+            to="/library"
+            onClick={(event) => {
+              if (!onBack) return;
+              event.preventDefault();
+              handleBack();
+            }}
+            aria-label="Назад"
             className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-surface-muted"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -473,30 +524,61 @@ export function BuilderFabs({
             <MoreHorizontal className="h-4 w-4" />
           </button>
         </div>
-        <div className="mx-auto mt-2 flex max-w-7xl items-center justify-between gap-2 border-t border-border pt-2">
-          <span className="text-[11px] font-semibold text-muted-foreground">Видимость</span>
+        <div className="mx-auto mt-2 flex max-w-7xl justify-end">
           <div className="flex rounded-xl border border-border bg-background p-0.5" role="group" aria-label="Видимость игры">
             <button
               type="button"
               onClick={() => void changeVisibility("private")}
               aria-pressed={!mobilePublic}
-              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold ${!mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold ${!mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
             >
-              <Lock className="h-3.5 w-3.5" /> Приватная
+              <Lock className="h-3.5 w-3.5" /> <span className="sr-only sm:not-sr-only">Приватная</span>
             </button>
             <button
               type="button"
               onClick={() => void changeVisibility("public")}
               disabled={!user}
               aria-pressed={mobilePublic}
-              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold ${mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"} ${!user ? "cursor-not-allowed opacity-50" : ""}`}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold ${mobilePublic ? "bg-primary-soft text-primary" : "text-muted-foreground"} ${!user ? "cursor-not-allowed opacity-50" : ""}`}
             >
-              <Globe className="h-3.5 w-3.5" /> Публичная
+              <Globe className="h-3.5 w-3.5" /> <span className="sr-only sm:not-sr-only">Публичная</span>
             </button>
           </div>
         </div>
         {mobileMoreOpen && (
           <div className="mx-auto mt-2 max-w-7xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">
+            {onImportFile && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMoreOpen(false);
+                  setMobileImportOpen(true);
+                }}
+                className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted"
+              >
+                <Upload className="h-4 w-4 text-primary" /> Импорт
+              </button>
+            )}
+            {onExportExcel && (
+              <button type="button" onClick={() => { setMobileMoreOpen(false); onExportExcel(); }} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted">
+                <FileSpreadsheet className="h-4 w-4 text-primary" /> Экспорт в Excel
+              </button>
+            )}
+            {onPrint && (
+              <button type="button" onClick={() => { setMobileMoreOpen(false); onPrint(printAnswers); }} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted">
+                <Printer className="h-4 w-4 text-primary" /> Печать / PDF
+              </button>
+            )}
+            {onResults && savedId && (
+              <button type="button" onClick={() => { setMobileMoreOpen(false); onResults(); }} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted">
+                <BarChart3 className="h-4 w-4 text-primary" /> Результаты
+              </button>
+            )}
+            {onViewToggle && viewLabel && (
+              <button type="button" onClick={() => { setMobileMoreOpen(false); onViewToggle(); }} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted">
+                <MoreHorizontal className="h-4 w-4 text-primary" /> Вид: {viewLabel}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -507,6 +589,16 @@ export function BuilderFabs({
             >
               <Copy className="h-4 w-4 text-primary" /> Создать копию
             </button>
+            {helpContent && (
+              <HelpButton inline title={helpTitle}>
+                {helpContent}
+              </HelpButton>
+            )}
+            {onDelete && savedId && (
+              <button type="button" onClick={() => { setMobileMoreOpen(false); onDelete(); }} className="flex min-h-11 w-full items-center gap-2 border-t border-border px-3 text-left text-sm text-danger hover:bg-danger-soft">
+                <AlertTriangle className="h-4 w-4" /> Удалить игру
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -548,7 +640,7 @@ export function BuilderFabs({
         <div ref={saveRef} className="relative flex items-stretch rounded-full shadow-lift">
           <button
             type="button"
-            onClick={() => onSave()}
+            onClick={() => void performSave()}
             className="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-white transition-transform hover:scale-[1.02] active:scale-95 sm:px-5 sm:py-3"
             style={{ background: "var(--foreground)" }}
           >
@@ -570,7 +662,7 @@ export function BuilderFabs({
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted"
                 onClick={() => {
                   setOpenSaveMenu(false);
-                  onSaveAsCopy();
+                  void performSave(onSaveAsCopy);
                 }}
               >
                 <Copy className="h-4 w-4 text-primary" /> Сохранить как копию
@@ -591,6 +683,21 @@ export function BuilderFabs({
       </div>
 
 
+      {helpContent && (
+        <div className="hidden md:block">
+          <HelpButton title={helpTitle}>{helpContent}</HelpButton>
+        </div>
+      )}
+      {mobileImportOpen && onImportFile && (
+        <ImportModal
+          onClose={() => setMobileImportOpen(false)}
+          onFile={(file) => {
+            onImportFile(file);
+            setMobileImportOpen(false);
+          }}
+          onDownloadTemplate={onDownloadTemplate ?? (() => undefined)}
+        />
+      )}
       {openPlay && savedId && (
         <PlayModal gameId={savedId} kind={kind} onClose={() => setOpenPlay(false)} />
       )}

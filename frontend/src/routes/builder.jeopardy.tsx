@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Grid3x3,
@@ -9,7 +9,6 @@ import {
   Pencil,
 } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
-import { HelpButton } from "@/components/help-modal";
 import { FormulaButton } from "@/components/formula-popover";
 import { AIHelperButton } from "@/components/ai-helper";
 import { AIJeopardyCategoryButton } from "@/components/ai-jeopardy-category";
@@ -20,8 +19,7 @@ import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
 import { ThemeSelect } from "@/components/theme-select";
 import { newId } from "@/lib/storage";  // генерация id
-import { loadGame } from "@/lib/api";    // загрузка игры с бэкенда
-import { saveGame } from "@/lib/api";
+import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
 import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
@@ -72,6 +70,7 @@ interface ModalTarget {
 
 function BuilderJeopardy() {
   const { id: urlId } = Route.useSearch();
+  const navigate = useNavigate();
   const [config, setConfig] = useState<JeopardyConfig>({
     theme: "amber",
     timeBase: 30,
@@ -273,6 +272,30 @@ function BuilderJeopardy() {
     return id;
   };
 
+  const openResults = async () => {
+    const id = await handleSave();
+    if (id) window.open(`/jeopardy/${id}/results`, "_blank", "noopener");
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    if (urlId) navigate({ to: "/game/$id", params: { id: urlId } });
+    else navigate({ to: "/library" });
+  };
+
+  const handleDelete = async () => {
+    if (!savedId || !window.confirm("Удалить эту игру?")) return;
+    try {
+      await deleteGame("jeopardy", savedId);
+      navigate({ to: "/library" });
+    } catch {
+      showToast("Не удалось удалить игру");
+    }
+  };
+
 
   const handleImport = async (file: File) => {
     try {
@@ -471,13 +494,26 @@ function BuilderJeopardy() {
             onSave={handleSave}
             onSaveAsCopy={handleSaveAsCopy}
             onSettings={() => setShowSettings((s) => !s)}
+            onBack={handleBack}
+            onImportFile={handleImport}
+            onDownloadTemplate={() => downloadExcelTemplate("jeopardy")}
+            onExportExcel={() => exportJeopardyExcel({ config, rounds, final })}
+            onPrint={(withAnswers) => printJeopardy({ config, rounds, final }, { withAnswers })}
+            printAnswers={printAnswers}
+            onResults={openResults}
+            onViewToggle={() => setMode((m) => (m === "list" ? "grid" : "list"))}
+            viewLabel={mode === "list" ? "Плитки" : "Список"}
+            helpTitle="Как пользоваться конструктором Своей игры"
+            helpContent={
+              <>
+                <p><b>Раунды и категории:</b> в раунде несколько категорий, в каждой вопросы разной стоимости.</p>
+                <p><b>Плитки / Список:</b> переключайте вид кнопкой на desktop; на mobile плитки остаются основным режимом.</p>
+                <p><b>Финал:</b> отдельный вопрос со ставками команд.</p>
+                <p><b>Играть:</b> открывает существующий игровой flow.</p>
+              </>
+            }
+            onDelete={handleDelete}
           />
-          <HelpButton title="Как пользоваться конструктором Своей игры">
-            <p><b>Раунды и категории:</b> в раунде — несколько категорий, в каждой 5 вопросов разной стоимости.</p>
-            <p><b>Плитки / Список:</b> переключайте вид кнопкой в тулбаре.</p>
-            <p><b>Финал:</b> отдельный вопрос со ставками команд.</p>
-            <p><b>Играть:</b> открывает плеер в новой вкладке.</p>
-          </HelpButton>
         </>
       }
     >
@@ -498,7 +534,7 @@ function BuilderJeopardy() {
           onClose={() => setShowSettings(false)}
         />
       )}
-      <BuilderGameInfoSection title={config.title ?? ""} onSettings={() => setShowSettings((s) => !s)}>
+      <BuilderGameInfoSection title={config.title ?? ""}>
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
             Название игры

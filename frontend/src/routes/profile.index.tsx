@@ -165,20 +165,34 @@ function ProfilePage() {
           </Link>
         </div>
 
-        <div className="surface-card mt-6 border border-danger/30 p-6">
-          <h2 className="font-display text-lg font-bold text-danger">Удаление аккаунта</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Удалятся аккаунт и созданные игры.</p>
-          <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+        <div className="surface-card mt-6 flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-lg font-bold">Аккаунт</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Управление входом и доступом к разделам.</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:items-end">
+            {user.role === "admin" && (
+              <Link to="/admin" className="btn-ghost justify-center sm:justify-start">
+                Администрирование
+              </Link>
+            )}
             <button
               onClick={async () => {
                 await logout();
                 nav({ to: "/" });
               }}
-              className="btn-ghost justify-center text-danger hover:bg-danger-soft sm:justify-start"
+              className="btn-ghost justify-center sm:justify-start"
             >
               Выйти
             </button>
-            <button className="btn-ghost justify-center text-danger hover:bg-danger-soft sm:justify-start" onClick={async () => {
+          </div>
+        </div>
+
+        <div className="surface-card mt-6 border border-danger/30 p-6">
+          <h2 className="font-display text-lg font-bold text-danger">Удаление аккаунта</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Удалятся аккаунт и созданные игры.</p>
+          <div className="mt-4 flex">
+            <button className="btn-ghost justify-center text-danger hover:bg-danger-soft" onClick={async () => {
               if (!window.confirm("Удалить аккаунт и все созданные игры?")) return;
               await deleteAccount();
               await logout();

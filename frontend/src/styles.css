@@ -286,6 +286,14 @@
   }
 }
 
+@media (max-width: 767px) {
+  input.input-base,
+  textarea.input-base,
+  select.input-base {
+    font-size: 1rem;
+  }
+}
+
 /* ============================================================
    Builder header — "Golden Command Deck"
    ============================================================ */
@@ -476,4 +484,3 @@
   to { transform: translate(-50%, 0); opacity: 1; }
 }
 .animate-slide-up { animation: slide-up 0.3s ease-out both; }
-

@@ -66,12 +66,18 @@ Mobile остаётся компактной responsive-адаптацией т�
 - Jeopardy Builder на narrow screens открывает grid/tile mode по умолчанию; list остаётся доступным вторичным переключателем.
 - Jeopardy question tiles и category actions получили touch-friendly размеры, длинные поля ограничены контейнером, а редактирование открывается в прокручиваемом mobile bottom-sheet.
 - Question editor вынес formula/AI actions из полей на mobile, сделал длинный ответ многострочным и поднят выше bottom navigation через modal safe-area.
+- После mobile pass Builder получил единый compact header: desktop toolbar не дублируется на mobile, AI CTA остаётся заметным, Settings доступен из header, а Import/Export/Copy/Results/Help/Delete собраны в More.
+- В Builder `Об игре` оставлена только для названия, описания и тегов; Settings открывается единственным mobile sheet entry point и сохраняет текущий scroll/unsaved state.
+- Formula panel сохраняет caret и scroll position и восстанавливает focus после закрытия; mobile `input-base` использует 16px, чтобы браузер не применял auto-zoom.
+- Public Library Add защищён от повторного fork: loading/disabled state, явное «Добавлено» и определение существующей копии через `forkedFrom`.
+- Profile получил avatar в mobile bottom nav, отдельный account block с admin entry point и нейтральным Logout; Delete account остался отдельной danger zone.
+- Results «Своей игры» возвращаются в Game Details; mobile top account/burger navigation не возвращалась.
 
 ## Остаётся
 
 - Дальнейшая проверка Library actions и реальных 360–430px screenshots после подключения browser runtime.
-- Более глубокая настройка Builder toolbar/export/settings на mobile.
-- Profile/Admin pass и feedback delivery check.
+- Дальнейшая проверка Builder sheets и Library actions на реальных 360–430px screenshots после подключения browser runtime.
+- Admin redesign, Feedback delivery check и FAQ follow-up.
 
 ## Mobile target
 
