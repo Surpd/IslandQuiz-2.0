@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Trophy, ArrowLeft, ChevronDown, ChevronRight, Check, X } from "lucide-react";
+import { Trophy, ArrowLeft, ChevronDown, ChevronRight, Check, X, RefreshCw } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { getJeopardyResults, loadGame, type JeopardyResult } from "@/lib/api";
 import type { JeopardyData } from "@/lib/types";
@@ -18,6 +18,7 @@ function JeopardyResultsPage() {
   const [results, setResults] = useState<JeopardyResult[]>([]);
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let cancel = false;
@@ -39,7 +40,7 @@ function JeopardyResultsPage() {
     return () => {
       cancel = true;
     };
-  }, [gameId]);
+  }, [gameId, tick]);
 
   const stats = useMemo(() => {
     if (!results.length) return null;
@@ -81,6 +82,9 @@ function JeopardyResultsPage() {
             </h1>
             {game && <p className="mt-2 text-sm text-muted-foreground">{game.config.title}</p>}
           </div>
+          <button className="btn-ghost" onClick={() => setTick((value) => value + 1)}>
+            <RefreshCw className="h-4 w-4" /> Обновить
+          </button>
         </div>
 
         {state === "loading" ? (
@@ -101,13 +105,13 @@ function JeopardyResultsPage() {
           </div>
         ) : (
           <>
-            <div className="mb-6 grid gap-3 sm:grid-cols-3">
+            <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
               <StatCard label="Сыграно игр" value={String(stats?.count ?? 0)} />
               <StatCard label="Топ-команда" value={stats?.topTeam ?? "—"} />
               <StatCard label="Лучший счёт за игру" value={String(stats?.bestScore ?? 0)} />
             </div>
 
-            <div className="surface-card overflow-hidden">
+            <div className="surface-card hidden overflow-hidden md:block">
               <div className="flex items-center gap-2 border-b border-border px-5 py-3">
                 <Trophy className="h-4 w-4 text-amber" />
                 <h2 className="font-display text-base font-bold">Сыгранные игры</h2>
@@ -204,6 +208,46 @@ function JeopardyResultsPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+            <div className="grid gap-2 md:hidden">
+              {results.map((r) => {
+                const winner = r.teams.find((t) => t.id === r.winnerId) ?? null;
+                const isOpen = expanded === r.id;
+                return (
+                  <article key={`mobile-${r.id}`} className="surface-card overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(isOpen ? null : r.id)}
+                      className="w-full p-3 text-left hover:bg-surface-muted/50"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">{r.teams.map((t) => t.name).join(", ")}</p>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">{new Date(r.playedAt).toLocaleString("ru-RU")}</p>
+                        </div>
+                        {isOpen ? <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />}
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                        <div><span className="block text-muted-foreground">Победитель</span><strong className="truncate">{winner?.name ?? "—"}</strong></div>
+                        <div><span className="block text-muted-foreground">Счёт</span><strong>{winner?.score ?? 0}</strong></div>
+                        <div><span className="block text-muted-foreground">Ставка</span><strong>{r.hasFinal ? winner?.finalBet ?? 0 : "—"}</strong></div>
+                      </div>
+                    </button>
+                    {isOpen && (
+                      <div className="border-t border-border bg-surface-muted/40 p-3">
+                        <div className="grid gap-2">
+                          {[...r.teams].sort((a, b) => b.score - a.score).map((team) => (
+                            <div key={team.id} className="rounded-xl border border-border bg-background p-2.5 text-xs">
+                              <div className="flex items-center justify-between gap-2 font-semibold"><span className="truncate">{team.name}</span><span>{team.score}</span></div>
+                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground"><span className="text-success">Верно: {team.correct}</span><span className="text-danger">Неверно: {team.wrong}</span>{r.hasFinal && <span>Ставка: {team.finalBet ?? 0}</span>}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </>
         )}

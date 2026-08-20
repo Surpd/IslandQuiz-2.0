@@ -22,12 +22,12 @@
 4. **Quiz Builder mobile pass** — sticky question navigator, compact question cards and mobile-friendly scrolling. DONE.
 5. **Quiz player mobile polish** — formula panel, длинные ответы и matching/pairs, компактные result stats. DONE.
 6. **Jeopardy builder mobile mode** — tile/grid presentation for narrow screens. DONE.
-7. **Builder mobile action hierarchy** — contextual header, compact settings and secondary action sheets.
-8. **Quiz Builder question navigator** — add-question entry in the existing sticky navigator.
-9. **Builder Game Info/settings** — compact collapsible game information and mobile-safe settings presentation.
-10. **Library final mobile pass** — единая компактная card system и simplified card actions.
-11. **Game Details mobile hierarchy** — Play/Edit/Results primary actions and unified export/rare-actions entry points.
-12. **Results mobile structure** — compact summary, attempt cards and expandable details.
+7. **Builder mobile action hierarchy** — contextual header, compact settings and secondary action sheets. DONE.
+8. **Quiz Builder question navigator** — add-question entry in the existing sticky navigator. DONE.
+9. **Builder Game Info/settings** — compact collapsible game information and mobile-safe settings presentation. DONE.
+10. **Library final mobile pass** — единая компактная card system и simplified card actions. DONE.
+11. **Game Details mobile hierarchy** — Play/Edit/Results primary actions and unified export/rare-actions entry points. DONE.
+12. **Results mobile structure** — compact summary, attempt cards and expandable details. DONE.
 13. **Profile + Join mobile polish** — stacked profile actions and Join navigation/layout.
 14. **Admin usability** — search users/games и понятное отображение ban/status.
 15. **Admin AI lab** — привести limits/logs/test UI к понятным состояниям.
@@ -54,6 +54,9 @@ Mobile остаётся компактной responsive-адаптацией т�
 - Settings panel на mobile ограничен viewport по высоте и прокручивается внутри, desktop presentation сохранена.
 - Library cards получили mobile-compact variant: один layout для всех tabs, type icon, title/summary, 1–2 tags +N, rating/plays и Play/Add actions; Edit/⋯ остаются desktop/Details actions.
 - Game Details получили mobile hierarchy Play/Edit + compact results entry, единую Export/Share sheet и один More sheet для Copy/Delete; существующие export, fork, delete, rating, showAnswers и content flows сохранены.
+- Results routes получили compact 2-column summary на mobile и vertical attempt cards с tap-to-expand детализацией; desktop tables оставлены без изменений.
+- Millionaire results используют тот же mobile card pattern с результатом, уровнем, несгораемой суммой и существующим answer detail.
+- Jeopardy results показывают mobile cards по игре и team summary; question-level scoring не придуман поверх существующей team/score модели, desktop detail table сохранена.
 - Убран дублирующий footer на главной: теперь footer рендерится только из root layout.
 - Builder floating actions подняты выше mobile navigation.
 - Formula panel, длинные ответы, matching/pairs и result stats получили первый mobile polish slice.

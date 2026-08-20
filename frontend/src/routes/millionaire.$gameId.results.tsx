@@ -98,7 +98,7 @@ function MillionaireResultsPage() {
 
         {results.length > 0 ? (
           <>
-            <div className="mb-6 grid gap-3 sm:grid-cols-4">
+            <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
               <StatCard label="Всего игр" value={String(stats.count)} />
               <StatCard label="Лучший" value={fmtMoney(stats.best)} />
               <StatCard label="Средний" value={fmtMoney(stats.avg)} />
@@ -108,7 +108,7 @@ function MillionaireResultsPage() {
               />
             </div>
 
-            <div className="surface-card overflow-hidden">
+            <div className="surface-card hidden overflow-hidden md:block">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -209,6 +209,36 @@ function MillionaireResultsPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+            <div className="grid gap-2 md:hidden">
+              {results.map((r) => {
+                const isOpen = expanded === r.id;
+                const won = r.outcome === "won";
+                return (
+                  <article key={`mobile-${r.id}`} className={`surface-card overflow-hidden ${won ? "border-success/40" : ""}`}>
+                    <button
+                      type="button"
+                      onClick={() => setExpanded((p) => (p === r.id ? null : r.id))}
+                      className="w-full p-3 text-left hover:bg-surface-muted/50"
+                    >
+                      <div className="flex items-start gap-2">
+                        <Avatar name={r.playerName} avatar={r.avatar} size={28} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">{r.playerName}</p>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">{new Date(r.finishedAt).toLocaleString("ru-RU")} · {fmtTime(r.timeSec)}</p>
+                        </div>
+                        <ChevronRight className={`mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                        <div><span className="block text-muted-foreground">Результат</span><strong className={won ? "text-success" : r.wonAmount === 0 ? "text-danger" : ""}>{fmtMoney(r.wonAmount)}</strong></div>
+                        <div><span className="block text-muted-foreground">Уровень</span><strong>{r.reachedCount}/{r.totalQuestions}</strong></div>
+                        <div><span className="block text-muted-foreground">Несгораемая</span><strong>{fmtMoney(r.guaranteedAmount)}</strong></div>
+                      </div>
+                    </button>
+                    {isOpen && <div className="border-t border-border bg-surface-muted/40 p-3"><AnswerDetails result={r} /></div>}
+                  </article>
+                );
+              })}
             </div>
           </>
         ) : (
