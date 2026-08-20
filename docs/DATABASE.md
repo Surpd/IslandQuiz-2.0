@@ -193,6 +193,24 @@ RLS disabled; no policies or non-PK indexes.
 
 RLS disabled; no policies.
 
+### tags (Tag System v1)
+
+| Column | Type | Nullable | Default | Key |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| name | text | no | — | |
+| canonical_name | text | no | — | UNIQUE |
+| is_system | boolean | no | `false` | |
+| created_at | timestamptz | no | `now()` | |
+| updated_at | timestamptz | no | `now()` | |
+
+The migration `supabase/migrations/20260820000000_tag_system_v1.sql` adds the
+dictionary. Games continue to store the compatibility `tags` jsonb array; the
+backend normalizes writes and maintains dictionary rows. Existing game rows are
+not rewritten automatically; the admin `import-legacy` operation safely seeds
+dictionary rows from them, while `normalize-legacy` provides a dry-run/apply
+path that skips invalid or over-limit games instead of silently dropping data.
+
 ### password_resets
 
 | Column | Type | Nullable | Default | Key |

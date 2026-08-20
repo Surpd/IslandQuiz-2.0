@@ -1,20 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Tag as TagIcon } from "lucide-react";
-
-export const TAG_PRESETS = [
-  // Предметы
-  "Математика", "История", "Биология", "Физика", "Химия", "Литература",
-  "География", "Языки", "Информатика", "Обществознание", "Искусство", "Музыка",
-  // Классы
-  "1 класс", "2 класс", "3 класс", "4 класс", "5 класс", "6 класс", "7 класс",
-  "8 класс", "9 класс", "10 класс", "11 класс", "ВУЗ", "Взрослые",
-  // Сложность
-  "Лёгкий", "Средний", "Сложный",
-  // Форматы
-  "Тест", "Экзамен", "Повторение", "Разминка",
-];
-
-const SUGGESTED = ["Математика", "История", "5 класс", "Лёгкий", "Разминка", "Тест"];
+import { Tag as TagIcon, X } from "lucide-react";
+import { getTagSuggestions } from "@/lib/api";
+import {
+  canonicalTag,
+  MAX_GAME_TAGS,
+  MAX_TAG_LENGTH,
+  normalizeTag,
+  sameTag,
+  type TagSuggestion,
+} from "@/lib/tags";
 
 interface Props {
   value: string[];
@@ -22,52 +16,90 @@ interface Props {
   placeholder?: string;
 }
 
-export function TagInput({ value, onChange, placeholder = "Добавьте тег и нажмите Enter" }: Props) {
+export function TagInput({ value, onChange, placeholder = "Добавьте тег" }: Props) {
   const [text, setText] = useState("");
-  const [focus, setFocus] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setFocus(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
+    if (!focused) return;
+    const controller = new AbortController();
+    setLoading(true);
+    getTagSuggestions(text.trim(), 12, controller.signal)
+      .then(setSuggestions)
+      .catch((reason: unknown) => {
+        if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+          setSuggestions([]);
+        }
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [focused, text]);
+
+  const visibleSuggestions = useMemo(
+    () => suggestions.filter((suggestion) => !value.some((tag) => sameTag(tag, suggestion.name))),
+    [suggestions, value],
+  );
+  const tagValidationMessage = useMemo(() => {
+    if (!text) return null;
+    try {
+      normalizeTag(text);
+      return null;
+    } catch (reason) {
+      return reason instanceof Error ? reason.message : "Некорректный тег.";
+    }
+  }, [text]);
+  const normalizedText = useMemo(() => {
+    if (!text.trim() || tagValidationMessage) return null;
+    return normalizeTag(text);
+  }, [tagValidationMessage, text]);
+  const hasExactSuggestion = normalizedText
+    ? suggestions.some((suggestion) => sameTag(suggestion.name, normalizedText))
+    : false;
+  const canCreate = Boolean(normalizedText && !hasExactSuggestion && value.length < MAX_GAME_TAGS);
+  const optionsCount = visibleSuggestions.length + (canCreate ? 1 : 0);
 
   const add = (raw: string) => {
-    const t = raw.trim().slice(0, 30);
-    if (!t) return;
-    if (value.some((v) => v.toLowerCase() === t.toLowerCase())) return;
-    onChange([...value, t]);
-    setText("");
+    try {
+      const tag = normalizeTag(raw);
+      if (value.length >= MAX_GAME_TAGS) {
+        setError("У игры может быть не больше 5 тегов.");
+        return;
+      }
+      if (value.some((item) => canonicalTag(item) === canonicalTag(tag))) {
+        setError("Этот тег уже выбран.");
+        return;
+      }
+      onChange([...value, tag]);
+      setText("");
+      setError(null);
+      setActiveIndex(-1);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Некорректный тег.");
+    }
   };
 
-  const remove = (t: string) => onChange(value.filter((v) => v !== t));
-
-  const suggestions = useMemo(() => {
-    const q = text.trim().toLowerCase();
-    const base = q
-      ? TAG_PRESETS.filter((p) => p.toLowerCase().includes(q))
-      : SUGGESTED;
-    return base.filter((p) => !value.some((v) => v.toLowerCase() === p.toLowerCase())).slice(0, 10);
-  }, [text, value]);
+  const remove = (tag: string) => onChange(value.filter((item) => item !== tag));
 
   return (
-    <div ref={boxRef} className="relative">
-      <div className="input-base flex flex-wrap items-center gap-1.5 py-2">
-        <TagIcon className="h-3.5 w-3.5 text-muted-foreground" />
-        {value.map((t) => (
+    <div ref={boxRef} className="relative min-w-0">
+      <div className="input-base flex min-w-0 flex-wrap items-center gap-1.5 py-2">
+        <TagIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        {value.map((tag) => (
           <span
-            key={t}
-            className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary"
+            key={tag}
+            className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary"
           >
-            {t}
+            <span className="truncate">{tag}</span>
             <button
               type="button"
-              onClick={() => remove(t)}
-              className="rounded-full opacity-60 hover:opacity-100"
-              aria-label={`Убрать тег ${t}`}
+              onClick={() => remove(tag)}
+              className="shrink-0 rounded-full opacity-60 hover:opacity-100"
+              aria-label={`Убрать тег ${tag}`}
             >
               <X className="h-3 w-3" />
             </button>
@@ -75,39 +107,84 @@ export function TagInput({ value, onChange, placeholder = "Добавьте те
         ))}
         <input
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          onFocus={() => setFocus(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              add(text);
-            } else if (e.key === "Backspace" && !text && value.length) {
+          onChange={(event) => {
+            setText(event.target.value);
+            setFocused(true);
+            setError(null);
+            setActiveIndex(-1);
+          }}
+          onFocus={() => setFocused(true)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" && optionsCount) {
+              event.preventDefault();
+              setActiveIndex((index) => (index + 1) % optionsCount);
+            } else if (event.key === "ArrowUp" && optionsCount) {
+              event.preventDefault();
+              setActiveIndex((index) => (index <= 0 ? optionsCount - 1 : index - 1));
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              if (activeIndex >= 0 && activeIndex < visibleSuggestions.length)
+                add(visibleSuggestions[activeIndex].name);
+              else if (activeIndex === visibleSuggestions.length && canCreate) add(text);
+              else add(text);
+            } else if (event.key === "Escape") {
+              setFocused(false);
+              setActiveIndex(-1);
+            } else if (event.key === "Backspace" && !text && value.length)
               remove(value[value.length - 1]);
-            }
           }}
           placeholder={value.length ? "" : placeholder}
+          aria-label="Добавить тег"
           className="min-w-[10ch] flex-1 border-0 bg-transparent p-0 text-sm outline-none focus:ring-0"
         />
       </div>
-      {focus && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-auto rounded-xl border border-border bg-surface p-2 shadow-lift">
+      <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+        <span>
+          {error ||
+            tagValidationMessage ||
+            (value.length >= MAX_GAME_TAGS ? "Достигнут максимум: 5 тегов." : "")}
+        </span>
+        {text.length > MAX_TAG_LENGTH && (
+          <span>
+            {text.length}/{MAX_TAG_LENGTH}
+          </span>
+        )}
+      </div>
+      {focused && (visibleSuggestions.length > 0 || canCreate || loading) && (
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 min-w-0 rounded-xl border border-border bg-surface p-2 shadow-lift">
           <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {text.trim() ? "Подсказки" : "Часто используемые"}
+            {text.trim() ? "Подсказки" : "Популярные теги"}
           </p>
-          <div className="flex flex-wrap gap-1">
-            {suggestions.map((s) => (
+          <div className="flex max-w-full flex-nowrap gap-1 overflow-x-auto pb-1">
+            {visibleSuggestions.map((suggestion, index) => (
               <button
-                key={s}
+                key={suggestion.id ?? suggestion.name}
                 type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  add(s);
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  add(suggestion.name);
                 }}
-                className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${activeIndex === index ? "bg-primary text-primary-foreground" : "bg-surface-muted text-muted-foreground hover:bg-primary-soft hover:text-primary"}`}
               >
-                + {s}
+                {suggestion.name}
+                {suggestion.is_system ? " ·" : ""}
               </button>
             ))}
+            {canCreate && (
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  add(text);
+                }}
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${activeIndex === visibleSuggestions.length ? "bg-primary text-primary-foreground" : "bg-primary-soft text-primary"}`}
+              >
+                + Создать «{normalizedText}»
+              </button>
+            )}
+            {loading && (
+              <span className="shrink-0 px-2 py-1 text-xs text-muted-foreground">Загрузка…</span>
+            )}
           </div>
         </div>
       )}

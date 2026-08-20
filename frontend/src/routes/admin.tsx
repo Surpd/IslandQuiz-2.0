@@ -13,10 +13,12 @@ import {
   Settings2,
   Shield,
   Sparkles,
+  Tags as TagsIcon,
   Trash2,
   Users,
   X,
 } from "lucide-react";
+import { AdminTagsWorkspace } from "@/components/admin-tags";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/api";
@@ -26,7 +28,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Section = "overview" | "games" | "users" | "ai" | "prompts" | "errors" | "settings";
+type Section = "overview" | "games" | "tags" | "users" | "ai" | "prompts" | "errors" | "settings";
 type Period = "7d" | "30d" | "90d" | "all";
 type Game = Record<string, unknown> & {
   id: string;
@@ -101,7 +103,13 @@ const sectionGroups: Array<{
   items: Array<{ key: Section; label: string; icon: typeof BarChart3 }>;
 }> = [
   { items: [{ key: "overview", label: "Обзор", icon: BarChart3 }] },
-  { title: "Контент", items: [{ key: "games", label: "Игры", icon: Gamepad2 }] },
+  {
+    title: "Контент",
+    items: [
+      { key: "games", label: "Игры", icon: Gamepad2 },
+      { key: "tags", label: "Теги", icon: TagsIcon },
+    ],
+  },
   { title: "Пользователи", items: [{ key: "users", label: "Пользователи", icon: Users }] },
   {
     title: "AI",
@@ -150,6 +158,7 @@ function AdminPage() {
           <section className="min-w-0">
             {section === "overview" && <Overview />}
             {section === "games" && <GamesWorkspace />}
+            {section === "tags" && <AdminTagsWorkspace />}
             {section === "users" && <UsersWorkspace currentUserId={user.id} />}
             {section === "ai" && <AIDashboard />}
             {section === "prompts" && <PromptTester />}
