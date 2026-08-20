@@ -37,6 +37,7 @@ from services.ai_validator import (
 
 from limiter import limiter
 from database import supabase
+from services.role_limits import get_user_limit
 
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -95,7 +96,11 @@ AI_TIMEOUT = 60.0
 # AI CLIENT
 # ============================================================
 
-async def call_openai(prompt: str) -> str:
+async def call_openai(
+    prompt: str,
+    model: str | None = None,
+    temperature: float = 0.7,
+) -> str:
     """
     Несмотря на название, используется Groq API
     через OpenAI-compatible endpoint.
@@ -106,6 +111,8 @@ async def call_openai(prompt: str) -> str:
 
     Никаких повторных AI-запросов здесь нет.
     """
+
+    selected_model = model or AI_MODEL
 
     if not OPENAI_API_KEY:
         return json.dumps({
@@ -127,14 +134,14 @@ async def call_openai(prompt: str) -> str:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": AI_MODEL,
+                    "model": selected_model,
                     "messages": [
                         {
                             "role": "user",
                             "content": prompt,
                         }
                     ],
-                    "temperature": 0.7,
+                    "temperature": temperature,
                     "response_format": {
                         "type": "json_object",
                     },
@@ -159,7 +166,7 @@ async def call_openai(prompt: str) -> str:
                 if provider_code == "model_not_found":
                     print(
                         "[AI] Groq model unavailable:",
-                        AI_MODEL,
+                        selected_model,
                     )
                     return json.dumps({
                         "error": (
@@ -568,6 +575,7 @@ def is_ai_error(result) -> bool:
 
 def get_today_ai_count(
     user_id: str,
+    request_type: str | None = None,
 ) -> int:
 
     today = datetime.utcnow().strftime(
@@ -590,6 +598,8 @@ def get_today_ai_count(
             today,
         )
     )
+    if request_type:
+        query = query.eq("request_type", request_type)
     return _db_count(query)
 
 
@@ -606,51 +616,37 @@ def increment_ai_count(
     }))
 
 
-def check_ai_limit(user):
+def check_ai_limit(user, request_type: str = "ai_request"):
 
     if not user:
         return
 
-    role = user.get(
-        "role",
-        "user",
+    limit_key = (
+        "ai_file_generations_per_day"
+        if request_type == "ai_file_request"
+        else "ai_generations_per_day"
     )
-
-    if role == "admin":
-        return
-
-    plan = user.get(
-        "plan",
-        "free",
-    )
-
-    limits = {
-        "free": 10,
-        "premium": 100,
-    }
-
-    daily_limit = limits.get(
-        plan,
-        10,
-    )
+    daily_limit = get_user_limit(user, limit_key)
+    if daily_limit is None:
+        return None
 
     count = get_today_ai_count(
-        user["id"]
+        user["id"],
+        request_type,
     )
 
     if count >= daily_limit:
 
         return ai_client_error(
             "Лимит AI-запросов исчерпан "
-            f"({daily_limit}/день). "
-            "Повысьте тариф до Premium.",
+            f"({daily_limit}/день).",
             "ai_daily_limit_exceeded",
             429,
         )
 
     increment_ai_count(
         user["id"],
-        "ai_request",
+        request_type,
     )
     return None
 
@@ -1165,7 +1161,7 @@ async def generate_from_file(
     user=Depends(get_current_user),
 ):
 
-    limit_error = check_ai_limit(user)
+    limit_error = check_ai_limit(user, "ai_file_request")
     if limit_error:
         return limit_error
 
@@ -1175,9 +1171,10 @@ async def generate_from_file(
 
     content = await file.read()
 
-    if len(content) > 10 * 1024 * 1024:
+    max_file_size = get_user_limit(user, "ai_upload_bytes")
+    if max_file_size is not None and len(content) > max_file_size:
         return ai_client_error(
-            "Файл слишком большой. Максимальный размер: 10 МБ.",
+            "Файл слишком большой. Превышен допустимый размер для AI-генерации.",
             "file_too_large",
         )
 

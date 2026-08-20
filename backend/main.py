@@ -20,6 +20,7 @@ from routes.rooms import router as rooms_router
 from routes.admin import router as admin_router
 from routes.feedback import router as feedback_router
 from routes.telegram_auth import router as telegram_auth_router
+from services.error_logging import persist_error_log
 
 
 app = FastAPI(title="IslandQuiz API", version="1.0.0")
@@ -61,6 +62,14 @@ async def add_request_id_and_log_failures(request: Request, call_next):
             round((time.perf_counter() - started_at) * 1000),
             type(error).__name__,
         )
+        persist_error_log(
+            "Необработанная ошибка приложения",
+            request.scope.get("route").path if request.scope.get("route") else "unknown",
+            source="backend",
+            details=type(error).__name__,
+            request_id=request_id,
+            status=500,
+        )
         return PlainTextResponse("Internal Server Error", status_code=500, headers={"X-Request-ID": request_id})
 
     response.headers["X-Request-ID"] = request_id
@@ -73,6 +82,13 @@ async def add_request_id_and_log_failures(request: Request, call_next):
             route.path if route else "unknown",
             response.status_code,
             round((time.perf_counter() - started_at) * 1000),
+        )
+        persist_error_log(
+            "Ошибка HTTP-сервера",
+            route.path if route else "unknown",
+            source="backend",
+            request_id=request_id,
+            status=response.status_code,
         )
     return response
 

@@ -7,6 +7,7 @@ from pydantic import BaseModel, field_validator
 
 from database import supabase
 from routes.auth import get_current_user, get_current_user_optional
+from services.role_limits import get_user_limit
 
 router = APIRouter(prefix="/api/games", tags=["games"])
 
@@ -112,6 +113,24 @@ def _attach_play_counts(games: list[dict]) -> list[dict]:
     return games
 
 
+def _enforce_game_limits(user: dict, visibility: str, *, creating: bool, was_public: bool = False) -> None:
+    if creating:
+        total_limit = get_user_limit(user, "saved_games")
+        if total_limit is not None:
+            total = _db_count(supabase.table("games").select("id", count="exact").eq("owner_id", user["id"]))
+            if total >= total_limit:
+                raise HTTPException(status_code=429, detail="Вы достигли лимита сохранённых игр.")
+
+    if visibility == "public" and (creating or not was_public):
+        public_limit = get_user_limit(user, "public_games")
+        if public_limit is not None:
+            total = _db_count(
+                supabase.table("games").select("id", count="exact").eq("owner_id", user["id"]).eq("visibility", "public")
+            )
+            if total >= public_limit:
+                raise HTTPException(status_code=429, detail="Вы достигли лимита публичных игр.")
+
+
 @router.post("/", response_model=dict)
 def save_game(input: SaveGameInput, user=Depends(get_current_user)):
     game_id = input.id or str(uuid.uuid4())
@@ -129,16 +148,24 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         if input.visibility is not None:
+            _enforce_game_limits(
+                user,
+                input.visibility,
+                creating=False,
+                was_public=existing.get("visibility") == "public",
+            )
             update["visibility"] = input.visibility
         _db_rows(supabase.table("games").update(update).eq("id", game_id))
     else:
+        visibility = input.visibility or "private"
+        _enforce_game_limits(user, visibility, creating=True)
         _db_rows(supabase.table("games").insert({
             "id": game_id,
             "kind": input.kind,
             "data": input.data,
             "owner_id": user["id"] if user else None,
             "owner_name": user["name"] if user else None,
-            "visibility": input.visibility or ("private" if user else "link"),
+            "visibility": visibility,
         }))
 
     return {"id": game_id, "play_url": f"/play/{input.kind}/{game_id}"}
