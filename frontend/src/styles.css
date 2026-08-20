@@ -329,12 +329,15 @@
   .formula-panel {
     top: auto !important;
     left: 0 !important;
-    bottom: calc(4rem + env(safe-area-inset-bottom)) !important;
+    bottom: 0 !important;
     width: 100% !important;
     max-width: none !important;
-    max-height: min(22rem, calc(100dvh - 11rem)) !important;
-    border-radius: 1.25rem 1.25rem 0 0;
-    padding: 0.625rem;
+    height: min(42dvh, 22.5rem) !important;
+    max-height: 45dvh !important;
+    border-radius: 1rem 1rem 0 0;
+    border-bottom: 0;
+    padding: 0.5rem 0.625rem calc(0.5rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 24px -18px rgb(15 23 42 / 0.45);
   }
 }
 
