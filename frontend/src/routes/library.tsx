@@ -16,6 +16,7 @@ import {
   Trophy,
   MoreHorizontal,
   Pencil,
+  Check,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { PlayModal } from "@/components/play-modal";
@@ -152,6 +153,11 @@ function LibraryPage() {
     }
     return list;
   }, [tabFiltered, search, selectedTags, sortBy]);
+
+  const addedSourceIds = useMemo(
+    () => new Set((games ?? []).filter((g) => g.ownerId === user?.id && g.forkedFrom).map((g) => g.forkedFrom as string)),
+    [games, user],
+  );
 
 
   const onBind = async () => {
@@ -299,6 +305,7 @@ function LibraryPage() {
                 key={`${g.kind}-${g.id}`}
                 g={g}
                 tab={activeTab}
+                alreadyAdded={addedSourceIds.has(g.id)}
                 onPlay={() => setPlayModal({ id: g.id, kind: g.kind })}
                 onForked={() => {
                   showToast("Игра добавлена в «Мои»");
@@ -330,17 +337,21 @@ function LibraryPage() {
 function GameCard({
   g,
   tab,
+  alreadyAdded,
   onPlay,
   onForked,
 }: {
   g: StoredGame;
   tab: TabKey;
+  alreadyAdded: boolean;
   onPlay: () => void;
   onForked: () => void;
 }) {
   const { user, forkGame } = useAuth();
   const nav = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [forking, setForking] = useState(false);
+  const [added, setAdded] = useState(alreadyAdded);
   const Icon = KIND_ICON[g.kind] ?? FileText;
   const VisIcon = g.visibility === "public" ? Globe : g.visibility === "link" ? Link2 : Lock;
   const isMine = user && g.ownerId === user.id;
@@ -349,8 +360,16 @@ function GameCard({
   const doFork = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    await forkGame(g.id);
-    onForked();
+    if (forking || added) return;
+    setForking(true);
+    try {
+      const copy = await forkGame(g.id);
+      if (!copy) return;
+      setAdded(true);
+      onForked();
+    } finally {
+      setForking(false);
+    }
   };
 
   const openPlay = (e: React.MouseEvent) => {
@@ -442,9 +461,13 @@ function GameCard({
         {tab === "public" && user && (
           <button
             onClick={doFork}
-            className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
+            disabled={forking || added}
+            className={`ml-auto inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+              added ? "cursor-default bg-success-soft text-success" : "bg-primary-soft text-primary hover:bg-primary/20"
+            } ${forking ? "cursor-wait opacity-70" : ""}`}
           >
-            <UserPlus className="h-3 w-3" /> Добавить
+            {added ? <Check className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
+            {forking ? "Добавляем…" : added ? "Добавлено" : "Добавить"}
           </button>
         )}
         <button
