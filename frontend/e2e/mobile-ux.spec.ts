@@ -22,7 +22,11 @@ test("mobile builders hide promo hero and keep quiz formula palette in viewport"
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(390);
-  expect(box!.height).toBeLessThan(500);
+  expect(box!.height).toBeLessThanOrEqual(380);
+  const questionField = page.getByPlaceholder(/Текст вопроса/).first();
+  const questionBox = await questionField.boundingBox();
+  expect(questionBox).not.toBeNull();
+  expect(questionBox!.y + questionBox!.height).toBeLessThanOrEqual(box!.y + 2);
   await palette.getByRole("button", { name: "Готово" }).click();
   const answer = page.getByPlaceholder("Вариант A").first();
   const answerButton = page.getByRole("button", { name: "Вставить формулу" }).nth(1);
@@ -36,6 +40,18 @@ test("mobile builders hide promo hero and keep quiz formula palette in viewport"
   await expect(answer).toHaveValue(/x/);
   await palette.getByRole("button", { name: "Готово" }).click();
   await expect(answer).toBeFocused();
+  const answerB = page.getByPlaceholder("Вариант B").first();
+  await page.getByRole("button", { name: "Вставить формулу" }).nth(2).click();
+  await expect(palette).toBeVisible();
+  const answerBBox = await answerB.boundingBox();
+  const answerPaletteBox = await palette.boundingBox();
+  expect(answerBBox).not.toBeNull();
+  expect(answerPaletteBox).not.toBeNull();
+  expect(answerBBox!.y + answerBBox!.height).toBeLessThanOrEqual(answerPaletteBox!.y + 2);
+  await palette.getByRole("button", { name: "√" }).click();
+  await expect(answerB).toHaveValue(/sqrt/);
+  await palette.getByRole("button", { name: "Готово" }).click();
+  await expect(answerB).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
@@ -52,6 +68,22 @@ test("quiz question navigator stays below the mobile builder header", async ({ p
   expect(headerBox).not.toBeNull();
   expect(navigatorBox).not.toBeNull();
   expect(navigatorBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
+});
+
+test("formula keyboard stays compact at 360px and 430px", async ({ page }) => {
+  for (const width of [360, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/builder/quiz");
+    await page.waitForTimeout(800);
+    await page.getByRole("button", { name: "Вставить формулу" }).first().click();
+    const keyboard = page.getByTestId("formula-palette");
+    await expect(keyboard).toBeVisible();
+    const box = await keyboard.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBe(width);
+    expect(box!.height).toBeLessThanOrEqual(380);
+    await keyboard.getByRole("button", { name: "Готово" }).click();
+  }
 });
 
 test("ordinary mobile pages keep nav while immersive runtime hides it", async ({ page }) => {

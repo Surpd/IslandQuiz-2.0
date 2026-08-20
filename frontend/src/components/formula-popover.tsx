@@ -126,10 +126,27 @@ export function FormulaButton({
     setPosition({ top, left, width });
   };
 
+  const keepFieldAboveKeyboard = () => {
+    const el = inputRef.current;
+    if (!el || !window.matchMedia("(max-width: 767px)").matches) return;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const keyboardHeight = Math.min(360, Math.max(220, viewportHeight * 0.42));
+    const visibleBottom = viewportHeight - keyboardHeight - 10;
+    const rect = el.getBoundingClientRect();
+    if (rect.bottom > visibleBottom) {
+      window.scrollBy({ top: rect.bottom - visibleBottom, behavior: "auto" });
+    } else if (rect.top < 96) {
+      window.scrollBy({ top: rect.top - 96, behavior: "auto" });
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
     positionPanel();
-    const onViewportChange = () => positionPanel();
+    const onViewportChange = () => {
+      positionPanel();
+      keepFieldAboveKeyboard();
+    };
     const onDoc = (e: MouseEvent) => {
       if (!popRef.current) return;
       if (!popRef.current.contains(e.target as Node)) closePanel();
@@ -158,30 +175,33 @@ export function FormulaButton({
       end: el?.selectionEnd ?? value.length,
       scrollY: window.scrollY,
     };
+    el?.blur();
     positionPanel();
     setOpen(true);
     if (window.matchMedia("(max-width: 767px)").matches && el) {
       requestAnimationFrame(() => {
-        const sheetHeight = Math.min(352, Math.max(200, window.innerHeight - 176));
-        const visibleBottom = window.innerHeight - sheetHeight - 16;
-        const rect = el.getBoundingClientRect();
-        window.scrollBy({ top: rect.bottom - visibleBottom, behavior: "auto" });
+        keepFieldAboveKeyboard();
       });
     }
   };
 
   const insert = (tpl: Template) => {
     const el = inputRef.current;
-    const start = el?.selectionStart ?? value.length;
-    const end = el?.selectionEnd ?? value.length;
+    const savedSelection = restoreRef.current;
+    const start = savedSelection?.start ?? el?.selectionStart ?? value.length;
+    const end = savedSelection?.end ?? el?.selectionEnd ?? value.length;
     const next = value.slice(0, start) + tpl.insert + value.slice(end);
     previousValueRef.current = value;
     onChange(next);
-    // Restore focus & caret after React updates the DOM value.
+    const caret = start + tpl.insert.length - (tpl.caret ?? 0);
+    restoreRef.current = {
+      start: caret,
+      end: caret,
+      scrollY: restoreRef.current?.scrollY ?? window.scrollY,
+    };
+    // Keep the native keyboard closed while Formula Keyboard is active.
     requestAnimationFrame(() => {
       if (!el) return;
-      el.focus();
-      const caret = start + tpl.insert.length - (tpl.caret ?? 0);
       try {
         el.setSelectionRange(caret, caret);
       } catch {
