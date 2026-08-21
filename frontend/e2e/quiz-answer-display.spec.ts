@@ -17,6 +17,20 @@ test("Quiz results format correct and user answers without mobile overflow", asy
 
   await page.route(`${apiOrigin}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/games/results-display/play") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "results-display",
+          kind: "quiz",
+          data: {
+            config: { title: "Results Display", description: "", theme: "amber", orderMode: "sequential", showResult: "end", defaultTime: 30, totalTime: 10 },
+            questions,
+          },
+        }),
+      });
+    }
     if (path === "/api/games/results-display") {
       return route.fulfill({
         status: 200,

@@ -91,6 +91,13 @@ async function installDeterministicApi(context: BrowserContext) {
     if (request.method() === "GET" && path.startsWith("/api/games/") && path !== "/api/games/") {
       return json(route, savedGame);
     }
+    if (request.method() === "POST" && path.endsWith("/play-snapshot")) {
+      return json(route, {
+        data: savedGame.data,
+        version: "e2e-version",
+        snapshotToken: "e2e-snapshot-token",
+      });
+    }
     if (request.method() === "GET" && path === "/api/games/") {
       return json(route, { games: [savedGame], total: 1, limit: 100, offset: 0 });
     }
@@ -111,11 +118,10 @@ async function installDeterministicApi(context: BrowserContext) {
 test("login, save, reopen, and play a quiz", async ({ page }) => {
   await installDeterministicApi(page.context());
 
-  await page.goto("/login");
-  await page.waitForTimeout(1_000);
+  await page.goto("/login", { waitUntil: "networkidle" });
   await page.getByLabel("Email").fill(user.email);
   await page.getByRole("textbox", { name: /Пароль/ }).fill("e2e-password");
-  await page.locator("form").evaluate((form) => form.requestSubmit());
+  await page.getByRole("button", { name: "Войти", exact: true }).click();
   await expect(page).toHaveURL(/\/library$/);
   await expect(page.getByRole("heading", { name: "Игры" })).toBeVisible();
 
@@ -137,7 +143,10 @@ test("login, save, reopen, and play a quiz", async ({ page }) => {
   await expect(page).toHaveURL(/\/game\/[^/]+$/);
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
 
-  await page.getByRole("link", { name: /Редактировать/ }).click();
+  await page.waitForLoadState("networkidle");
+  const editLink = page.getByRole("link", { name: /Редактировать/ });
+  await expect(editLink).toBeVisible();
+  await editLink.click();
   await expect(page).toHaveURL(/\/builder\/quiz\?id=[^&]+$/);
   await expect(page.getByPlaceholder("Название квиза")).toHaveValue(title);
 
