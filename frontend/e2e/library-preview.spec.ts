@@ -34,6 +34,63 @@ test("Library preview respects show_answers and renders all game kinds", async (
               points: 100,
               time: 30,
             },
+            {
+              id: "q2",
+              type: "bool",
+              q: "Земля круглая?",
+              options: [],
+              answer: "true",
+              points: 100,
+              time: 30,
+            },
+            {
+              id: "q3",
+              type: "text",
+              q: "Столица Исландии?",
+              options: [],
+              answer: "Рейкьявик, Reykjavik",
+              points: 100,
+              time: 30,
+            },
+            {
+              id: "q4",
+              type: "matching",
+              q: "Сопоставьте вулканы и страны",
+              options: [],
+              answer: JSON.stringify([
+                { left: "Везувий", right: "Италия" },
+                { left: "Фьорды", right: "Норвегия" },
+              ]),
+              points: 100,
+              time: 30,
+            },
+            {
+              id: "q5",
+              type: "ordering",
+              q: "Порядок стран",
+              options: [],
+              answer: JSON.stringify(["Португалия", "Франция", "Австрия", "Венгрия"]),
+              points: 100,
+              time: 30,
+            },
+            {
+              id: "q6",
+              type: "close",
+              q: "Кровь переносит кислород ___ и ___",
+              options: [],
+              answer: JSON.stringify(["эритроцитами", "гемоглобин"]),
+              points: 100,
+              time: 30,
+            },
+            {
+              id: "q7",
+              type: "ordering",
+              q: "Повреждённый ответ",
+              options: [],
+              answer: "[malformed",
+              points: 100,
+              time: 30,
+            },
           ],
         },
         visibility: "public",
@@ -115,7 +172,7 @@ test("Library preview respects show_answers and renders all game kinds", async (
   await expect(dialog.getByText("Описание quiz")).toBeVisible();
   await expect(dialog.getByText("Париж", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Ответы скрыты настройками игры.")).toBeVisible();
-  await expect(dialog.getByText("Ответ:")).toBeHidden();
+  await expect(dialog).not.toContainText("Ответ:");
   await dialog.getByRole("button", { name: "Закрыть предпросмотр" }).click();
 
   showAnswers = true;
@@ -123,7 +180,32 @@ test("Library preview respects show_answers and renders all game kinds", async (
   await page.getByRole("button", { name: "Просмотреть Preview Quiz" }).click();
   const openDialog = page.getByRole("dialog", { name: "Предпросмотр Preview Quiz" });
   await expect(openDialog.getByText("Ответы доступны согласно настройкам игры.")).toBeVisible();
-  await expect(openDialog.getByText("Ответ:")).toBeVisible();
+  await expect(openDialog.getByText("Ответ: Париж")).toBeVisible();
+  await expect(openDialog).toContainText("Выбор ответа");
+  await expect(openDialog).toContainText("Да/Нет");
+  await expect(openDialog).toContainText("Сопоставление");
+  await expect(openDialog).toContainText("Порядок");
+  await expect(openDialog).toContainText("Пропуски");
+  await expect(openDialog).toContainText("Да");
+  await expect(openDialog).toContainText("Рейкьявик · Reykjavik");
+  await expect(openDialog).toContainText("Везувий → Италия");
+  await expect(openDialog).toContainText("Фьорды → Норвегия");
+  await expect(openDialog).toContainText("1. Португалия");
+  await expect(openDialog).toContainText("4. Венгрия");
+  await expect(openDialog).toContainText("1. эритроцитами");
+  await expect(openDialog).toContainText("Ответ недоступен");
+  await expect(openDialog).not.toContainText('["Португалия"');
+  const previewHeader = openDialog.locator("header");
+  const previewScroll = openDialog.locator("div.overflow-y-auto");
+  const headerBox = await previewHeader.boundingBox();
+  const firstQuestionBox = await openDialog.locator("ol > li").first().boundingBox();
+  expect(headerBox).not.toBeNull();
+  expect(firstQuestionBox).not.toBeNull();
+  expect(firstQuestionBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+  await previewScroll.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  const lastQuestionBox = await openDialog.locator("ol > li").last().boundingBox();
+  expect(lastQuestionBox).not.toBeNull();
+  expect(lastQuestionBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
   await openDialog.getByRole("button", { name: "Закрыть предпросмотр" }).click();
 
   await page.getByRole("button", { name: "Просмотреть Preview Jeopardy" }).click();

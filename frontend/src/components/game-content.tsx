@@ -8,16 +8,8 @@ import type {
   QuizData,
   StoredGame,
 } from "@/lib/types";
-import { formatQuizAnswer } from "@/lib/format-answer";
-
-const QTYPE_LABEL: Record<string, string> = {
-  choice: "ABCD",
-  bool: "Да/Нет",
-  text: "Текст",
-  matching: "Пары",
-  close: "Пропуски",
-  ordering: "Порядок",
-};
+import { quizQuestionTypeLabel } from "@/lib/format-answer";
+import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 
 export function gameSummary(g: StoredGame): string {
   if (g.kind === "quiz") {
@@ -25,7 +17,7 @@ export function gameSummary(g: StoredGame): string {
     const n = d?.questions?.length ?? 0;
     const types = new Set((d?.questions ?? []).map((q) => q.type));
     const labels = Array.from(types)
-      .map((t) => QTYPE_LABEL[t] ?? t)
+      .map((t) => quizQuestionTypeLabel(t))
       .join(", ");
     return `${n} ${plural(n, "вопрос", "вопроса", "вопросов")}${labels ? ` (${labels})` : ""}`;
   }
@@ -72,18 +64,18 @@ function QuizContent({ data, withAnswers }: { data: QuizData; withAnswers: boole
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">{q.q || <em className="text-muted-foreground">без текста</em>}</p>
               <p className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-                {QTYPE_LABEL[q.type] ?? q.type} · {q.points} б · {q.time}с
+                {quizQuestionTypeLabel(q.type)} · {q.points} б · {q.time}с
               </p>
               {q.options.length > 0 && (
                 <ul className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                   {q.options.map((option) => (
-                    <li key={option} className="rounded-md bg-surface-muted px-2 py-1">{option}</li>
+                    <li key={option} className="break-words rounded-md bg-surface-muted px-2 py-1">{option}</li>
                   ))}
                 </ul>
               )}
               {withAnswers && (
                 <p className="mt-1 text-xs text-success">
-                  Ответ: <b>{formatQuizAnswer(q)}</b>
+                  Ответ: <b><QuizAnswerDisplay question={q} /></b>
                 </p>
               )}
             </div>
@@ -110,7 +102,7 @@ function JeopardyContent({ data, withAnswers }: { data: JeopardyData; withAnswer
                   {cat.questions.map((q, qi) => (
                     <li key={qi} className="flex gap-2">
                       <b className="text-primary">{q.points}</b>
-                      <span className="min-w-0 flex-1">{q.q || "—"}{withAnswers && <span className="text-success"> → {q.a || "—"}</span>}</span>
+                      <span className="min-w-0 flex-1 break-words">{q.q || "—"}{withAnswers && <span className="text-success"> → {q.a || "—"}</span>}</span>
                     </li>
                   ))}
                 </ul>
@@ -124,7 +116,7 @@ function JeopardyContent({ data, withAnswers }: { data: JeopardyData; withAnswer
           <p className="text-xs font-bold uppercase tracking-wider text-amber">Финал</p>
           <p className="mt-1 text-sm font-semibold">{data.final.category}</p>
           <p className="mt-1 text-xs">{data.final.q}</p>
-          {withAnswers && <p className="mt-1 text-xs text-success">Ответ: <b>{data.final.a}</b></p>}
+          {withAnswers && <p className="mt-1 break-words text-xs text-success">Ответ: <b>{data.final.a}</b></p>}
         </div>
       )}
     </div>
@@ -149,13 +141,13 @@ function MillionaireContent({ data, withAnswers }: { data: MillionaireData; with
                 </p>
                 <ol className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                   {q.options.map((option) => (
-                    <li key={option.text} className={`rounded-md bg-surface-muted px-2 py-1 ${withAnswers && option.correct ? "font-semibold text-success" : ""}`}>
+                    <li key={option.text} className={`break-words rounded-md bg-surface-muted px-2 py-1 ${withAnswers && option.correct ? "font-semibold text-success" : ""}`}>
                       {option.text}
                     </li>
                   ))}
                 </ol>
                 {withAnswers && correct && (
-                  <p className="mt-1 text-xs text-success">Ответ: <b>{correct.text}</b></p>
+                  <p className="mt-1 break-words text-xs text-success">Ответ: <b>{correct.text}</b></p>
                 )}
               </div>
             </div>

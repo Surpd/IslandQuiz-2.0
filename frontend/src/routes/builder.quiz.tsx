@@ -472,7 +472,6 @@ function BuilderQuiz() {
 
   const settingsPanel = (
     <div className="space-y-4">
-      <h3 className="font-display font-bold">Настройки квиза</h3>
       <div className="grid gap-4">
         <div>
           <span className="mb-2 block text-xs font-semibold text-muted-foreground">Тема плеера</span>

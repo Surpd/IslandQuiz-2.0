@@ -12,6 +12,7 @@ import { Avatar } from "@/components/avatar";
 import { LaTeX } from "@/lib/latex";
 import { createPlaySnapshot, loadGame, submitResult } from "@/lib/api";
 import { formatQuizAnswer, formatGivenAnswer, checkQuizAnswerCore } from "@/lib/format-answer";
+import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
 import type { QuizData, QuizQuestion } from "@/lib/types";
@@ -529,7 +530,7 @@ function QuestionCard({
           </p>
           {feedback === "wrong" && config.showResult === "each" && (
             <p className="mt-1 text-sm text-[color:var(--pt-text-muted)]">
-              Правильный ответ: <span className="text-[color:var(--pt-text)]">{formatQuizAnswer(question)}</span>
+              Правильный ответ: <QuizAnswerDisplay question={question} className="text-[color:var(--pt-text)]" />
             </p>
           )}
         </div>

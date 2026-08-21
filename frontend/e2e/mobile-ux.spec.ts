@@ -78,13 +78,15 @@ test("quiz question navigator stays below the mobile builder header", async ({ p
 async function assertQuizSettingsSheet(page: Page, width: number) {
   await page.setViewportSize({ width, height: 844 });
   await page.goto("/builder/quiz");
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(10000);
   const settingsButton = page.locator('.builder-mobile-header button[aria-label="Настройки"]');
   await expect(settingsButton).toHaveAttribute("aria-expanded", "false");
   await settingsButton.click();
-  const dialog = page.getByRole("dialog", { name: "Настройки игры" });
+  const dialog = page.getByRole("dialog", { name: "Настройки" });
   await expect(dialog).toBeVisible();
-  await expect(settingsButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".builder-mobile-header")).toBeHidden();
+  await expect(dialog.getByRole("heading", { name: "Настройки", exact: true })).toHaveCount(1);
+  await expect(dialog.getByText("Настройки квиза", { exact: true })).toHaveCount(0);
   const sheet = dialog.locator(":scope > div");
   const box = await sheet.boundingBox();
   expect(box).not.toBeNull();
@@ -93,6 +95,7 @@ async function assertQuizSettingsSheet(page: Page, width: number) {
   expect(box!.y).toBeGreaterThanOrEqual(0);
   expect(box!.y + box!.height).toBeLessThanOrEqual(844 - 64);
   await expect(sheet.getByRole("button", { name: "Сохранить настройки" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Сохранить настройки" })).toHaveClass(/btn-primary/);
   const scroller = sheet.locator(".overflow-y-auto").first();
   await expect(scroller).toBeVisible();
   expect(await scroller.evaluate((element) => element.scrollHeight >= element.clientHeight)).toBe(

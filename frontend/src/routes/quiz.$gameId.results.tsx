@@ -13,6 +13,7 @@ import {
   type OnlineQuizPlayerResult,
 } from "@/lib/api";
 import type { QuizData } from "@/lib/types";
+import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 
 export const Route = createFileRoute("/quiz/$gameId/results")({
   head: () => ({
@@ -264,7 +265,7 @@ function ResultsPage() {
                           {expanded && isOffline && r.raw.answers && (
                             <tr className="bg-surface-muted/40">
                               <td colSpan={7} className="px-4 py-4">
-                                <OfflineAnswers result={r.raw} />
+                                <OfflineAnswers result={r.raw} questions={game?.questions ?? []} />
                               </td>
                             </tr>
                           )}
@@ -273,6 +274,7 @@ function ResultsPage() {
                               <td colSpan={7} className="px-4 py-4">
                                 <OnlineRoomPlayers
                                   room={r.raw}
+                                  questions={game?.questions ?? []}
                                   expandedPlayer={expandedPlayer}
                                   onTogglePlayer={(id) =>
                                     setExpandedPlayer((p) => (p === id ? null : id))
@@ -330,11 +332,11 @@ function ResultsPage() {
                       <p className="mt-1 text-[11px] text-muted-foreground">{new Date(r.finishedAt).toLocaleString("ru-RU")} · {fmtTime(r.timeSec)}</p>
                     </button>
                     {expanded && isOffline && r.raw.answers && (
-                      <div className="border-t border-border bg-surface-muted/40 p-3"><OfflineAnswers result={r.raw} /></div>
+                      <div className="border-t border-border bg-surface-muted/40 p-3"><OfflineAnswers result={r.raw} questions={game?.questions ?? []} /></div>
                     )}
                     {expanded && !isOffline && (
                       <div className="border-t border-border bg-surface-muted/40 p-3">
-                        <OnlineRoomPlayers room={r.raw} expandedPlayer={expandedPlayer} onTogglePlayer={(id) => setExpandedPlayer((p) => (p === id ? null : id))} />
+                        <OnlineRoomPlayers room={r.raw} questions={game?.questions ?? []} expandedPlayer={expandedPlayer} onTogglePlayer={(id) => setExpandedPlayer((p) => (p === id ? null : id))} />
                       </div>
                     )}
                   </article>
@@ -356,13 +358,13 @@ function ResultsPage() {
   );
 }
 
-function OfflineAnswers({ result }: { result: QuizResult }) {
+function OfflineAnswers({ result, questions }: { result: QuizResult; questions: QuizData["questions"] }) {
   if (!result.answers?.length) {
     return <p className="text-sm text-muted-foreground">Детализация недоступна.</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-background">
-      <table className="w-full text-sm">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border bg-background">
+      <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="bg-surface-muted text-left text-xs uppercase tracking-wider text-muted-foreground">
             <th className="px-3 py-2 w-8"></th>
@@ -373,7 +375,9 @@ function OfflineAnswers({ result }: { result: QuizResult }) {
           </tr>
         </thead>
         <tbody>
-          {result.answers.map((a, i) => (
+          {result.answers.map((a, i) => {
+            const question = questions.find((item) => item.id === a.qId);
+            return (
             <tr key={a.qId + i} className="border-t border-border">
               <td className="px-3 py-2">
                 {a.isCorrect ? (
@@ -382,14 +386,15 @@ function OfflineAnswers({ result }: { result: QuizResult }) {
                   <X className="h-4 w-4 text-danger" />
                 )}
               </td>
-              <td className="px-3 py-2">{a.question}</td>
-              <td className="px-3 py-2 font-mono text-xs">{a.given || "—"}</td>
-              <td className="px-3 py-2 font-mono text-xs">{a.correctAnswer}</td>
+              <td className="break-words px-3 py-2 align-top">{a.question}</td>
+              <td className="break-words px-3 py-2 align-top text-xs"><QuizAnswerDisplay question={question} value={a.given} kind="given" /></td>
+              <td className="break-words px-3 py-2 align-top text-xs"><QuizAnswerDisplay question={question} fallback={a.correctAnswer} /></td>
               <td className="px-3 py-2 font-mono">
                 {a.earned}/{a.points}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -398,10 +403,12 @@ function OfflineAnswers({ result }: { result: QuizResult }) {
 
 function OnlineRoomPlayers({
   room,
+  questions,
   expandedPlayer,
   onTogglePlayer,
 }: {
   room: OnlineQuizResult;
+  questions: QuizData["questions"];
   expandedPlayer: string | null;
   onTogglePlayer: (id: string) => void;
 }) {
@@ -448,7 +455,7 @@ function OnlineRoomPlayers({
                 />
               </span>
             </button>
-            {expanded && <PlayerAnswers player={p} />}
+            {expanded && <PlayerAnswers player={p} questions={questions} />}
           </div>
         );
       })}
@@ -456,7 +463,7 @@ function OnlineRoomPlayers({
   );
 }
 
-function PlayerAnswers({ player }: { player: OnlineQuizPlayerResult }) {
+function PlayerAnswers({ player, questions }: { player: OnlineQuizPlayerResult; questions: QuizData["questions"] }) {
   if (!player.answers.length) {
     return (
       <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
@@ -465,8 +472,8 @@ function PlayerAnswers({ player }: { player: OnlineQuizPlayerResult }) {
     );
   }
   return (
-    <div className="border-t border-border overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="min-w-0 max-w-full overflow-hidden border-t border-border">
+      <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="bg-surface-muted text-left text-xs uppercase tracking-wider text-muted-foreground">
             <th className="px-3 py-2 w-8"></th>
@@ -477,7 +484,9 @@ function PlayerAnswers({ player }: { player: OnlineQuizPlayerResult }) {
           </tr>
         </thead>
         <tbody>
-          {player.answers.map((a) => (
+          {player.answers.map((a) => {
+            const question = questions[a.questionIdx];
+            return (
             <tr key={a.questionIdx} className="border-t border-border">
               <td className="px-3 py-2">
                 {a.correct ? (
@@ -486,12 +495,13 @@ function PlayerAnswers({ player }: { player: OnlineQuizPlayerResult }) {
                   <X className="h-4 w-4 text-danger" />
                 )}
               </td>
-              <td className="px-3 py-2">{a.question}</td>
-              <td className="px-3 py-2 font-mono text-xs">{a.given || "—"}</td>
-              <td className="px-3 py-2 font-mono text-xs">{a.correctAnswer}</td>
+              <td className="break-words px-3 py-2 align-top">{a.question}</td>
+              <td className="break-words px-3 py-2 align-top text-xs"><QuizAnswerDisplay question={question} value={a.given} kind="given" /></td>
+              <td className="break-words px-3 py-2 align-top text-xs"><QuizAnswerDisplay question={question} fallback={a.correctAnswer} /></td>
               <td className="px-3 py-2 font-mono">+{a.earned}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

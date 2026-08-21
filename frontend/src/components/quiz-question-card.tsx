@@ -11,6 +11,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { LaTeX } from "@/lib/latex";
+import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { checkQuizAnswerCore } from "@/lib/format-answer";
 import type { QuizQuestion } from "@/lib/types";
@@ -139,7 +140,7 @@ export function QuizQuestionCard({
           />
           {reveal && (
             <p className="mt-3 text-center text-sm text-[color:var(--pt-text-muted)]">
-              Ответ: <span className="font-semibold text-success">{question.answer}</span>
+              Ответ: <QuizAnswerDisplay question={question} className="font-semibold text-success" />
             </p>
           )}
         </div>
@@ -371,7 +372,7 @@ function CloseBoard({
       </div>
       {reveal && (
         <p className="mt-3 text-center text-sm text-[color:var(--pt-text-muted)]">
-          Ответ: <span className="font-semibold text-success">{correct.join(" · ")}</span>
+          Ответ: <QuizAnswerDisplay question={question} className="font-semibold text-success" />
         </p>
       )}
     </div>

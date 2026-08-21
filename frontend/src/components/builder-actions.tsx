@@ -246,12 +246,12 @@ export function BuilderSettingsSection({
   return (
     <>
       <div className="surface-card animate-fade-up hidden space-y-4 p-4 sm:p-6 md:block md:max-h-none md:overflow-visible">{content}</div>
-      <div className="fixed inset-0 z-[70] flex items-end bg-foreground/50 px-0 pb-[calc(4rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] backdrop-blur-sm md:hidden" role="dialog" aria-modal="true" aria-label="Настройки игры">
+      <div className="fixed inset-0 z-[70] flex items-end bg-foreground/50 px-0 pb-[calc(4rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] backdrop-blur-sm md:hidden" role="dialog" aria-modal="true" aria-label="Настройки">
         <div className="flex max-h-[min(82dvh,calc(100dvh-env(safe-area-inset-top)-4rem-env(safe-area-inset-bottom)))] min-h-0 w-full flex-col overflow-hidden rounded-t-3xl border-t border-border bg-surface shadow-lift">
           <div className="shrink-0 border-b border-border px-4 pb-3 pt-3">
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border-strong" />
             <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-base font-bold">Настройки игры</h2>
+              <h2 className="font-display text-base font-bold">Настройки</h2>
               {onClose && (
                 <button
                   type="button"
@@ -266,7 +266,7 @@ export function BuilderSettingsSection({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">{mobileContent}</div>
           <div className="shrink-0 border-t border-border bg-surface px-4 py-3">
-            <button type="button" onClick={onClose} className="btn-accent w-full justify-center">
+            <button type="button" onClick={onClose} className="btn-primary w-full justify-center">
               Сохранить настройки
             </button>
           </div>
@@ -512,7 +512,7 @@ export function BuilderFabs({
 
   return (
     <>
-      <div className="builder-mobile-header fixed inset-x-0 top-16 z-40 border-b border-border bg-surface/95 px-3 py-2 shadow-soft backdrop-blur-md md:hidden">
+      {!settingsOpen && <div className="builder-mobile-header fixed inset-x-0 top-16 z-40 border-b border-border bg-surface/95 px-3 py-2 shadow-soft backdrop-blur-md md:hidden">
         <div className="mx-auto flex min-h-9 max-w-7xl items-center gap-1.5">
           <Link
             to="/library"
@@ -629,7 +629,7 @@ export function BuilderFabs({
             )}
           </div>
         )}
-      </div>
+      </div>}
       <div className="fixed bottom-20 right-4 left-4 z-40 hidden items-center justify-end gap-1.5 sm:bottom-6 sm:right-6 sm:left-auto sm:gap-2 md:flex">
         {/* Visibility */}
         <div ref={visRef} className="relative" data-visibility={visibility}>
