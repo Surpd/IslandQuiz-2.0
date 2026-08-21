@@ -12,6 +12,20 @@ theme selection, themed motion, or the visual relationship between Builder and P
 Do not change production UI merely by loading this skill. Inspect the actual affected
 routes/components and `frontend/src/styles.css` before implementation.
 
+For a large Theme System change, follow the autonomous design gate:
+`DISCOVER → DIVERGE → CRITIQUE → SELECT → REFINE → PRESENT → HANDOFF`.
+Explore 3-5 materially different theme directions internally, select the best balance
+of ambition, usability, and feasibility, then present one finished recommendation plus
+2-3 visually rendered alternatives. Do not ask the user to choose colors, gradients,
+particle counts, opacity, radii, or other intermediate details. Stop for approval after
+the visual presentation; coding starts only after approval unless explicitly requested.
+
+Visual output is required for visual-led Theme System work when a callable visual tool
+exists. The recommended presentation includes Builder/theme-selector context, Builder
+Hero, Player desktop, and Player mobile. The exploration board needs only one useful
+representative frame per alternative. Include tool-returned URLs/attachments and never
+claim a frame exists without a successful tool result.
+
 ## Source of truth and relationship
 
 - `frontend/src/lib/types.ts` defines `PlayerTheme` and `PLAYER_THEMES`:
@@ -37,6 +51,11 @@ routes/components and `frontend/src/styles.css` before implementation.
 Themes must differ through background treatment, surface/border texture, accent
 behavior, decorative motif, and motion language—not by swapping one color value.
 Avoid making every theme equally bright, noisy, or animated.
+
+Critique each direction for visual quality, gameplay readability, IslandQuiz identity,
+desktop/mobile intensity, accessibility, reduced motion, performance, technical
+feasibility, consistency, and implementation complexity. Preserve strong alternatives
+for the exploration board; do not show raw experiments.
 
 ## Builder Hero live preview
 
@@ -88,6 +107,17 @@ theme-system defect, not an invitation to add a second theme model.
 - Do not add a theme-specific font, asset pipeline, persistence shape, or route contract
   for a visual-only change.
 
+## Research and generation budget
+
+Use cheap research and local reasoning first. Mobbin/web research may inform patterns;
+Figma is preferred for visual frames and comparison boards; Higgsfield or other
+credit-consuming generators are reserved for targeted atmosphere/motion exploration
+after a direction exists. UI UX Pro Max and 21st.dev are optional and must be reported
+unused when unavailable. Treat 3-5 initial external generations and 1-2 targeted
+winner refinements as the normal budget for one large task. Do not reroll endlessly,
+buy credits, or use generation when CSS/SVG/Figma/local reasoning is enough. If a
+free-tier limit is reached, continue with available means and report it.
+
 ## Theme-system acceptance criteria
 
 A theme-system change is ready for implementation only when the handoff states:
@@ -98,3 +128,7 @@ A theme-system change is ready for implementation only when the handoff states:
 4. all relevant interaction states and readable contrast expectations;
 5. reduced-motion behavior and performance constraints;
 6. what remains unchanged in game data, routing, save/play, and result semantics.
+
+The final presentation must also state the selected concept, briefly explain rejected
+alternatives, link/attach the visual result, list tools actually used, and report the
+approximate generation/refinement count and any credit limitation.

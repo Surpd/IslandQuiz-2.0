@@ -13,6 +13,55 @@ permission to edit production UI. Read the affected route/component in addition 
 this snapshot when the task is concrete; the code remains the source of truth when
 this document and the implementation disagree.
 
+For large visual work, use the autonomous workflow:
+`DISCOVER → DIVERGE → CRITIQUE → SELECT → REFINE → PRESENT → HANDOFF`.
+Do not ask the user to choose intermediate gradients, spacing, radii, opacity, or
+obvious UX details. Ask only for a critical product constraint that cannot be inferred
+from the product, code, docs, skills, or prior decisions. After PRESENT/HANDOFF, stop
+at the user-approval gate; implementation is a separate step unless explicitly
+requested.
+
+## Internal exploration and visual output
+
+For a large visual change, develop 3-5 materially different concepts. They must differ
+in composition, hierarchy, interaction model, or visual philosophy—not just color,
+spacing, radius, or decoration count. Critique them on visual quality, UX,
+readability, IslandQuiz identity, desktop/mobile behavior, accessibility, motion,
+performance, consistency, feasibility, and implementation complexity. Select the
+strongest balance of ambition × usability × feasibility; do not default to the safest
+concept.
+
+When appearance is the main subject, a text-only handoff is incomplete if a visual
+artifact tool is available. PRESENT must include:
+
+- `RECOMMENDED`: one polished visual result with relevant states;
+- `EXPLORATION`: 2-3 strong alternatives, each represented by one useful frame/state;
+- artifact URLs, attachments, or tool-returned references that let the user see them.
+
+For Theme System/Player work, the recommended result covers Builder/theme-selection
+context, Builder Hero, Player desktop, and Player mobile; add answer, result, or motion
+states when they affect the decision. Do not show raw experiments. If no visual tool
+is callable, say so clearly and do not pretend that a visual result was produced.
+
+Use the compact final format: recommended concept (3-5 sentences, desktop/mobile,
+LOW/MEDIUM/HIGH complexity), alternatives (one idea/advantage/rejection reason each),
+implementation handoff, and tools/budget. Do not dump the full research process.
+
+## Tool and credit discipline
+
+Check the current callable tools before using or claiming them. Prefer cheap local
+reasoning and targeted Mobbin/web research before generation. Prefer Figma for visual
+frames and comparison boards; use Higgsfield or another generative tool only for a
+targeted atmosphere/motion/illustration reference after direction is chosen. UI UX Pro
+Max and 21st.dev are optional and must be reported unused when absent. Research is a
+reference, not a final design, and must not be copied wholesale.
+
+Treat 3-5 initial external visual generations and 1-2 targeted winner refinements as
+the normal budget for one large task. Do not spend credits on endless rerolls or tiny
+polish that CSS, SVG, Figma editing, or local reasoning can solve. Never purchase or
+upgrade credits. If a free-tier limit is reached, continue with available tools and
+report the limitation.
+
 ## Current product character
 
 IslandQuiz currently combines a bright, friendly “tropical modern” authoring chrome

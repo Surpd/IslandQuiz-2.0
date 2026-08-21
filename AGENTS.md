@@ -138,8 +138,8 @@ Backend ожидает переменные окружения. Код не за
 ### Design-agent workflow
 
 - Для любой UI/UX-задачи coding agent обязан прочитать `.agents/skills/islandquiz-design/SKILL.md`; для изменения тем, Builder Hero или themed motion — также `.agents/skills/islandquiz-theme-system/SKILL.md`.
-- Крупные visual changes (новый экран, redesign нескольких компонентов, mobile navigation, theme/motion overhaul) сначала передавать read-only агенту `designer`; он возвращает implementation-ready handoff и не меняет код.
-- Coding agent реализует только принятый handoff, а существующий `reviewer` проверяет результат после реализации. Малые точечные UI-правки могут идти без отдельного designer pass, но не должны ломать зафиксированный visual language.
+- Крупные visual changes (новый экран, redesign нескольких компонентов, mobile navigation, theme/motion overhaul) сначала передавать read-only агенту `designer`; он автономно проходит DISCOVER → DIVERGE → CRITIQUE → SELECT → REFINE → PRESENT → HANDOFF, показывает рекомендуемый visual artifact и 2–3 сильные визуальные альтернативы, а затем останавливается на approval gate.
+- Coding agent не начинает крупную реализацию до approval владельца, если владелец явно не попросил immediate implementation. После approval coding agent реализует только handoff, а существующий `reviewer` проверяет результат. Малые точечные UI-правки могут идти без полного designer pass, но не должны ломать зафиксированный visual language.
 
 Каждая backlog-задача проходит lifecycle:
 
