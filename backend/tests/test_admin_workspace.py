@@ -47,13 +47,18 @@ class AdminWorkspaceTests(unittest.TestCase):
 
     def test_ai_limit_is_enforced_server_side_at_boundary(self):
         user = {"id": "user-1", "role": "user"}
-        with patch("routes.ai.get_user_limit", return_value=5), patch("routes.ai.get_today_ai_count", return_value=5), patch("routes.ai.increment_ai_count") as increment:
+        with patch("routes.ai.get_user_limit", return_value=5), patch("routes.ai.consume_ai_quota", return_value=False) as consume:
             response = check_ai_limit(user)
         self.assertEqual(response.status_code, 429)
-        increment.assert_not_called()
-        with patch("routes.ai.get_user_limit", return_value=5), patch("routes.ai.get_today_ai_count", return_value=4), patch("routes.ai.increment_ai_count") as increment:
+        consume.assert_called_once_with("user-1", "ai_request", 5)
+        with patch("routes.ai.get_user_limit", return_value=5), patch("routes.ai.consume_ai_quota", return_value=True) as consume:
             self.assertIsNone(check_ai_limit(user))
-        increment.assert_called_once_with("user-1", "ai_request")
+        consume.assert_called_once_with("user-1", "ai_request", 5)
+
+    def test_unlimited_role_skips_quota_reservation(self):
+        with patch("routes.ai.get_user_limit", return_value=None), patch("routes.ai.consume_ai_quota") as consume:
+            self.assertIsNone(check_ai_limit({"id": "admin-1", "role": "admin"}))
+        consume.assert_not_called()
 
 
 if __name__ == "__main__":

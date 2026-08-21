@@ -604,47 +604,30 @@ def is_ai_error(result) -> bool:
 # AI LIMITS
 # ============================================================
 
-def get_today_ai_count(
-    user_id: str,
-    request_type: str | None = None,
-) -> int:
-
-    today = datetime.utcnow().strftime(
-        "%Y-%m-%d"
-    )
-
-    query = (
-        supabase
-        .table("ai_usage")
-        .select(
-            "id",
-            count="exact",
-        )
-        .eq(
-            "user_id",
-            user_id,
-        )
-        .gte(
-            "created_at",
-            today,
-        )
-    )
-    if request_type:
-        query = query.eq("request_type", request_type)
-    return _db_count(query)
-
-
-def increment_ai_count(
+def consume_ai_quota(
     user_id: str,
     request_type: str,
-):
+    daily_limit: int,
+) -> bool:
+    """Reserve one quota unit through the atomic PostgreSQL RPC."""
 
-    _db_insert(supabase.table(
-        "ai_usage"
-    ).insert({
-        "user_id": user_id,
-        "request_type": request_type,
-    }))
+    from fastapi import HTTPException
+
+    response = _db_response(
+        supabase.rpc("consume_ai_quota", {
+            "p_user_id": user_id,
+            "p_request_type": request_type,
+            "p_daily_limit": daily_limit,
+        })
+    )
+    data = getattr(response, "data", None)
+    if isinstance(data, bool):
+        return data
+    if isinstance(data, list) and len(data) == 1 and isinstance(data[0], dict):
+        value = next(iter(data[0].values()), None)
+        if isinstance(value, bool):
+            return value
+    raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
 
 
 def check_ai_limit(user, request_type: str = "ai_request"):
@@ -661,12 +644,11 @@ def check_ai_limit(user, request_type: str = "ai_request"):
     if daily_limit is None:
         return None
 
-    count = get_today_ai_count(
+    if not consume_ai_quota(
         user["id"],
         request_type,
-    )
-
-    if count >= daily_limit:
+        daily_limit,
+    ):
 
         return ai_client_error(
             "Лимит AI-запросов исчерпан "
@@ -675,10 +657,6 @@ def check_ai_limit(user, request_type: str = "ai_request"):
             429,
         )
 
-    increment_ai_count(
-        user["id"],
-        request_type,
-    )
     return None
 
 
