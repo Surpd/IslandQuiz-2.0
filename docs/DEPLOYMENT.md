@@ -1,6 +1,6 @@
 # IslandQuiz — deployment
 
-Статус: production facts по состоянию на 2026-08-19. Детали, которых нет в репозитории и которые не были подтверждены владельцем, помечены `NEEDS VERIFICATION`.
+Статус: production facts по состоянию на 2026-08-22. Детали, которых нет в репозитории и которые не были подтверждены владельцем, помечены `NEEDS VERIFICATION`.
 
 ## Production-схема
 
@@ -51,10 +51,13 @@ Backend использует, среди прочего:
 
 Код backend не вызывает `load_dotenv`, поэтому наличие `.env` в checkout само по себе не означает, что Uvicorn его загрузит.
 
-## NEEDS VERIFICATION
+## Rollback и monitoring status
 
 - Способ запуска frontend production build/Cloudflare Pages deployment: `NEEDS VERIFICATION`.
-- Полный production rollback rehearsal ещё не проводился; он выделен в H6.1 и требует отдельного approval владельца.
+- Полный production rollback rehearsal ещё не проводился: реальный временный откат требует отдельного approval и не выполняется автоматически.
+- Безопасная procedure: выбрать предыдущий known-good 40-char SHA → `workflow_dispatch` с `target_sha` → exact checkout/compile → systemd restart → local `/` health → deployed SHA check → targeted production smoke → зафиксировать outcome. Возврат вперёд выполняется тем же workflow с новым SHA.
+- Backend уже выдаёт `X-Request-ID`, пишет sanitized 5xx в `error_logs`; admin summary считает 5xx за окно, cleanup endpoint использует 90 дней retention.
+- Внешний alerting channel не подключён: нужны согласованный provider, credentials/secrets и alert routing для unavailable backend, health failure, 5xx spike и failed deployment.
 
 ## Устаревшие deployment-ссылки
 

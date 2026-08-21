@@ -15,7 +15,7 @@
 6. JWT stateless и хранится frontend в `localStorage`; logout не отзывает токен на сервере.
 7. Telegram login — отдельный HMAC-signed deep-link flow, который в итоге выдаёт обычный IslandQuiz JWT.
 8. Telegram bot сейчас запускается внутри FastAPI процесса, а не как независимый production service.
-9. Telegram login token не имеет server-side одноразового consumption, несмотря на наличие nonce в payload.
+9. Telegram login token имеет durable server-side одноразовый consumption: nonce hash хранится в `telegram_login_nonces`, expiry и token type проверяются атомарно.
 
 ### D1. Принятая политика JWT и сессий — RESOLVED
 
@@ -23,10 +23,10 @@
 
 ## Games and rooms
 
-10. WebSocket room state сейчас хранится только в памяти backend процесса.
-11. Rooms не переживают restart и не имеют общего состояния между несколькими workers.
+10. Live WebSocket room state остаётся в памяти backend процесса, но resumable state/snapshot сохраняется в `online_rooms` с TTL.
+11. Rooms переживают короткий restart в пределах TTL; общего live состояния между workers по-прежнему нет, Redis/pub-sub deferred.
 12. Состояние комнаты передаётся action-сообщениями между frontend и backend; изменение протокола требует синхронного изменения обоих компонентов.
-13. Server-side authorization WebSocket actions ограничена; нельзя добавлять чувствительные операции, полагаясь только на frontend.
+13. Server-side authorization WebSocket actions и trusted scoring реализованы; новые чувствительные операции всё равно нельзя добавлять, полагаясь только на frontend.
 
 ### D2. Принятая модель безопасности WebSocket player — RESOLVED
 

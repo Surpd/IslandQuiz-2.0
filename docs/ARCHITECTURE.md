@@ -1,6 +1,6 @@
 # IslandQuiz — фактическая архитектура
 
-Статус: актуальное описание кода на 2026-08-21. Если этот документ расходится с кодом, источником истины является код и фактическая production-схема Supabase.
+Статус: актуальное описание кода на 2026-08-22. Если этот документ расходится с кодом, источником истины является код и фактическая production-схема Supabase.
 
 ## Общее устройство
 
@@ -8,7 +8,7 @@
 Browser
   ├─ React/TanStack routes, builders, players
   ├─ REST + JWT ───────────────► FastAPI
-  └─ WebSocket /ws/room/:code ─► FastAPI in-memory room state
+  └─ WebSocket /ws/room/:code ─► FastAPI live connections + Supabase resume snapshot
 
 FastAPI
   ├─ auth/users/games/results/admin/feedback routes
@@ -67,9 +67,9 @@ Frontend — React + TypeScript + Vite/TanStack Start с file-based routing.
 - `ratings` — оценки игр;
 - `quiz_results`, `jeopardy_results`, `millionaire_results` — результаты одиночных игр;
 - `online_quiz_results` — результаты Quiz-комнат;
-- `password_resets`, `ai_usage`, `feedback`, `error_logs`, `ai_logs`, `settings` — служебные данные.
+- `password_resets`, `telegram_login_nonces`, `ai_usage`, `feedback`, `error_logs`, `ai_logs`, `settings`, `online_rooms` — служебные/backend-only данные.
 
-Точная production schema не хранится в репозитории и требует отдельной проверки в Supabase. `backend/models.py` — legacy SQLAlchemy-описание, не используемое текущими роутами; оно не отражает текущий persistence layer.
+Service-only tables защищены RLS и не имеют direct `PUBLIC/anon/authenticated` grants; backend использует privileged client. `auth.uid()` не применяется как identity mapping для custom IslandQuiz JWT. Точная production schema требует recheck в Supabase. `backend/models.py` — legacy SQLAlchemy-описание, не используемое текущими роутами.
 
 ## Admin analytics
 
@@ -87,9 +87,9 @@ Email/password flow:
 4. Frontend сохраняет JWT в `localStorage` и передаёт его как Bearer token.
 5. Backend на каждом защищённом запросе декодирует JWT и заново читает пользователя из Supabase.
 
-JWT stateless: logout удаляет токен на клиенте, server-side revocation не предусмотрен.
+JWT stateless: logout удаляет токен на клиенте, server-side revocation не предусмотрен. Refresh-session lifecycle остаётся отдельным backlog.
 
-Password reset использует `password_resets` и Resend. Email reset link ведёт на frontend `/reset-password`.
+Password reset использует `password_resets` и Resend. В БД хранится только SHA-256 token hash; expiry и single-use consume enforced atomically before password update. Email reset link ведёт на frontend `/reset-password`.
 
 ## Telegram authentication
 
@@ -103,7 +103,7 @@ Telegram flow распределён между website, backend и `backend/bot
 6. Bot возвращает ссылку `/login?telegram_token=...`.
 7. Frontend вызывает `/api/auth/telegram/complete` и сохраняет обычный IslandQuiz JWT.
 
-Токены stateless. `nonce` входит в подпись, но server-side replay prevention отсутствует. Telegram bot запускается как task внутри FastAPI процесса, поэтому deployment с несколькими polling instances требует отдельного решения.
+Подпись токена остаётся stateless, но nonce регистрируется в `telegram_login_nonces` и атомарно consume-ится один раз с expiry/type check. Raw credential в БД не хранится. Telegram bot запускается как task внутри FastAPI процесса, поэтому deployment с несколькими polling instances требует отдельного решения.
 
 ## AI и file processing
 
@@ -135,17 +135,17 @@ Excel import/export выполняется на frontend библиотекой 
 
 Endpoint: `/ws/room/{code}`.
 
-Frontend поддерживает reconnect/cache и отправляет actions из `frontend/src/lib/api.ts`. Backend хранит `rooms` и `connections` в глобальных in-memory dictionaries.
+Frontend поддерживает reconnect/cache и отправляет actions из `frontend/src/lib/api.ts`. Backend хранит live `rooms` и `connections` в process memory, а resumable room snapshot/state — в Supabase `online_rooms`.
 
 Для Quiz доступны lobby, join, start, answer, reveal, leaderboard, next question, finish, restart, kick и score adjustment. Для Jeopardy добавлены board/question/buzz/turn/final phases.
 
 Комнаты:
 
-- не записываются в Supabase;
-- не переживают перезапуск процесса;
-- не рассчитаны на shared state между несколькими workers;
-- используют server-issued host/player credentials, role checks и server-side player identity;
-- reconnect поддерживается только в памяти текущего процесса и в пределах короткого grace window.
+- сохраняют state, signed snapshot, progress и scores в `online_rooms` после state broadcasts;
+- переживают короткий backend restart в пределах 30-minute TTL;
+- live WebSocket connections остаются process-local, Redis/pub-sub и multi-worker coordination не добавлялись;
+- используют server-issued host/player credentials, role checks и server-side player identity; в БД credentials представлены только HMAC-digests;
+- обычный disconnect сохраняет текущий 60-second reconnect grace, затем abandoned room очищается вместе с persistence row.
 
 ## Основные пользовательские сценарии
 

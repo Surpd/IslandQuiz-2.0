@@ -21,6 +21,9 @@ DEFAULT_GROQ_MODEL = os.getenv(
 )
 DB_ERROR_DETAIL = "Ошибка базы данных"
 AI_ERROR_DETAIL = "Ошибка AI-провайдера"
+ERROR_LOG_RETENTION_DAYS = 90
+OBSERVABILITY_WINDOW_MINUTES = 15
+OBSERVABILITY_5XX_ALERT_THRESHOLD = 10
 
 
 # ==================== HELPERS ====================
@@ -391,6 +394,59 @@ def get_error_logs(limit: int = 50, user=Depends(get_current_user)):
 def get_ai_logs(limit: int = 50, user=Depends(get_current_user)):
     require_admin(user)
     return _db_rows(supabase.table("ai_logs").select("*").order("created_at", desc=True).limit(limit))
+
+
+@router.get("/observability/summary")
+def get_observability_summary(
+    window_minutes: int = OBSERVABILITY_WINDOW_MINUTES,
+    user=Depends(get_current_user),
+):
+    """Provide a small internal signal for recent backend 5xx spikes."""
+    require_admin(user)
+    if window_minutes < 1 or window_minutes > 24 * 60:
+        raise HTTPException(status_code=400, detail="Некорректное окно наблюдения")
+
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    ).isoformat()
+    rows = _db_rows(
+        supabase
+        .table("error_logs")
+        .select("id,created_at,message,path")
+        .gte("created_at", cutoff)
+        .order("created_at", desc=True)
+        .limit(1000)
+    )
+    return {
+        "window_minutes": window_minutes,
+        "server_5xx": len(rows),
+        "alert_threshold": OBSERVABILITY_5XX_ALERT_THRESHOLD,
+        "alert": len(rows) >= OBSERVABILITY_5XX_ALERT_THRESHOLD,
+        "latest_at": rows[0].get("created_at") if rows else None,
+    }
+
+
+@router.post("/observability/cleanup")
+def cleanup_error_logs(
+    retention_days: int = ERROR_LOG_RETENTION_DAYS,
+    user=Depends(get_current_user),
+):
+    """Delete only backend error logs older than the documented retention."""
+    require_admin(user)
+    if retention_days < 7 or retention_days > 3650:
+        raise HTTPException(status_code=400, detail="Некорректный срок хранения")
+
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(days=retention_days)
+    ).isoformat()
+    deleted = _db_rows(
+        supabase
+        .table("error_logs")
+        .delete()
+        .lt("created_at", cutoff)
+        .select("id")
+    )
+    return {"ok": True, "retention_days": retention_days, "deleted": len(deleted)}
 
 
 # ==================== LIMITS ====================

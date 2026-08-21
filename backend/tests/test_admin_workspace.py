@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -11,7 +12,14 @@ fake_database = types.ModuleType("database")
 fake_database.supabase = object()
 sys.modules.setdefault("database", fake_database)
 
-from routes.admin import BulkDeleteInput, _assert_not_self, bulk_delete_games, require_admin
+from routes.admin import (
+    BulkDeleteInput,
+    _assert_not_self,
+    bulk_delete_games,
+    cleanup_error_logs,
+    get_observability_summary,
+    require_admin,
+)
 from routes.ai import check_ai_limit
 from services.error_logging import parse_error_log, redact_error_details
 from services.role_limits import normalize_limits
@@ -59,6 +67,43 @@ class AdminWorkspaceTests(unittest.TestCase):
         with patch("routes.ai.get_user_limit", return_value=None), patch("routes.ai.consume_ai_quota") as consume:
             self.assertIsNone(check_ai_limit({"id": "admin-1", "role": "admin"}))
         consume.assert_not_called()
+
+    def test_observability_summary_and_retention_are_bounded(self):
+        database = types.SimpleNamespace(table=lambda _name: None)
+        summary_query = types.SimpleNamespace(
+            execute=lambda: SimpleNamespace(data=[{"id": 1, "created_at": "2026-08-22T10:00:00Z"}])
+        )
+        cleanup_query = types.SimpleNamespace(
+            execute=lambda: SimpleNamespace(data=[{"id": 2}, {"id": 3}])
+        )
+        database.table = lambda name: (
+            types.SimpleNamespace(
+                select=lambda *_args, **_kwargs: types.SimpleNamespace(
+                    gte=lambda *_args, **_kwargs: types.SimpleNamespace(
+                        order=lambda *_args, **_kwargs: types.SimpleNamespace(
+                            limit=lambda *_args, **_kwargs: summary_query
+                        )
+                    ),
+                    execute=lambda: summary_query.execute(),
+                ),
+                delete=lambda: types.SimpleNamespace(
+                    lt=lambda *_args, **_kwargs: types.SimpleNamespace(
+                        select=lambda *_args, **_kwargs: cleanup_query
+                    )
+                ),
+            )
+        )
+
+        with patch("routes.admin.supabase", database):
+            summary = get_observability_summary(user={"role": "admin"})
+            cleanup = cleanup_error_logs(user={"role": "admin"})
+
+        self.assertEqual(summary["server_5xx"], 1)
+        self.assertFalse(summary["alert"])
+        self.assertEqual(cleanup["deleted"], 2)
+
+        with self.assertRaisesRegex(HTTPException, "срок"):
+            cleanup_error_logs(retention_days=1, user={"role": "admin"})
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-- Supabase project `IslandQuiz`, ref `epbtmudrgtjveoiaymxc`, PostgreSQL 17; inspected read-only on 2026-08-18.
+- Supabase project `IslandQuiz`, ref `epbtmudrgtjveoiaymxc`, PostgreSQL 17; inspected and migrated on 2026-08-22.
 - This is a maintained snapshot, not a live schema contract. Recheck Supabase directly when it may be stale.
 - Application-owned data is in `public`. Supabase-managed objects also exist in `auth`, `storage`, `realtime`, `vault` and `extensions`; application code does not use those tables directly.
 
@@ -141,7 +141,7 @@ Indexes: PK, `idx_online_results_game`. No FKs or policies (RLS enabled).
 | request_type | text | NULL | — | |
 | created_at | timestamptz | NULL | `now()` | |
 
-Indexes: PK, `idx_ai_usage_user_date`. RLS disabled; no policies.
+Indexes: PK, `idx_ai_usage_user_date`, `ai_usage_quota_lookup_idx`. RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked; backend uses service role and `consume_ai_quota` RPC.
 
 ### ai_logs
 
@@ -157,7 +157,7 @@ Indexes: PK, `idx_ai_usage_user_date`. RLS disabled; no policies.
 | error | text | NULL | — | |
 | created_at | timestamptz | NULL | `now()` | |
 
-RLS disabled; no policies or non-PK indexes.
+RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked; backend-only telemetry.
 
 ### error_logs
 
@@ -168,7 +168,7 @@ RLS disabled; no policies or non-PK indexes.
 | path | text | NULL | — | |
 | created_at | timestamptz | NULL | `now()` | |
 
-RLS disabled; no policies or non-PK indexes.
+RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked; backend-only sanitized logs.
 
 ### feedback
 
@@ -182,7 +182,7 @@ RLS disabled; no policies or non-PK indexes.
 | page_url | text | NULL | — | |
 | created_at | timestamptz | NULL | `now()` | |
 
-RLS disabled; no policies or non-PK indexes.
+RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked; feedback is submitted through backend.
 
 ### settings
 
@@ -191,7 +191,7 @@ RLS disabled; no policies or non-PK indexes.
 | key | text | no | — | PK |
 | value | text | NULL | — | |
 
-RLS disabled; no policies.
+RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked; settings are read/updated by admin backend routes.
 
 ### tags (Tag System v1)
 
@@ -220,10 +220,37 @@ invalid or over-limit games instead of silently dropping data.
 |---|---|---|---|---|
 | id | integer | no | sequence | PK |
 | email | text | no | — | |
-| token | text | no | — | |
+| token | text | NULL | — | legacy column; new writes leave it NULL |
+| token_hash | text | NULL | — | partial UNIQUE index |
 | expires_at | timestamptz | no | — | |
 
-RLS disabled; no policies. No uniqueness or expiry CHECK constraint was found.
+RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked. Existing plaintext token values were converted to SHA-256 hashes and nulled; reset endpoint looks up only `token_hash` and atomically consumes valid rows.
+
+### telegram_login_nonces
+
+| Column | Type | Nullable | Default | Key |
+|---|---|---|---|---|
+| nonce_hash | text | no | — | PK |
+| token_type | text | no | — | `bot_login` or `complete` |
+| expires_at | timestamptz | no | — | |
+| consumed_at | timestamptz | NULL | — | |
+| created_at | timestamptz | no | `now()` | |
+
+RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked. Raw Telegram credentials are not stored.
+
+### online_rooms
+
+| Column | Type | Nullable | Default | Key |
+|---|---|---|---|---|
+| code | text | no | — | PK |
+| game_kind | text | no | — | |
+| game_id | text | no | — | |
+| state | jsonb | no | — | resumable room state/snapshot |
+| created_at | timestamptz | no | `now()` | |
+| updated_at | timestamptz | no | `now()` | |
+| expires_at | timestamptz | no | — | TTL cleanup boundary |
+
+RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked. Runtime credentials inside `state._credentials` are HMAC digests, not raw values.
 
 ## Relationships
 
@@ -248,22 +275,22 @@ Result routes use game_id for all result tables, but only ratings.game_id is an 
 - `games.py`: games/ratings and `increment_play_count`.
 - `results.py`: all four result tables and games access checks.
 - `ai.py`: ai_usage. `feedback.py`: feedback.
-- `rooms.py`: in-memory rooms; no Supabase table.
+- `rooms.py`: live in-memory rooms plus `online_rooms` persistence for restart resume.
 
 ## Views, functions and other relevant objects
 
-- Application RPC: `public.increment_play_count(game_id text) RETURNS void`; increments `games.play_count` for the matching id.
+- Application RPCs: `public.increment_play_count(game_id text) RETURNS void` (fixed `search_path`) and `public.consume_ai_quota(user_id, request_type, daily_limit) RETURNS boolean` (atomic quota reservation with transaction-scoped advisory lock).
 - No application-owned views. Existing views are Supabase service views: `extensions.pg_stat_statements`, `extensions.pg_stat_statements_info`, `vault.decrypted_secrets`.
 - Supabase-managed objects in `auth`, `storage`, `realtime`, `vault`, `extensions` are outside the application persistence contract.
-- Supabase security advisor also reports mutable `search_path` on `increment_play_count`; no change was made.
+- Supabase Security Advisor no longer reports mutable `search_path` for `increment_play_count`; INFO `RLS enabled without policy` remains intentional for service-only tables.
 
 ## Known schema/code mismatches
 
-- Confirmed security dependency: RLS policies use `auth.uid()`, while IslandQuiz authenticates with its own JWT and the backend creates a Supabase client from `SUPABASE_KEY`. Do not assume RLS sees the IslandQuiz user; verify key/role behavior before relying on RLS for authorization.
+- Confirmed security boundary: RLS policies on user-facing tables may use `auth.uid()`, while IslandQuiz authenticates with its own JWT and the backend creates a privileged Supabase client. Service-only tables therefore deny direct Data API roles rather than guessing an `auth.uid()` mapping.
 - Result routes use game_id links without database FKs for four result tables; orphan results are not prevented by the database.
-- Six application tables (`settings`, `error_logs`, `ai_logs`, `ai_usage`, `feedback`, `password_resets`) have RLS disabled and no policies. This is a production security issue; no remediation was applied.
+- Service-only tables (`settings`, `error_logs`, `ai_logs`, `ai_usage`, `feedback`, `password_resets`, `telegram_login_nonces`, `online_rooms`) have RLS enabled and direct Data API grants revoked. Advisor INFO about missing policies is expected deny-by-default behavior.
 - `tags` is protected by deny-by-default RLS; direct Supabase Data API access is intentionally blocked because tag access is mediated by the backend.
-- `jeopardy_results` and `online_quiz_results` have RLS enabled but no policies, so the advisor reports them as RLS-enabled-without-policy.
+- `jeopardy_results` and `online_quiz_results` remain RLS-enabled without policies by design; backend service-role result save/read paths were preserved.
 - Reviewed backend queries otherwise matched the audited public columns. No confirmed missing-column or type mismatch was found.
 
 ## Agent rules

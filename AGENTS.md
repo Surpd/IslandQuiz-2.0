@@ -12,7 +12,7 @@ IslandQuiz — веб-платформа для создания и провед
 - Backend: Python, FastAPI, Uvicorn, Pydantic, Supabase Python client.
 - Auth: собственные JWT HS256 и bcrypt; Supabase Auth не используется.
 - AI: Groq OpenAI-compatible API, переменная окружения `OPENAI_API_KEY`.
-- Online rooms: WebSocket-соединения FastAPI; состояние комнат хранится в памяти процесса.
+- Online rooms: live WebSocket state in FastAPI process plus resumable snapshots in Supabase `online_rooms`; connections remain process-local.
 - Production: backend на VPS, frontend развернут как статическое приложение; домен и DNS управляются через Cloudflare.
 
 ## Структура
@@ -54,7 +54,7 @@ uvicorn main:app --reload
 python -m unittest discover -s tests -p 'test*.py'
 ```
 
-Backend test suite является частью текущего baseline: 125 isolated tests проходят без production credentials/data. TypeScript baseline также проходит; repository-wide `npm run lint` всё ещё содержит примерно 18 915 исторических CRLF/Prettier messages и не должен приниматься за runtime failure.
+Backend test suite является частью текущего baseline: **133/133** isolated tests проходят без production credentials/data. TypeScript baseline проходит; repository-wide `npm run lint` всё ещё содержит примерно 18 915 исторических CRLF/Prettier messages и не должен приниматься за runtime failure.
 
 Backend ожидает переменные окружения. Код не загружает `.env` автоматически. Локальный запуск требует отдельно настроенного окружения и `JWT_SECRET`; startup также запускает Telegram bot и требует `TELEGRAM_BOT_TOKEN`.
 
@@ -68,10 +68,10 @@ Backend ожидает переменные окружения. Код не за
 
 ## Database rules
 
-- Сначала сверять фактические поля с текущими запросами роутеров и схемой Supabase. Миграций или SQL-схемы в репозитории нет.
+- Сначала сверять фактические поля с текущими запросами роутеров и схемой Supabase. Additive migrations находятся в `supabase/migrations/`; production migration применяют только после read/review и проверки фактического результата.
 - Проверять `None`, пустые `res.data` и ошибки API перед обращением к элементам результата.
 - Не публиковать service-role ключ, JWT secret или другие ключи в коде, документации, логах и commit history.
-- Комнаты не являются таблицей Supabase: `backend/routes/rooms.py` хранит их только в памяти backend-процесса.
+- Live room connections не являются таблицей Supabase, но resumable room state хранится в `online_rooms`; raw credentials в persistence не записываются.
 
 ### Database context
 
@@ -82,7 +82,7 @@ Backend ожидает переменные окружения. Код не за
 - Email/password auth находится в `backend/routes/auth.py`; JWT передаётся как `Authorization: Bearer` и хранится frontend в `localStorage` под ключом `islandquiz.token`.
 - Logout stateless: сервер не отзывает JWT, frontend удаляет токен.
 - Telegram flow связан между `telegram_auth.py`, `bot.py`, login/register pages и `api.ts`. Изменять его только после изучения всей цепочки.
-- Telegram login token подписан HMAC и действует 5 минут. `nonce` подписывается, но не хранится и не помечается использованным; не считать токен одноразовым.
+- Telegram login token подписан HMAC и действует 5 минут. Nonce хранится как hash в `telegram_login_nonces` и атомарно consume-ится один раз по type/expiry.
 - Telegram bot запускается внутри FastAPI startup. Нельзя без проверки deployment запускать несколько polling workers.
 
 ## WebSocket rooms
@@ -90,7 +90,7 @@ Backend ожидает переменные окружения. Код не за
 - Протокол room actions и форма состояния определены совместно в `backend/routes/rooms.py` и `frontend/src/lib/api.ts`.
 - Любое изменение action/state требует проверки host view, player view, Jeopardy components, reconnect logic и сохранения online results.
 - Backend выдаёт server-side host/player credentials, связывает actions с role/player identity и проверяет host/player permissions. Не добавлять чувствительные actions без обновления этой модели и protocol tests.
-- Комнаты исчезают при потере последнего соединения или перезапуске процесса.
+- Live room connections process-local, но state/snapshot сохраняются в `online_rooms` с TTL 30 минут; abandoned rooms очищаются после reconnect grace/expiry.
 
 ## AI contracts
 

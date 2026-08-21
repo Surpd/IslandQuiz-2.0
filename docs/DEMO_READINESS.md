@@ -1,6 +1,6 @@
 # Demo readiness — school beta
 
-Статус: operational checklist, актуально на 2026-08-21.
+Статус: operational checklist, актуально на 2026-08-22.
 
 ## Основной demo-flow
 
@@ -12,7 +12,7 @@
 
 ## Что подтверждено automated baseline
 
-- Backend tests: `125/125`.
+- Backend tests: `133/133`.
 - Playwright: `41/41`.
 - TypeScript: `npx tsc --noEmit` проходит.
 - Save → Library → reopen → offline player → answer → finish покрыт mocked E2E flow.
@@ -30,11 +30,13 @@
 - [ ] Offline player принимает ответы.
 - [ ] Finish показывает Results.
 
-## Не использовать как основной demo proof
+## Operational checks вне основного demo proof
 
 - Telegram login и password reset.
-- Online rooms, reconnect после backend restart и room persistence.
-- Production rollback, monitoring/alerting и реальные Supabase/RLS checks.
+- Telegram login, password reset и real provider error paths требуют manual smoke.
+- Online rooms теперь имеют Supabase persistence/resume, но restart/reconnect остаётся отдельной operational check.
+- Production rollback rehearsal и внешний monitoring/alerting ещё не подтверждены; внутренние request IDs, 5xx summary, retention cleanup и deployment health gates готовы.
+- Supabase RLS direct-access checks и migration verification выполняются через plugin, а не Playwright.
 - AI как источник проверенной фактической истины.
 
 Admin Panel v2, preview/permissions, tags и official import реализованы, но не входят в основной школьный demo-flow; их можно показывать отдельным сценариям после соответствующей manual smoke-проверки.
@@ -45,3 +47,4 @@ Admin Panel v2, preview/permissions, tags и official import реализова�
 - AI validator проверяет структуру, а не факты.
 - Historical AI telemetry неполна и не должна восстанавливаться искусственно.
 - E2E использует mocked API и не доказывает production persistence.
+- Service-only Supabase tables намеренно закрыты для direct anon/authenticated access; backend privileged flow должен оставаться работоспособным.
