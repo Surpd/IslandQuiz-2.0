@@ -96,6 +96,9 @@ async function assertQuizSettingsSheet(page: Page, width: number) {
   expect(box!.y + box!.height).toBeLessThanOrEqual(844 - 64);
   await expect(sheet.getByRole("button", { name: "Сохранить настройки" })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Сохранить настройки" })).toHaveClass(/btn-primary/);
+  await expect(sheet).toContainText("Показывать правильные ответы после прохождения");
+  await expect(sheet).toContainText("Разрешить просмотр вопросов до игры");
+  await expect(sheet).toContainText("Разрешить копирование игры");
   const scroller = sheet.locator(".overflow-y-auto").first();
   await expect(scroller).toBeVisible();
   expect(await scroller.evaluate((element) => element.scrollHeight >= element.clientHeight)).toBe(

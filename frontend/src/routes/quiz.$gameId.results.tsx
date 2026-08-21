@@ -364,6 +364,7 @@ function OfflineAnswers({ result, questions }: { result: QuizResult; questions: 
   }
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border bg-background">
+      <div className="hidden overflow-x-auto md:block">
       <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="bg-surface-muted text-left text-xs uppercase tracking-wider text-muted-foreground">
@@ -397,6 +398,22 @@ function OfflineAnswers({ result, questions }: { result: QuizResult; questions: 
           })}
         </tbody>
       </table>
+      </div>
+      <div className="grid gap-2 p-2 md:hidden">
+        {result.answers.map((a, i) => (
+          <ResultAnswerCard
+            key={`mobile-${a.qId}-${i}`}
+            index={i}
+            questionText={a.question}
+            question={questions.find((item) => item.id === a.qId)}
+            given={a.given}
+            correctAnswer={a.correctAnswer}
+            correct={a.isCorrect}
+            earned={a.earned}
+            points={a.points}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -473,6 +490,7 @@ function PlayerAnswers({ player, questions }: { player: OnlineQuizPlayerResult; 
   }
   return (
     <div className="min-w-0 max-w-full overflow-hidden border-t border-border">
+      <div className="hidden overflow-x-auto md:block">
       <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="bg-surface-muted text-left text-xs uppercase tracking-wider text-muted-foreground">
@@ -504,7 +522,72 @@ function PlayerAnswers({ player, questions }: { player: OnlineQuizPlayerResult; 
           })}
         </tbody>
       </table>
+      </div>
+      <div className="grid gap-2 p-2 md:hidden">
+        {player.answers.map((a, i) => (
+          <ResultAnswerCard
+            key={`mobile-${a.questionIdx}-${i}`}
+            index={i}
+            questionText={a.question}
+            question={questions[a.questionIdx]}
+            given={a.given}
+            correctAnswer={a.correctAnswer}
+            correct={a.correct}
+            earned={a.earned}
+            points={a.points}
+          />
+        ))}
+      </div>
     </div>
+  );
+}
+
+function ResultAnswerCard({
+  index,
+  questionText,
+  question,
+  given,
+  correctAnswer,
+  correct,
+  earned,
+  points,
+}: {
+  index: number;
+  questionText: string;
+  question?: QuizData["questions"][number];
+  given: string;
+  correctAnswer: string;
+  correct: boolean;
+  earned: number;
+  points: number;
+}) {
+  return (
+    <article
+      data-testid="result-question-card"
+      className="min-w-0 rounded-xl border border-border bg-surface p-3 text-sm"
+    >
+      <div className="flex min-w-0 items-start gap-2">
+        <span className={`mt-0.5 shrink-0 ${correct ? "text-success" : "text-danger"}`} aria-label={correct ? "Верно" : "Неверно"}>
+          {correct ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+        </span>
+        <p className="min-w-0 flex-1 break-words font-semibold [overflow-wrap:anywhere]">
+          {index + 1}. {questionText || "Вопрос"}
+        </p>
+      </div>
+      <div className="mt-3 grid min-w-0 gap-2 border-t border-border pt-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-muted-foreground">Ваш ответ:</p>
+          <QuizAnswerDisplay question={question} value={given} kind="given" className="block text-sm" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-muted-foreground">Правильный ответ:</p>
+          <QuizAnswerDisplay question={question} fallback={correctAnswer} className="block text-sm" />
+        </div>
+        <p className={`pt-1 font-mono font-bold ${correct ? "text-success" : "text-danger"}`}>
+          {earned} / {points}
+        </p>
+      </div>
+    </article>
   );
 }
 

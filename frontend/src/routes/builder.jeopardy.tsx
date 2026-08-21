@@ -22,7 +22,7 @@ import { newId } from "@/lib/storage";  // генерация id
 import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
-import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
+import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection, GamePermissionSettings } from "@/components/builder-actions";
 import {
   downloadExcelTemplate,
   exportJeopardyExcel,
@@ -76,6 +76,8 @@ function BuilderJeopardy() {
     timeBase: 30,
     timeStep: 15,
     timeFinal: 90,
+    allowPreview: true,
+    allowCopy: true,
   });
   const [rounds, setRounds] = useState<JeopardyCategory[][]>([
     [makeCategory(1), makeCategory(1), makeCategory(1)],
@@ -90,6 +92,7 @@ function BuilderJeopardy() {
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
   const [visibility, setVisibility] = useState<GameVisibility>("private");
+  const [showAnswers, setShowAnswers] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
   useEffect(() => {
@@ -113,7 +116,8 @@ function BuilderJeopardy() {
           setFinal(rec.data.final);
           setTags(rec.tags ?? []);
           if (rec.visibility) setVisibility(rec.visibility);
-          setSavedSnapshot(JSON.stringify({ config: rec.data.config, rounds: rec.data.rounds, final: rec.data.final, tags: rec.tags ?? [] }));
+          setShowAnswers(!!rec.showAnswers);
+          setSavedSnapshot(JSON.stringify({ config: rec.data.config, rounds: rec.data.rounds, final: rec.data.final, tags: rec.tags ?? [], showAnswers: !!rec.showAnswers }));
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -246,15 +250,15 @@ function BuilderJeopardy() {
   };
 
   const currentSnapshot = useMemo(
-    () => JSON.stringify({ config, rounds, final, tags }),
-    [config, rounds, final, tags],
+    () => JSON.stringify({ config, rounds, final, tags, showAnswers }),
+    [config, rounds, final, tags, showAnswers],
   );
   const saveState = savedSnapshot === currentSnapshot ? "saved" : "dirty";
 
   const handleSave = async (): Promise<string | null> => {
     const id = savedId ?? newId();
     const data: JeopardyData = { config, rounds, final };
-    await saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility });
+    await saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility, showAnswers });
     setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("jeopardy");
@@ -264,7 +268,7 @@ function BuilderJeopardy() {
 
   const handleSaveAsCopy = async (): Promise<string | null> => {
     const id = newId();
-    await saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility: "private" });
+    await saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility: "private", showAnswers });
     setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("jeopardy");
@@ -393,6 +397,14 @@ function BuilderJeopardy() {
           />
         </label>
       </div>
+      <GamePermissionSettings
+        showAnswers={showAnswers}
+        allowPreview={config.allowPreview}
+        allowCopy={config.allowCopy}
+        onShowAnswersChange={setShowAnswers}
+        onAllowPreviewChange={(allowPreview) => setConfig({ ...config, allowPreview })}
+        onAllowCopyChange={(allowCopy) => setConfig({ ...config, allowCopy })}
+      />
     </div>
   );
 

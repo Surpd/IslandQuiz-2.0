@@ -157,6 +157,14 @@ test("Library preview respects show_answers and renders all game kinds", async (
         updated_at: "2026-08-20T00:00:00Z",
       },
     ];
+    games.push({
+      ...games[0],
+      id: "preview-locked",
+      data: {
+        ...games[0].data,
+        config: { ...games[0].data.config, title: "Preview Locked", allowPreview: false },
+      },
+    });
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -190,6 +198,11 @@ test("Library preview respects show_answers and renders all game kinds", async (
   await expect(dialog.locator('[data-quiz-correct="true"]')).toHaveCount(0);
   await expect(dialog).not.toContainText("Ответ:");
   await dialog.getByRole("button", { name: "Закрыть предпросмотр" }).click();
+  await page.getByRole("button", { name: "Просмотреть Preview Locked" }).click();
+  const lockedDialog = page.getByRole("dialog", { name: "Предпросмотр Preview Locked" });
+  await expect(lockedDialog).toContainText("Автор не разрешил просмотр вопросов до игры");
+  await expect(lockedDialog).not.toContainText("Столица Франции?");
+  await lockedDialog.getByRole("button", { name: "Закрыть предпросмотр" }).click();
 
   showAnswers = true;
   await page.reload();

@@ -341,6 +341,7 @@ export interface SaveGameInput<T = AnyGameData> {
   title?: string;
   tags?: string[];
   visibility?: GameVisibility;
+  showAnswers?: boolean;
 }
 
 export async function saveGame<T = AnyGameData>(input: SaveGameInput<T>) {
@@ -353,6 +354,7 @@ export async function saveGame<T = AnyGameData>(input: SaveGameInput<T>) {
       title: input.title,
       tags: input.tags,
       visibility: input.visibility,
+      show_answers: input.showAnswers,
     }),
   }) as Promise<{ id: string; play_url: string }>;
 }
@@ -399,7 +401,7 @@ export function countOrphanGames(): number {
 
 export async function loadGame<T = AnyGameData>(kind: GameKind, id: string) {
   try {
-    const g = await apiFetch(`/api/games/${id}`);
+    const g = await apiFetch(`/api/games/${id}/play`);
     if (!g) return null;
     const mapped = mapGame<T>(g);
     if (mapped.kind !== kind) return null;
@@ -433,6 +435,15 @@ export async function findGame(id: string): Promise<StoredGame | null> {
     return mapped;
   } catch (e) {
     console.error("[findGame] error:", e);
+    return null;
+  }
+}
+
+export async function getGamePreview(id: string): Promise<StoredGame | null> {
+  try {
+    const g = await apiFetch(`/api/games/${id}/preview`);
+    return g ? mapGame(g) : null;
+  } catch {
     return null;
   }
 }

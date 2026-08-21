@@ -23,7 +23,7 @@ import { RatingStars } from "@/components/rating-stars";
 import { Avatar } from "@/components/avatar";
 import { GameContent, gameSummary } from "@/components/game-content";
 import { useAuth } from "@/hooks/use-auth";
-import { findGame, deleteGame, saveGame, computeRatingStats, getMyRating, rateGame, setGameShowAnswers } from "@/lib/api";
+import { findGame, getGamePreview, deleteGame, saveGame, computeRatingStats, getMyRating, rateGame, setGameShowAnswers } from "@/lib/api";
 
 import {
   exportQuizExcel,
@@ -41,6 +41,7 @@ import type {
   MillionaireData,
   StoredGame,
 } from "@/lib/types";
+import { allowsGameCopy, allowsGamePreview } from "@/lib/game-permissions";
 
 
 export const Route = createFileRoute("/game/$id")({
@@ -65,6 +66,7 @@ function GameDashboard() {
   const { user, forkGame, setGameVisibility } = useAuth();
 
   const [game, setGame] = useState<StoredGame | null | undefined>(undefined);
+  const [previewGame, setPreviewGame] = useState<StoredGame | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [openPlay, setOpenPlay] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -80,13 +82,24 @@ function GameDashboard() {
 
   const reload = () => {
     findGame(id)
-      .then((g) => setGame(g))
+      .then((g) => {
+        setGame(g);
+        if (!g || (user && g.ownerId === user.id) || user?.role === "admin") {
+          setPreviewGame(g);
+          return;
+        }
+        setPreviewGame(undefined);
+        void getGamePreview(id).then(setPreviewGame);
+      })
       .catch((e) => setError(e?.message ?? "Не удалось загрузить"));
   };
 
-  useEffect(reload, [id]);
+  useEffect(reload, [id, user?.id, user?.role]);
 
   const isMine = !!user && !!game && game.ownerId === user.id;
+  const isPrivileged = !!user && (isMine || user.role === "admin");
+  const previewAllowed = !!game && allowsGamePreview(game, isPrivileged);
+  const copyAllowed = !!game && allowsGameCopy(game, isPrivileged);
   const isPrivateOther =
     !!game && !isMine && game.ownerId && game.visibility !== "public";
 
@@ -433,9 +446,11 @@ function GameDashboard() {
         ) : (
           <div className="surface-card mb-6 flex flex-wrap gap-2 p-3 sm:p-4">
             {user ? (
-              <button onClick={doFork} className="btn-accent min-h-10">
+              copyAllowed ? <button onClick={doFork} className="btn-accent min-h-10">
                 <UserPlus className="h-4 w-4" /> Добавить себе
-              </button>
+              </button> : <span className="inline-flex min-h-10 items-center rounded-xl bg-surface-muted px-3 text-sm text-muted-foreground" title="Автор запретил копирование этой игры">
+                Копирование запрещено автором
+              </span>
             ) : (
               <Link to="/login" className="btn-ghost">
                 Войдите, чтобы добавить
@@ -556,11 +571,15 @@ function GameDashboard() {
                   <h2 className="font-display text-base font-bold">Содержание</h2>
                   <p className="text-sm text-muted-foreground">
                     {gameSummary(game)}
-                    {!game.showAnswers && " · ответы скрыты автором"}
+                    {!previewAllowed ? " · вопросы скрыты автором" : !game.showAnswers && " · ответы скрыты автором"}
                   </p>
                 </div>
               </div>
-              <GameContent game={game} withAnswers={!!game.showAnswers} />
+              {previewAllowed && previewGame ? <GameContent game={previewGame} withAnswers={!!previewGame.showAnswers} /> : (
+                <div className="rounded-2xl border border-dashed border-border-strong p-8 text-center text-sm text-muted-foreground">
+                  Автор не разрешил просмотр вопросов до игры. Вы можете запустить игру без предварительного просмотра.
+                </div>
+              )}
             </div>
           )
         )}

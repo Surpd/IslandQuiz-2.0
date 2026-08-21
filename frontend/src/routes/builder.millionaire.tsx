@@ -16,7 +16,7 @@ import { newId } from "@/lib/storage";  // генерация id
 import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
-import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
+import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection, GamePermissionSettings } from "@/components/builder-actions";
 import {
   downloadExcelTemplate,
   exportMillionaireExcel,
@@ -87,6 +87,7 @@ function BuilderMillionaire() {
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
   const [visibility, setVisibility] = useState<GameVisibility>("private");
+  const [showAnswers, setShowAnswers] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
 
@@ -100,7 +101,8 @@ function BuilderMillionaire() {
           setQuestions(rec.data.questions);
           setTags(rec.tags ?? []);
           if (rec.visibility) setVisibility(rec.visibility);
-          setSavedSnapshot(JSON.stringify({ config: rec.data.config, questions: rec.data.questions, tags: rec.tags ?? [] }));
+          setShowAnswers(!!rec.showAnswers);
+          setSavedSnapshot(JSON.stringify({ config: rec.data.config, questions: rec.data.questions, tags: rec.tags ?? [], showAnswers: !!rec.showAnswers }));
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -200,15 +202,15 @@ function BuilderMillionaire() {
   };
 
   const currentSnapshot = useMemo(
-    () => JSON.stringify({ config, questions, tags }),
-    [config, questions, tags],
+    () => JSON.stringify({ config, questions, tags, showAnswers }),
+    [config, questions, tags, showAnswers],
   );
   const saveState = savedSnapshot === currentSnapshot ? "saved" : "dirty";
 
   const handleSave = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    await saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility });
+    await saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility, showAnswers });
     setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("millionaire");
@@ -219,7 +221,7 @@ function BuilderMillionaire() {
   const handleSaveAsCopy = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = newId();
-    await saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility: "private" });
+    await saveGame({ kind: "millionaire", id, data: { config, questions }, tags, visibility: "private", showAnswers });
     setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("millionaire");
@@ -323,6 +325,14 @@ function BuilderMillionaire() {
           />
         </label>
       </div>
+      <GamePermissionSettings
+        showAnswers={showAnswers}
+        allowPreview={config.allowPreview}
+        allowCopy={config.allowCopy}
+        onShowAnswersChange={setShowAnswers}
+        onAllowPreviewChange={(allowPreview) => setConfig({ ...config, allowPreview })}
+        onAllowCopyChange={(allowCopy) => setConfig({ ...config, allowCopy })}
+      />
     </div>
   );
 

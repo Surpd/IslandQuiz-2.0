@@ -36,6 +36,7 @@ import { Avatar } from "@/components/avatar";
 import { GameContent, gameSummary } from "@/components/game-content";
 import type { GameKind, QuizData, StoredGame } from "@/lib/types";
 import { safeCanonicalTag } from "@/lib/tags";
+import { allowsGameCopy, allowsGamePreview } from "@/lib/game-permissions";
 
 
 type TabKey = "my" | "public" | "added" | "played";
@@ -367,7 +368,9 @@ function GameCard({
   const [added, setAdded] = useState(alreadyAdded);
   const Icon = KIND_ICON[g.kind] ?? FileText;
   const VisIcon = g.visibility === "public" ? Globe : g.visibility === "link" ? Link2 : Lock;
-  const isMine = user && g.ownerId === user.id;
+  const isMine = !!user && g.ownerId === user.id;
+  const isPrivileged = !!user && (user.role === "admin" || isMine);
+  const copyAllowed = allowsGameCopy(g, isPrivileged);
   const ownerId = g.ownerId;
 
   const doFork = async (e: React.MouseEvent) => {
@@ -474,13 +477,14 @@ function GameCard({
         {tab === "public" && user && (
           <button
             onClick={doFork}
-            disabled={forking || added}
+            disabled={forking || added || !copyAllowed}
+            title={!copyAllowed ? "Автор запретил копирование этой игры" : undefined}
             className={`ml-auto inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
               added ? "cursor-default bg-success-soft text-success" : "bg-primary-soft text-primary hover:bg-primary/20"
             } ${forking ? "cursor-wait opacity-70" : ""}`}
           >
             {added ? <Check className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
-            {forking ? "Добавляем…" : added ? "Добавлено" : "Добавить"}
+            {forking ? "Добавляем…" : added ? "Добавлено" : copyAllowed ? "Добавить" : "Копирование запрещено"}
           </button>
         )}
         <button
@@ -567,6 +571,9 @@ function GameCard({
 }
 
 function LibraryGamePreview({ game, onClose }: { game: StoredGame; onClose: () => void }) {
+  const { user } = useAuth();
+  const privileged = !!user && (user.role === "admin" || user.id === game.ownerId);
+  const previewAllowed = allowsGamePreview(game, privileged);
   const config = (game.data as { config?: { title?: string; description?: string } }).config;
   return (
     <div className="fixed inset-0 z-[80] flex items-end bg-foreground/40 p-0 pb-[calc(4rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:p-4 sm:pb-4" onClick={onClose}>
@@ -594,9 +601,17 @@ function LibraryGamePreview({ game, onClose }: { game: StoredGame; onClose: () =
         </header>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
           <div className="mb-3 rounded-xl bg-surface-muted px-3 py-2 text-xs text-muted-foreground">
-            {game.showAnswers ? "Ответы доступны согласно настройкам игры." : "Ответы скрыты настройками игры."}
+            {!previewAllowed
+              ? "Автор не разрешил просмотр вопросов до игры. Запустить игру можно ниже на странице игры."
+              : game.showAnswers
+                ? "Ответы доступны согласно настройкам игры."
+                : "Ответы скрыты настройками игры."}
           </div>
-          <GameContent game={game} withAnswers={!!game.showAnswers} />
+          {previewAllowed ? <GameContent game={game} withAnswers={!!game.showAnswers} /> : (
+            <div className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-sm text-muted-foreground">
+              Содержание вопросов скрыто настройками автора.
+            </div>
+          )}
         </div>
       </section>
     </div>

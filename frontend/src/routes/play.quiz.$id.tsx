@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
@@ -45,6 +45,7 @@ const checkAnswer = checkQuizAnswerCore;
 
 function PlayQuiz() {
   const { id } = Route.useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [stored, setStored] = useState<QuizData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -358,16 +359,32 @@ function PlayQuiz() {
                 style={{ width: `${(earnedPoints / Math.max(totalPoints, 1)) * 100}%` }}
               />
             </div>
-            <button
-              onClick={() => {
-                setPhase("start");
-                setIdx(0);
-                setAnswers([]);
-              }}
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[color:var(--pt-accent)] px-6 py-3 font-bold text-black hover:scale-[1.02]"
-            >
-              <RefreshCw className="h-4 w-4" /> Пройти ещё раз
-            </button>
+            <div className="mt-6 grid w-full gap-2 sm:flex sm:flex-wrap sm:justify-center">
+              <button
+                onClick={() => {
+                  setPhase("start");
+                  setIdx(0);
+                  setAnswers([]);
+                }}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[color:var(--pt-accent)] px-6 py-3 font-bold text-black hover:scale-[1.02]"
+              >
+                <RefreshCw className="h-4 w-4" /> Пройти ещё раз
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/library" })}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[color:var(--pt-border)] px-6 py-3 font-semibold text-[color:var(--pt-text)] hover:bg-[color:var(--pt-surface-strong)]"
+              >
+                В библиотеку
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/" })}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-[color:var(--pt-text-muted)] hover:text-[color:var(--pt-text)]"
+              >
+                На главную
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -276,6 +276,40 @@ export function BuilderSettingsSection({
   );
 }
 
+export function GamePermissionSettings({
+  showAnswers,
+  allowPreview,
+  allowCopy,
+  onShowAnswersChange,
+  onAllowPreviewChange,
+  onAllowCopyChange,
+}: {
+  showAnswers: boolean;
+  allowPreview?: boolean;
+  allowCopy?: boolean;
+  onShowAnswersChange: (value: boolean) => void;
+  onAllowPreviewChange: (value: boolean) => void;
+  onAllowCopyChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="grid gap-3 border-t border-border pt-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Доступ к содержимому</p>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" checked={showAnswers} onChange={(e) => onShowAnswersChange(e.target.checked)} />
+        <span>Показывать правильные ответы после прохождения</span>
+      </label>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" checked={allowPreview !== false} onChange={(e) => onAllowPreviewChange(e.target.checked)} />
+        <span>Разрешить просмотр вопросов до игры</span>
+      </label>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" checked={allowCopy !== false} onChange={(e) => onAllowCopyChange(e.target.checked)} />
+        <span>Разрешить копирование игры</span>
+      </label>
+    </div>
+  );
+}
+
 export function BuilderGameInfoSection({
   title,
   children,

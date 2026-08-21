@@ -1,3 +1,4 @@
+import copy
 import uuid
 from typing import Optional, List, Literal
 from datetime import datetime, timezone
@@ -74,6 +75,7 @@ class SaveGameInput(BaseModel):
     title: Optional[str] = None
     tags: Optional[List[str]] = None
     visibility: Optional[Literal["private", "link", "public"]] = None
+    show_answers: Optional[bool] = None
 
     @field_validator("kind")
     @classmethod
@@ -126,6 +128,78 @@ def _can_view(game: dict, user: Optional[dict]) -> bool:
     return False
 
 
+def _is_privileged(game: dict, user: Optional[dict]) -> bool:
+    return bool(user and (game.get("owner_id") == user.get("id") or user.get("role") == "admin"))
+
+
+def _permission_config(game: dict) -> dict:
+    data = game.get("data") or {}
+    config = data.get("config") if isinstance(data, dict) else None
+    return config if isinstance(config, dict) else {}
+
+
+def _allows_preview(game: dict, user: Optional[dict]) -> bool:
+    return _is_privileged(game, user) or _permission_config(game).get("allowPreview", True) is not False
+
+
+def _allows_copy(game: dict, user: Optional[dict]) -> bool:
+    return _is_privileged(game, user) or _permission_config(game).get("allowCopy", True) is not False
+
+
+def _redact_preview_data(game: dict) -> dict:
+    """Keep game metadata and shape, but remove playable question content."""
+    data = copy.deepcopy(game.get("data") or {})
+    kind = game.get("kind")
+    if not isinstance(data, dict):
+        return {"config": {}}
+    if kind == "quiz":
+        data["questions"] = [
+            {
+                key: value
+                for key, value in question.items()
+                if key in {"id", "type", "points", "time"}
+            }
+            for question in data.get("questions", [])
+            if isinstance(question, dict)
+        ]
+    elif kind == "jeopardy":
+        data["rounds"] = [
+            [
+                {
+                    "category": category.get("category", ""),
+                    "questions": [
+                        {"points": q.get("points", 0)}
+                        for q in category.get("questions", [])
+                        if isinstance(q, dict)
+                    ],
+                }
+                for category in round_items
+                if isinstance(category, dict)
+            ]
+            for round_items in data.get("rounds", [])
+            if isinstance(round_items, list)
+        ]
+        final = data.get("final")
+        data["final"] = {"category": final.get("category", "")} if isinstance(final, dict) else {}
+    elif kind == "millionaire":
+        data["questions"] = [
+            {"money": question.get("money", 0)}
+            for question in data.get("questions", [])
+            if isinstance(question, dict)
+        ]
+    return data
+
+
+def _normalized_game_data(game: dict, data: dict) -> dict:
+    if not data.get("config"):
+        return {}
+    if game.get("kind") == "jeopardy" and not isinstance(data.get("rounds"), list):
+        data["rounds"] = []
+    if game.get("kind") in ("quiz", "millionaire") and not isinstance(data.get("questions"), list):
+        data["questions"] = []
+    return data
+
+
 def _attach_play_counts(games: list[dict]) -> list[dict]:
     game_ids = [g["id"] for g in games if g.get("id")]
     if not game_ids:
@@ -176,6 +250,8 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
             "data": input.data,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
+        if input.show_answers is not None:
+            update["show_answers"] = input.show_answers
         if input.tags is not None:
             _ensure_tag_dictionary(input.tags)
             update["tags"] = input.tags
@@ -200,10 +276,41 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
             "owner_id": user["id"] if user else None,
             "owner_name": user["name"] if user else None,
             "visibility": visibility,
+            "show_answers": input.show_answers if input.show_answers is not None else False,
             "tags": input.tags,
         }))
 
     return {"id": game_id, "play_url": f"/play/{input.kind}/{game_id}"}
+
+
+@router.get("/{game_id}/preview", response_model=Optional[GameOut])
+def get_game_preview(game_id: str, user=Depends(get_current_user_optional)):
+    game_rows = _db_rows(supabase.table("games").select("*").eq("id", game_id))
+    if not game_rows:
+        return None
+    game = game_rows[0]
+    if not _can_view(game, user):
+        return None
+    data = _redact_preview_data(game) if not _allows_preview(game, user) else game.get("data") or {}
+    data = _normalized_game_data(game, data)
+    if not data:
+        return None
+    return GameOut(**{**game, "data": data})
+
+
+@router.get("/{game_id}/play", response_model=Optional[GameOut])
+def get_game_for_play(game_id: str, user=Depends(get_current_user_optional)):
+    """Return playable content after the caller has accessed the game."""
+    game_rows = _db_rows(supabase.table("games").select("*").eq("id", game_id))
+    if not game_rows:
+        return None
+    game = game_rows[0]
+    if not _can_view(game, user):
+        return None
+    data = _normalized_game_data(game, game.get("data") or {})
+    if not data:
+        return None
+    return GameOut(**{**game, "data": data})
 
 
 @router.get("/{game_id}", response_model=Optional[GameOut])
@@ -217,13 +324,12 @@ def get_game(game_id: str, user=Depends(get_current_user_optional)):
     if not _can_view(game, user):
         return None
     
-    data = game.get("data") or {}
-    if not data.get("config"):
+    data = _normalized_game_data(
+        game,
+        _redact_preview_data(game) if not _allows_preview(game, user) else game.get("data") or {},
+    )
+    if not data:
         return None
-    if game.get("kind") == "jeopardy" and not isinstance(data.get("rounds"), list):
-        data["rounds"] = []
-    if game.get("kind") in ("quiz", "millionaire") and not isinstance(data.get("questions"), list):
-        data["questions"] = []
 
     rating_rows = _db_rows(supabase.table("ratings").select("*").eq("game_id", game_id))
     if rating_rows:
@@ -278,7 +384,10 @@ def list_games(
     for g in visible_games:
         if g.get("data") and g["data"].get("config"):
             g["ratings"] = ratings_map.get(g["id"], None)
-            result.append(GameOut(**{**g, "data": g.get("data") or {}}))
+            data = g.get("data") or {}
+            if not _allows_preview(g, user):
+                data = _redact_preview_data(g)
+            result.append(GameOut(**{**g, "data": data}))
     
     return {
         "games": result,
@@ -307,6 +416,8 @@ def fork_game(game_id: str, user=Depends(get_current_user)):
     
     if src.get("visibility") not in ("public", "link") and src.get("owner_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Эту игру нельзя форкнуть")
+    if not _allows_copy(src, user):
+        raise HTTPException(status_code=403, detail="Автор запретил копирование этой игры")
     
     new_id = str(uuid.uuid4())
     _db_rows(supabase.table("games").insert({

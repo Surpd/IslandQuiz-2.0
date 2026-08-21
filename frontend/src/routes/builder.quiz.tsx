@@ -32,7 +32,7 @@ import { newId } from "@/lib/storage";  // генерация id
 import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
-import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection } from "@/components/builder-actions";
+import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection, GamePermissionSettings } from "@/components/builder-actions";
 import {
   downloadExcelTemplate,
   exportQuizExcel,
@@ -81,6 +81,8 @@ const DEFAULT_QUIZ_CONFIG: QuizConfig = {
   defaultTime: 30,
   orderMode: "sequential",
   totalTime: 10,
+  allowPreview: true,
+  allowCopy: true,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -103,6 +105,9 @@ function normalizeQuizConfig(value: unknown): QuizConfig {
     defaultTime: typeof value.defaultTime === "number" && value.defaultTime > 0 ? value.defaultTime : 30,
     orderMode: value.orderMode === "free" || value.orderMode === "sequential" ? value.orderMode : "sequential",
     totalTime: typeof value.totalTime === "number" && value.totalTime > 0 ? value.totalTime : 10,
+    showAnswers: typeof value.showAnswers === "boolean" ? value.showAnswers : false,
+    allowPreview: value.allowPreview !== false,
+    allowCopy: value.allowCopy !== false,
   };
 }
 
@@ -154,6 +159,7 @@ function BuilderQuiz() {
   const [printAnswers, setPrintAnswers] = useState(true);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(urlId ? "loading" : "idle");
   const [visibility, setVisibility] = useState<GameVisibility>("private");
+  const [showAnswers, setShowAnswers] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -193,7 +199,8 @@ function BuilderQuiz() {
           setQuestions(data.questions);
           setTags(rec.tags ?? []);
           if (rec.visibility) setVisibility(rec.visibility);
-          setSavedSnapshot(JSON.stringify({ config: data.config, questions: data.questions, tags: rec.tags ?? [] }));
+          setShowAnswers(!!rec.showAnswers);
+          setSavedSnapshot(JSON.stringify({ config: data.config, questions: data.questions, tags: rec.tags ?? [], showAnswers: !!rec.showAnswers }));
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -265,15 +272,15 @@ function BuilderQuiz() {
   // Bug 1.3: если есть savedId — обновляем, иначе создаём.
 
   const currentSnapshot = useMemo(
-    () => JSON.stringify({ config, questions, tags }),
-    [config, questions, tags],
+    () => JSON.stringify({ config, questions, tags, showAnswers }),
+    [config, questions, tags, showAnswers],
   );
   const saveState = savedSnapshot === currentSnapshot ? "saved" : "dirty";
 
   const handleSave = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    await saveGame({ kind: "quiz", id, data: { config, questions: questions.map(withQuizQuestionDisplay) }, tags, visibility });
+    await saveGame({ kind: "quiz", id, data: { config, questions: questions.map(withQuizQuestionDisplay) }, tags, visibility, showAnswers });
     setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("quiz");
@@ -292,6 +299,7 @@ function BuilderQuiz() {
         questions: questions.map(withQuizQuestionDisplay),
       },
       tags,
+      showAnswers,
     });
     setSavedSnapshot(currentSnapshot);
     setSavedId(id);
@@ -506,6 +514,14 @@ function BuilderQuiz() {
           Перемешивать вопросы
         </label>
       </div>
+      <GamePermissionSettings
+        showAnswers={showAnswers}
+        allowPreview={config.allowPreview}
+        allowCopy={config.allowCopy}
+        onShowAnswersChange={setShowAnswers}
+        onAllowPreviewChange={(allowPreview) => setConfig({ ...config, allowPreview })}
+        onAllowCopyChange={(allowCopy) => setConfig({ ...config, allowCopy })}
+      />
     </div>
   );
 

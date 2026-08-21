@@ -71,6 +71,8 @@ test("Quiz results format correct and user answers without mobile overflow", asy
   await expect(page.getByRole("heading", { name: "Результаты" })).toBeVisible();
   await page.getByRole("button").filter({ hasText: "Аня" }).click();
   const detail = page.locator("article").filter({ hasText: "Аня" });
+  await expect(detail.getByTestId("result-question-card")).toHaveCount(7);
+  await expect(detail.locator("thead:visible")).toHaveCount(0);
   await expect(detail).toContainText("Да");
   await expect(detail).toContainText("Нет");
   await expect(detail).toContainText("Рейкьявик · Reykjavik");
@@ -83,7 +85,7 @@ test("Quiz results format correct and user answers without mobile overflow", asy
   await expect(detail).not.toContainText('[{"left"');
   await expect(detail).not.toContainText('["Франция"');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  const longAnswer = detail.getByText(/Очень длинный ответ пользователя/);
+  const longAnswer = detail.locator("span:visible").filter({ hasText: /Очень длинный ответ пользователя/ }).first();
   await expect(longAnswer).toBeVisible();
   const longBox = await longAnswer.boundingBox();
   expect(longBox).not.toBeNull();

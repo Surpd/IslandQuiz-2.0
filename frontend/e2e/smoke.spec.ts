@@ -152,5 +152,8 @@ test("login, save, reopen, and play a quiz", async ({ page }) => {
   await player.getByRole("button", { name: "Paris" }).click();
   await player.getByRole("button", { name: "Ответить" }).click();
   await expect(player.getByRole("heading", { name: "Готово!" })).toBeVisible();
+  await expect(player.getByRole("button", { name: "Пройти ещё раз" })).toBeVisible();
+  await expect(player.getByRole("button", { name: "В библиотеку" })).toBeVisible();
+  await expect(player.getByRole("button", { name: "На главную" })).toBeVisible();
   await player.close();
 });

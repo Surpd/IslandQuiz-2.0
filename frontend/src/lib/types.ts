@@ -52,6 +52,9 @@ export interface QuizConfig {
   defaultTime: number;
   orderMode: "sequential" | "free";
   totalTime: number; // minutes when free
+  showAnswers?: boolean;
+  allowPreview?: boolean;
+  allowCopy?: boolean;
 }
 
 export interface QuizData {
@@ -86,6 +89,9 @@ export interface JeopardyConfig {
   timeBase: number;
   timeStep: number;
   timeFinal: number;
+  showAnswers?: boolean;
+  allowPreview?: boolean;
+  allowCopy?: boolean;
 }
 
 export interface JeopardyData {
@@ -118,6 +124,9 @@ export interface MillionaireConfig {
   moneyScale: MoneyScale;
   milestones: MilestoneMode;
   pointsMode?: PointsMode;
+  showAnswers?: boolean;
+  allowPreview?: boolean;
+  allowCopy?: boolean;
 }
 
 export interface MillionaireData {
