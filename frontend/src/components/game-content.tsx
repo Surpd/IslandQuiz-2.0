@@ -6,9 +6,10 @@ import type {
   JeopardyData,
   MillionaireData,
   QuizData,
+  QuizQuestion,
   StoredGame,
 } from "@/lib/types";
-import { quizQuestionTypeLabel } from "@/lib/format-answer";
+import { neutralQuizItems, quizQuestionDisplay, quizQuestionTypeLabel } from "@/lib/format-answer";
 import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 
 export function gameSummary(g: StoredGame): string {
@@ -66,21 +67,7 @@ function QuizContent({ data, withAnswers }: { data: QuizData; withAnswers: boole
               <p className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
                 {quizQuestionTypeLabel(q.type)} · {q.points} б · {q.time}с
               </p>
-              {q.options.length > 0 && (
-                <ul className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                  {q.options.map((option) => (
-                    <li
-                      key={option}
-                      data-quiz-option={option}
-                      data-quiz-correct={withAnswers && q.type === "choice" && option === q.answer ? "true" : undefined}
-                      className={`break-words rounded-md bg-surface-muted px-2 py-1 ${withAnswers && q.type === "choice" && option === q.answer ? "font-semibold text-success ring-1 ring-success/30" : ""}`}
-                    >
-                      {withAnswers && q.type === "choice" && option === q.answer && <span aria-hidden="true">✓ </span>}
-                      {option}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <QuizQuestionContent question={q} withAnswers={withAnswers} />
               {withAnswers && (
                 <div data-quiz-answer={q.type} className="mt-2 rounded-lg bg-success-soft/60 px-2 py-1.5 text-xs text-success">
                   <span className="font-semibold">Правильный ответ:</span>{" "}
@@ -93,6 +80,90 @@ function QuizContent({ data, withAnswers }: { data: QuizData; withAnswers: boole
       ))}
     </ol>
   );
+}
+
+function QuizQuestionContent({ question, withAnswers }: { question: QuizQuestion; withAnswers: boolean }) {
+  if (question.type === "choice") {
+    const options = question.options ?? [];
+    if (!options.length) return null;
+    return (
+      <ul data-quiz-question-content="choice" className="mt-2 grid min-w-0 gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+        {options.map((option) => {
+          const correct = withAnswers && option === question.answer;
+          return (
+            <li
+              key={option}
+              data-quiz-option={option}
+              data-quiz-correct={correct ? "true" : undefined}
+              className={`break-words rounded-md bg-surface-muted px-2 py-1 ${correct ? "font-semibold text-success ring-1 ring-success/30" : ""}`}
+            >
+              {correct && <span aria-hidden="true">✓ </span>}
+              {option}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  if (question.type === "bool") {
+    return (
+      <div data-quiz-question-content="bool" className="mt-2 grid grid-cols-2 gap-1 text-xs">
+        {[{ value: "true", label: "Да" }, { value: "false", label: "Нет" }].map(({ value, label }) => {
+          const correct = withAnswers && value === question.answer;
+          return (
+            <span
+              key={value}
+              data-quiz-option={label}
+              data-quiz-correct={correct ? "true" : undefined}
+              className={`break-words rounded-md bg-surface-muted px-2 py-1 text-center ${correct ? "font-semibold text-success ring-1 ring-success/30" : ""}`}
+            >
+              {correct && <span aria-hidden="true">✓ </span>}
+              {label}
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const display = quizQuestionDisplay(question);
+  if (question.type === "matching" && display.matching) {
+    const left = neutralQuizItems(display.matching.left);
+    // Keep the two neutral columns independently ordered so row alignment cannot reveal pairs.
+    const right = neutralQuizItems(neutralQuizItems(display.matching.right));
+    if (!left.length && !right.length) return null;
+    return (
+      <div data-quiz-question-content="matching" className="mt-2 grid min-w-0 gap-2 text-xs sm:grid-cols-2">
+        <div className="min-w-0 rounded-md bg-surface-muted px-2 py-1.5">
+          <p className="mb-1 font-semibold text-muted-foreground">Элементы A</p>
+          <ul className="grid min-w-0 gap-1">
+            {left.map((item) => <li key={item} className="break-words">{item}</li>)}
+          </ul>
+        </div>
+        <div className="min-w-0 rounded-md bg-surface-muted px-2 py-1.5">
+          <p className="mb-1 font-semibold text-muted-foreground">Элементы B</p>
+          <ul className="grid min-w-0 gap-1">
+            {right.map((item) => <li key={item} className="break-words">{item}</li>)}
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
+  if (question.type === "ordering" && display.ordering?.length) {
+    return (
+      <ul data-quiz-question-content="ordering" className="mt-2 grid min-w-0 gap-1 text-xs text-muted-foreground">
+        {neutralQuizItems(display.ordering).map((item) => (
+          <li key={item} data-quiz-order-item={item} className="flex min-w-0 gap-1 break-words rounded-md bg-surface-muted px-2 py-1">
+            <span aria-hidden="true">•</span><span className="min-w-0 break-words">{item}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return null;
 }
 
 function JeopardyContent({ data, withAnswers }: { data: JeopardyData; withAnswers: boolean }) {

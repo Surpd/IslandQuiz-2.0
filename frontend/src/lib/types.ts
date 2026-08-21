@@ -19,6 +19,15 @@ export interface QuizPair {
   right: string;
 }
 
+/** Optional non-answer content for previews and future editors. Legacy games derive this safely from answer. */
+export interface QuizQuestionDisplay {
+  matching?: {
+    left: string[];
+    right: string[];
+  };
+  ordering?: string[];
+}
+
 export interface QuizQuestion {
   id: string;
   type: QuizQuestionType;
@@ -28,6 +37,8 @@ export interface QuizQuestion {
   options: string[];
   // choice: correct option text; bool: "true"|"false"; text: acceptable answers (comma-separated); matching: JSON of QuizPair[]
   answer: string;
+  /** Optional display-only content; never used for scoring or answer checks. */
+  display?: QuizQuestionDisplay;
   points: number;
   time: number;
 }
@@ -134,4 +145,3 @@ export interface StoredGame<T = unknown> {
   playCount?: number;
   showAnswers?: boolean;
 }
-

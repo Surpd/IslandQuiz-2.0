@@ -171,6 +171,20 @@ test("Library preview respects show_answers and renders all game kinds", async (
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("Описание quiz")).toBeVisible();
   await expect(dialog.getByText("Париж", { exact: true })).toBeVisible();
+  await expect(dialog.locator('[data-quiz-question-content="bool"]')).toContainText("Да");
+  await expect(dialog.locator('[data-quiz-question-content="bool"]')).toContainText("Нет");
+  await expect(dialog.locator('[data-quiz-question-content="matching"]')).toContainText("Везувий");
+  await expect(dialog.locator('[data-quiz-question-content="matching"]')).toContainText("Италия");
+  await expect(dialog.locator('[data-quiz-question-content="matching"]')).not.toContainText("Везувий → Италия");
+  const matchingContent = dialog.locator('[data-quiz-question-content="matching"]');
+  await expect(matchingContent.locator("ul").first().locator("li").first()).toHaveText("Фьорды");
+  await expect(matchingContent.locator("ul").last().locator("li").first()).toHaveText("Италия");
+  await expect(dialog.locator('[data-quiz-question-content="ordering"]')).toContainText("Португалия");
+  await expect(dialog.locator('[data-quiz-question-content="ordering"]')).toContainText("Венгрия");
+  await expect(dialog.locator('[data-quiz-question-content="ordering"]')).not.toContainText("1. Португалия");
+  await expect(dialog.locator('[data-quiz-question="close"]')).toContainText("Кровь переносит кислород ___ и ___");
+  await expect(dialog).not.toContainText("Рейкьявик · Reykjavik");
+  await expect(dialog).not.toContainText("эритроцитами");
   await expect(dialog.getByText("Ответы скрыты настройками игры.")).toBeVisible();
   await expect(dialog.locator("[data-quiz-answer]")).toHaveCount(0);
   await expect(dialog.locator('[data-quiz-correct="true"]')).toHaveCount(0);
@@ -227,4 +241,13 @@ test("Library preview respects show_answers and renders all game kinds", async (
   await expect(millionaire.getByText("Берлин", { exact: true }).first()).toBeVisible();
   await expect(millionaire.getByText("Ответ:")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "Закрыть предпросмотр" }).click();
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.reload();
+  await page.getByRole("button", { name: "Просмотреть Preview Quiz" }).click();
+  const desktopDialog = page.getByRole("dialog", { name: "Предпросмотр Preview Quiz" });
+  await expect(desktopDialog.locator('[data-quiz-answer="matching"]')).toContainText("Везувий → Италия");
+  await expect(desktopDialog.locator('[data-quiz-answer="ordering"]').first()).toContainText("1. Португалия");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
 });

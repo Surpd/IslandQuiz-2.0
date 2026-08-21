@@ -46,6 +46,7 @@ import type {
   QuizQuestion,
   QuizQuestionType,
 } from "@/lib/types";
+import { normalizeQuizQuestionDisplay, withQuizQuestionDisplay } from "@/lib/format-answer";
 
 import type { GameVisibility } from "@/lib/types";
 
@@ -116,6 +117,7 @@ function normalizeQuizQuestion(value: unknown, defaultTime: number): QuizQuestio
     image: typeof value.image === "string" ? value.image : "",
     options: type === "choice" ? (options.length ? options : ["", "", "", ""]) : [],
     answer: typeof value.answer === "string" ? value.answer : type === "bool" ? "true" : "",
+    display: normalizeQuizQuestionDisplay(value.display),
     points: typeof value.points === "number" && value.points > 0 ? value.points : 100,
     time: typeof value.time === "number" && value.time > 0 ? value.time : defaultTime,
   };
@@ -271,7 +273,7 @@ function BuilderQuiz() {
   const handleSave = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    await saveGame({ kind: "quiz", id, data: { config, questions }, tags, visibility });
+    await saveGame({ kind: "quiz", id, data: { config, questions: questions.map(withQuizQuestionDisplay) }, tags, visibility });
     setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("quiz");
@@ -287,7 +289,7 @@ function BuilderQuiz() {
       id,
       data: {
         config: { ...config, title: `${config.title} (копия)` },
-        questions,
+        questions: questions.map(withQuizQuestionDisplay),
       },
       tags,
     });

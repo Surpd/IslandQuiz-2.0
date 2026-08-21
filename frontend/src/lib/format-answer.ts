@@ -1,5 +1,5 @@
 // Readable formatting for quiz answers used in print / feedback UIs.
-import type { QuizQuestion, QuizQuestionType } from "./types";
+import type { QuizQuestion, QuizQuestionDisplay, QuizQuestionType } from "./types";
 
 export const QUIZ_QUESTION_TYPE_LABELS: Record<QuizQuestionType, string> = {
   choice: "Выбор ответа",
@@ -39,6 +39,72 @@ function parseJson(raw: string): unknown {
   } catch {
     return undefined;
   }
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map(textValue).filter(Boolean)
+    : [];
+}
+
+export function normalizeQuizQuestionDisplay(value: unknown): QuizQuestionDisplay | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as { matching?: unknown; ordering?: unknown };
+  const matching = raw.matching && typeof raw.matching === "object"
+    ? raw.matching as { left?: unknown; right?: unknown }
+    : undefined;
+  const left = stringList(matching?.left);
+  const right = stringList(matching?.right);
+  const ordering = stringList(raw.ordering);
+  const display: QuizQuestionDisplay = {};
+  if (left.length || right.length) display.matching = { left, right };
+  if (ordering.length) display.ordering = ordering;
+  return display.matching || display.ordering ? display : undefined;
+}
+
+/** Returns display-only question elements without exposing their correct relationship/order. */
+export function quizQuestionDisplay(question: QuizQuestion): QuizQuestionDisplay {
+  const stored = normalizeQuizQuestionDisplay(question.display);
+  if (stored && (stored.matching || stored.ordering)) return stored;
+
+  if (question.type === "matching") {
+    const parsed = parseJson(question.answer);
+    const pairs = Array.isArray(parsed)
+      ? parsed.flatMap((item) => {
+          if (!item || typeof item !== "object") return [];
+          const pair = item as { left?: unknown; right?: unknown };
+          const left = textValue(pair.left);
+          const right = textValue(pair.right);
+          return left || right ? [{ left, right }] : [];
+        })
+      : [];
+    return {
+      matching: {
+        left: pairs.map((pair) => pair.left).filter(Boolean),
+        right: pairs.map((pair) => pair.right).filter(Boolean),
+      },
+    };
+  }
+
+  if (question.type === "ordering") {
+    return { ordering: stringList(parseJson(question.answer)) };
+  }
+
+  return {};
+}
+
+/** Stores legacy matching/ordering elements separately while preserving the existing answer contract. */
+export function withQuizQuestionDisplay(question: QuizQuestion): QuizQuestion {
+  if (question.display && (question.display.matching || question.display.ordering)) return question;
+  const display = quizQuestionDisplay(question);
+  return display.matching || display.ordering ? { ...question, display } : question;
+}
+
+/** Deterministic neutral order for content-only lists; it must not reproduce the answer order. */
+export function neutralQuizItems(items: string[]): string[] {
+  const clean = items.map(textValue).filter(Boolean);
+  if (clean.length < 2) return clean;
+  return [...clean.slice(1), clean[0]];
 }
 
 function formatMatching(raw: string): string {
