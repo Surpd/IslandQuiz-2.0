@@ -3,7 +3,9 @@ import json
 import secrets
 import time
 import uuid
-from datetime import datetime, timezone
+import hashlib
+import hmac
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from services.trusted_scoring import quiz_answer_is_correct, verify_snapshot_token
@@ -15,6 +17,8 @@ rooms: dict[str, dict] = {}
 connections: dict[str, list[WebSocket]] = {}
 room_cleanup_tasks: dict[str, asyncio.Task] = {}
 ROOM_RECONNECT_GRACE_SECONDS = 60
+ROOM_PERSISTENCE_TTL_SECONDS = 30 * 60
+ROOM_TABLE = "online_rooms"
 MAX_ROOM_MESSAGE_BYTES = 16 * 1024
 # create_room carries the signed snapshot, which can be much larger than actions.
 MAX_ROOM_CREATE_MESSAGE_BYTES = 256 * 1024
@@ -197,7 +201,88 @@ def validate_jeopardy_action(room: dict, action: str, data: dict, identity: dict
 
 def public_room_state(room: dict) -> dict:
     """Never expose in-memory room credentials in a state broadcast."""
-    return {key: value for key, value in room.items() if key not in {"_credentials", "_snapshot"}}
+    return {key: value for key, value in room.items() if key not in {"_credentials", "_credential_hashes", "_snapshot"}}
+
+
+def _credential_digest(credential: str) -> str:
+    from routes.auth import SECRET_KEY
+
+    return hmac.new(
+        SECRET_KEY.encode("utf-8"),
+        credential.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _room_persistence_state(room: dict) -> dict:
+    state = {
+        key: value
+        for key, value in room.items()
+        if key != "_credential_hashes"
+    }
+    state["_credentials"] = dict(room.get("_credential_hashes", {}))
+    return state
+
+
+def _persist_room_state(room: dict) -> bool:
+    """Persist resumable state without storing raw reconnect credentials."""
+    from database import supabase
+
+    payload = {
+        "code": room["code"],
+        "game_kind": room["gameKind"],
+        "game_id": room["gameId"],
+        "state": _room_persistence_state(room),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (
+            datetime.now(timezone.utc)
+            + timedelta(seconds=ROOM_PERSISTENCE_TTL_SECONDS)
+        ).isoformat(),
+    }
+    try:
+        response = supabase.table(ROOM_TABLE).upsert(payload).execute()
+    except Exception:
+        return False
+    return response is not None
+
+
+def _load_persisted_room(code: str) -> dict | None:
+    from database import supabase
+
+    try:
+        response = (
+            supabase
+            .table(ROOM_TABLE)
+            .select("state,expires_at")
+            .eq("code", code)
+            .gt("expires_at", datetime.now(timezone.utc).isoformat())
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        return None
+    rows = getattr(response, "data", None)
+    if not isinstance(rows, list) or not rows or not isinstance(rows[0], dict):
+        return None
+    state = rows[0].get("state")
+    if not isinstance(state, dict):
+        return None
+    persisted_credentials = state.get("_credentials", {})
+    if not isinstance(persisted_credentials, dict):
+        return None
+    state = dict(state)
+    state["_credentials"] = {}
+    state["_credential_hashes"] = persisted_credentials
+    return state
+
+
+def _delete_persisted_room(code: str) -> None:
+    from database import supabase
+
+    try:
+        supabase.table(ROOM_TABLE).delete().eq("code", code).execute()
+    except Exception:
+        return
 
 
 def _kahoot_score(correct: bool, elapsed_ms: int, total_ms: int, streak_before: int) -> tuple[int, int]:
@@ -264,12 +349,20 @@ async def send_error(websocket: WebSocket, error: str):
 def room_identity(code: str, credential: str | None) -> dict | None:
     if not credential or code not in rooms:
         return None
-    return rooms[code].get("_credentials", {}).get(credential)
+    room = rooms[code]
+    identity = room.get("_credentials", {}).get(credential)
+    if identity:
+        return identity
+    identity = room.get("_credential_hashes", {}).get(_credential_digest(credential))
+    if identity:
+        room.setdefault("_credentials", {})[credential] = identity
+    return identity
 
 
 def issue_credential(room: dict, role: str, player_id: str | None = None) -> tuple[str, dict]:
     credential = secrets.token_urlsafe(32)
     identity = {"role": role, "playerId": player_id}
+    room.setdefault("_credential_hashes", {})[_credential_digest(credential)] = identity
     room["_credentials"][credential] = identity
     return credential, identity
 
@@ -279,6 +372,7 @@ async def cleanup_empty_room_after_grace(code: str):
     if not connections.get(code):
         connections.pop(code, None)
         rooms.pop(code, None)
+        _delete_persisted_room(code)
     room_cleanup_tasks.pop(code, None)
 
 
@@ -287,6 +381,7 @@ async def broadcast(code: str, message: dict):
     if code not in connections:
         return
     if message.get("type") == "room_state" and isinstance(message.get("state"), dict):
+        _persist_room_state(rooms[code])
         message = {**message, "state": public_room_state(message["state"])}
     dead = []
     for ws in connections[code]:
@@ -301,6 +396,11 @@ async def broadcast(code: str, message: dict):
 @router.websocket("/ws/room/{code}")
 async def room_websocket(websocket: WebSocket, code: str):
     await websocket.accept()
+
+    if code not in rooms:
+        recovered_room = _load_persisted_room(code)
+        if recovered_room:
+            rooms[code] = recovered_room
 
     identity = room_identity(code, websocket.query_params.get("credential"))
     cleanup_task = room_cleanup_tasks.pop(code, None)
