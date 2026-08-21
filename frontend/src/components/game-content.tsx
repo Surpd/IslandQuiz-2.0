@@ -56,7 +56,7 @@ function QuizContent({ data, withAnswers }: { data: QuizData; withAnswers: boole
   return (
     <ol className="flex flex-col gap-2">
       {data.questions.map((q, i) => (
-        <li key={q.id ?? i} className="rounded-xl border border-border bg-surface p-3">
+        <li key={q.id ?? i} data-quiz-question={q.type} className="rounded-xl border border-border bg-surface p-3">
           <div className="flex items-start gap-2">
             <span className="mt-0.5 grid h-6 w-6 flex-shrink-0 place-items-center rounded-full bg-primary-soft text-xs font-bold text-primary">
               {i + 1}
@@ -69,14 +69,23 @@ function QuizContent({ data, withAnswers }: { data: QuizData; withAnswers: boole
               {q.options.length > 0 && (
                 <ul className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                   {q.options.map((option) => (
-                    <li key={option} className="break-words rounded-md bg-surface-muted px-2 py-1">{option}</li>
+                    <li
+                      key={option}
+                      data-quiz-option={option}
+                      data-quiz-correct={withAnswers && q.type === "choice" && option === q.answer ? "true" : undefined}
+                      className={`break-words rounded-md bg-surface-muted px-2 py-1 ${withAnswers && q.type === "choice" && option === q.answer ? "font-semibold text-success ring-1 ring-success/30" : ""}`}
+                    >
+                      {withAnswers && q.type === "choice" && option === q.answer && <span aria-hidden="true">✓ </span>}
+                      {option}
+                    </li>
                   ))}
                 </ul>
               )}
               {withAnswers && (
-                <p className="mt-1 text-xs text-success">
-                  Ответ: <b><QuizAnswerDisplay question={q} /></b>
-                </p>
+                <div data-quiz-answer={q.type} className="mt-2 rounded-lg bg-success-soft/60 px-2 py-1.5 text-xs text-success">
+                  <span className="font-semibold">Правильный ответ:</span>{" "}
+                  <QuizAnswerDisplay question={q} className="font-semibold" />
+                </div>
               )}
             </div>
           </div>

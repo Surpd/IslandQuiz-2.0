@@ -172,6 +172,8 @@ test("Library preview respects show_answers and renders all game kinds", async (
   await expect(dialog.getByText("Описание quiz")).toBeVisible();
   await expect(dialog.getByText("Париж", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Ответы скрыты настройками игры.")).toBeVisible();
+  await expect(dialog.locator("[data-quiz-answer]")).toHaveCount(0);
+  await expect(dialog.locator('[data-quiz-correct="true"]')).toHaveCount(0);
   await expect(dialog).not.toContainText("Ответ:");
   await dialog.getByRole("button", { name: "Закрыть предпросмотр" }).click();
 
@@ -180,7 +182,18 @@ test("Library preview respects show_answers and renders all game kinds", async (
   await page.getByRole("button", { name: "Просмотреть Preview Quiz" }).click();
   const openDialog = page.getByRole("dialog", { name: "Предпросмотр Preview Quiz" });
   await expect(openDialog.getByText("Ответы доступны согласно настройкам игры.")).toBeVisible();
-  await expect(openDialog.getByText("Ответ: Париж")).toBeVisible();
+  await expect(openDialog.locator("[data-quiz-answer]")).toHaveCount(7);
+  await expect(openDialog.locator('[data-quiz-answer="choice"]')).toContainText("Правильный ответ: Париж");
+  await expect(openDialog.locator('[data-quiz-answer="bool"]')).toContainText("Правильный ответ: Да");
+  await expect(openDialog.locator('[data-quiz-answer="text"]')).toContainText("Правильный ответ: Рейкьявик · Reykjavik");
+  await expect(openDialog.locator('[data-quiz-answer="matching"]')).toContainText("Везувий → Италия");
+  await expect(openDialog.locator('[data-quiz-answer="matching"]')).toContainText("Фьорды → Норвегия");
+  await expect(openDialog.locator('[data-quiz-answer="ordering"]').first()).toContainText("1. Португалия");
+  await expect(openDialog.locator('[data-quiz-answer="ordering"]').first()).toContainText("4. Венгрия");
+  await expect(openDialog.locator('[data-quiz-answer="close"]')).toContainText("1. эритроцитами");
+  await expect(openDialog.locator('[data-quiz-answer="close"]')).toContainText("2. гемоглобин");
+  await expect(openDialog.locator('[data-quiz-answer="ordering"]').last()).toContainText("Ответ недоступен");
+  await expect(openDialog.locator('[data-quiz-option="Париж"][data-quiz-correct="true"]')).toBeVisible();
   await expect(openDialog).toContainText("Выбор ответа");
   await expect(openDialog).toContainText("Да/Нет");
   await expect(openDialog).toContainText("Сопоставление");
@@ -190,10 +203,6 @@ test("Library preview respects show_answers and renders all game kinds", async (
   await expect(openDialog).toContainText("Рейкьявик · Reykjavik");
   await expect(openDialog).toContainText("Везувий → Италия");
   await expect(openDialog).toContainText("Фьорды → Норвегия");
-  await expect(openDialog).toContainText("1. Португалия");
-  await expect(openDialog).toContainText("4. Венгрия");
-  await expect(openDialog).toContainText("1. эритроцитами");
-  await expect(openDialog).toContainText("Ответ недоступен");
   await expect(openDialog).not.toContainText('["Португалия"');
   const previewHeader = openDialog.locator("header");
   const previewScroll = openDialog.locator("div.overflow-y-auto");
