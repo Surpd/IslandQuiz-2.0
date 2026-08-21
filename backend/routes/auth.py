@@ -1,5 +1,7 @@
 import os
 import uuid
+import hashlib
+import secrets
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -17,6 +19,7 @@ from limiter import limiter
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 DB_ERROR_DETAIL = "Ошибка базы данных"
+PASSWORD_RESET_TOKEN_TABLE = "password_resets"
 
 
 def _db_response(query):
@@ -127,6 +130,10 @@ class AuthResponse(BaseModel):
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
+
+
+def hash_password_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def verify_password(
@@ -479,16 +486,17 @@ def forgot_password(
     if not user_rows[0].get("password_hash"):
         return {"ok": True}
 
-    token = str(uuid.uuid4())
+    token = secrets.token_urlsafe(32)
+    token_hash = hash_password_reset_token(token)
 
     expires = (
         datetime.now(timezone.utc)
         + timedelta(hours=1)
     ).isoformat()
 
-    _db_rows(supabase.table("password_resets").insert({
+    _db_rows(supabase.table(PASSWORD_RESET_TOKEN_TABLE).insert({
             "email": email,
-            "token": token,
+            "token_hash": token_hash,
             "expires_at": expires,
         }))
 
@@ -518,11 +526,12 @@ def reset_password(
             "error": "Пароль должен быть не менее 6 символов"
         }
 
+    token_hash = hash_password_reset_token(token)
     reset_rows = _db_rows(
         supabase
-        .table("password_resets")
+        .table(PASSWORD_RESET_TOKEN_TABLE)
         .select("*")
-        .eq("token", token)
+        .eq("token_hash", token_hash)
     )
 
     if not reset_rows:
@@ -532,23 +541,51 @@ def reset_password(
 
     record = reset_rows[0]
 
-    expires_at = datetime.fromisoformat(
-        record["expires_at"]
-    )
+    try:
+        expires_at = datetime.fromisoformat(record["expires_at"])
+    except (KeyError, TypeError, ValueError):
+        return {"error": "Недействительная ссылка"}
+
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
 
     if expires_at < datetime.now(timezone.utc):
-        _db_rows(supabase.table("password_resets").delete().eq("token", token))
+        _db_rows(
+            supabase
+            .table(PASSWORD_RESET_TOKEN_TABLE)
+            .delete()
+            .eq("token_hash", token_hash)
+        )
 
         return {
             "error": "Срок действия ссылки истёк"
         }
 
+    # DELETE ... RETURNING is the single-use gate. PostgreSQL serializes
+    # concurrent deletes on the same token, so only one request can proceed.
+    consumed_rows = _db_rows(
+        supabase
+        .table(PASSWORD_RESET_TOKEN_TABLE)
+        .delete()
+        .eq("token_hash", token_hash)
+        .gt("expires_at", datetime.now(timezone.utc).isoformat())
+        .select("email, token_hash")
+    )
+
+    if not consumed_rows:
+        return {"error": "Недействительная ссылка"}
+
     hashed = hash_password(password)
 
-    _db_rows(supabase.table("users").update({
-            "password_hash": hashed
-        }).eq("email", record["email"]))
+    updated_users = _db_rows(
+        supabase
+        .table("users")
+        .update({"password_hash": hashed})
+        .eq("email", record["email"])
+        .select("id")
+    )
 
-    _db_rows(supabase.table("password_resets").delete().eq("token", token))
+    if not updated_users:
+        raise HTTPException(status_code=502, detail=DB_ERROR_DETAIL)
 
     return {"ok": True}

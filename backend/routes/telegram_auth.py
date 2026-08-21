@@ -80,16 +80,29 @@ def _base36(value: int) -> str:
 
 
 # ============================================================
-# Stateless Telegram login token
+# Telegram login token
 # ============================================================
+
+TELEGRAM_TOKEN_TABLE = "telegram_login_nonces"
+
+
+def _nonce_hash(nonce: str) -> str:
+    return hmac.new(
+        TELEGRAM_AUTH_SECRET.encode("utf-8"),
+        nonce.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 def create_telegram_login_token(
     user_id: Optional[str] = None,
+    token_type: str = "complete",
 ) -> str:
     """
-    Создаёт подписанный одноразовый по смыслу токен.
+    Создаёт подписанный одноразовый токен.
 
-    Никакой записи в Supabase не создаётся.
+    Подпись остаётся stateless, а nonce регистрируется в Supabase до
+    возврата токена. Это позволяет атомарно consume-ить credential после
+    restart и при нескольких backend workers.
 
     Формат:
 
@@ -128,6 +141,17 @@ def create_telegram_login_token(
     ).digest()[:12]
     signature_part = base64.urlsafe_b64encode(signature).decode().rstrip("=")
 
+    _db_response(
+        supabase.table(TELEGRAM_TOKEN_TABLE).insert({
+            "nonce_hash": _nonce_hash(nonce),
+            "token_type": token_type,
+            "expires_at": datetime.fromtimestamp(
+                expires,
+                timezone.utc,
+            ).isoformat(),
+        })
+    )
+
     return f"{payload}{signature_part}"
 
 
@@ -137,7 +161,8 @@ def verify_telegram_login_token(
     """
     Проверяет подпись и срок действия.
 
-    БД для проверки не нужна.
+    БД для проверки подписи и срока не нужна. Одноразовость consume-ится
+    отдельно endpoint-ом через атомарный UPDATE.
     """
 
     if len(token) < 35 or len(token) > 64 or token[0] not in ("0", "1", "2"):
@@ -200,6 +225,32 @@ def verify_telegram_login_token(
     }
 
 
+def consume_telegram_login_token(
+    token_data: dict,
+    token_type: str,
+) -> None:
+    """Atomically mark a valid Telegram credential as used exactly once."""
+
+    rows = _db_rows(
+        supabase
+        .table(TELEGRAM_TOKEN_TABLE)
+        .update({
+            "consumed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("nonce_hash", _nonce_hash(token_data["nonce"]))
+        .eq("token_type", token_type)
+        .is_("consumed_at", "null")
+        .gt("expires_at", datetime.now(timezone.utc).isoformat())
+        .select("nonce_hash")
+    )
+
+    if not rows:
+        raise HTTPException(
+            status_code=403,
+            detail="Ссылка Telegram уже использована или недействительна",
+        )
+
+
 # ============================================================
 # Schema
 # ============================================================
@@ -239,7 +290,8 @@ def start_telegram_login(
     """
 
     token = create_telegram_login_token(
-        user["id"] if user else None
+        user["id"] if user else None,
+        token_type="bot_login",
     )
 
     start_prefix = "register_" if mode == "register" else "login_"
@@ -277,6 +329,7 @@ def telegram_bot_login(
     token_data = verify_telegram_login_token(
         input.token
     )
+    consume_telegram_login_token(token_data, "bot_login")
 
     telegram_id = str(input.telegram_id)
 
@@ -475,7 +528,8 @@ def telegram_bot_login(
     # --------------------------------------------------------
 
     completion_token = create_telegram_login_token(
-        str(user["id"])
+        str(user["id"]),
+        token_type="complete",
     )
 
     login_url = (
@@ -512,6 +566,7 @@ def telegram_complete(
     token_data = verify_telegram_login_token(
         token
     )
+    consume_telegram_login_token(token_data, "complete")
 
     if not token_data["user_id"]:
         raise HTTPException(
