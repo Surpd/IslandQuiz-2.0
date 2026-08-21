@@ -61,12 +61,27 @@ def _db_count(query) -> int:
     return len(_response_rows(response))
 
 
-def _call_ai(model: str, prompt: str, temperature: float = 0.8) -> tuple[str, int]:
+def _call_ai(
+    model: str,
+    prompt: str,
+    temperature: float = 0.8,
+    *,
+    user_id: str | None = None,
+    request_type: str = "admin_ai_test",
+) -> tuple[str, int]:
     """Use the same Groq client and JSON-mode settings as production generation."""
     from routes.ai import call_openai
 
     started_at = time.perf_counter()
-    raw = asyncio.run(call_openai(prompt, model=model, temperature=temperature))
+    raw = asyncio.run(
+        call_openai(
+            prompt,
+            model=model,
+            temperature=temperature,
+            user_id=user_id,
+            request_type=request_type,
+        )
+    )
     return raw, round((time.perf_counter() - started_at) * 1000)
 
 
@@ -127,7 +142,7 @@ def ai_test(req: AITestRequest, user=Depends(get_current_user)):
         topic=req.topic, question_type=req.type,
         difficulty="mixed", wishes=req.wishes, count=3,
     )
-    raw, duration_ms = _call_ai(req.model, prompt, req.temperature)
+    raw, duration_ms = _call_ai(req.model, prompt, req.temperature, user_id=user.get("id"), request_type="admin_question_test")
 
     parsed = None
     error = None
@@ -157,7 +172,7 @@ def ai_test_quiz(req: AITestQuizRequest, user=Depends(get_current_user)):
     require_admin(user)
     from services.ai_prompts import generate_quiz_prompt
     prompt = generate_quiz_prompt(topic=req.topic, count=req.count, wishes=req.wishes)
-    raw, duration_ms = _call_ai(req.model, prompt)
+    raw, duration_ms = _call_ai(req.model, prompt, user_id=user.get("id"), request_type="admin_quiz_test")
     parsed = None
     error = None
     try:
@@ -172,7 +187,7 @@ def ai_test_jeopardy_categories(req: AITestJeopardyCategoriesRequest, user=Depen
     require_admin(user)
     from services.ai_prompts import generate_jeopardy_categories_prompt
     prompt = generate_jeopardy_categories_prompt(topic=req.topic, wishes=req.wishes)
-    raw, duration_ms = _call_ai(req.model, prompt)
+    raw, duration_ms = _call_ai(req.model, prompt, user_id=user.get("id"), request_type="admin_jeopardy_categories_test")
     parsed = None
     error = None
     try:
@@ -187,7 +202,7 @@ def ai_test_jeopardy_questions(req: AITestJeopardyQuestionsRequest, user=Depends
     require_admin(user)
     from services.ai_prompts import generate_jeopardy_questions_prompt
     prompt = generate_jeopardy_questions_prompt(category=req.category, empty_slots=req.empty_slots, wishes=req.wishes)
-    raw, duration_ms = _call_ai(req.model, prompt)
+    raw, duration_ms = _call_ai(req.model, prompt, user_id=user.get("id"), request_type="admin_jeopardy_questions_test")
     parsed = None
     error = None
     try:
@@ -351,13 +366,16 @@ def get_stats(user=Depends(get_current_user)):
     require_admin(user)
     users = _db_count(supabase.table("users").select("id", count="exact"))
     games = _db_count(supabase.table("games").select("id", count="exact"))
-    quiz_results = _db_count(supabase.table("quiz_results").select("id", count="exact"))
-    online_results = _db_count(supabase.table("online_quiz_results").select("id", count="exact"))
+    result_counts = {
+        table: _db_count(supabase.table(table).select("id", count="exact"))
+        for table, _ in RESULT_SOURCES
+    }
     return {
         "users": users,
         "games": games,
-        "quizResults": quiz_results,
-        "onlineResults": online_results,
+        "quizResults": result_counts["quiz_results"],
+        "onlineResults": result_counts["online_quiz_results"],
+        "plays": sum(result_counts.values()),
     }
 
 
@@ -422,15 +440,29 @@ def _cutoff(period: str) -> datetime | None:
     return datetime.now(timezone.utc) - timedelta(days=days) if days else None
 
 
+def _parse_timestamp(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
+
+
 def _is_after(value: Any, cutoff: datetime | None) -> bool:
     if cutoff is None:
         return True
-    if not isinstance(value, str):
-        return False
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")) >= cutoff
-    except ValueError:
-        return False
+    parsed = _parse_timestamp(value)
+    return parsed is not None and parsed >= cutoff
+
+
+def _activity_day(value: Any) -> str | None:
+    parsed = _parse_timestamp(value)
+    return parsed.date().isoformat() if parsed else None
 
 
 def _paginate(rows: list[dict], limit: int, offset: int, key: str) -> dict[str, Any]:
@@ -446,21 +478,155 @@ def _game_title(game: dict[str, Any]) -> str:
     return "Без названия"
 
 
-def _result_count_by_game(cutoff: datetime | None = None) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for table, timestamp in (
-        ("quiz_results", "finished_at"),
-        ("jeopardy_results", "played_at"),
-        ("millionaire_results", "finished_at"),
-        ("online_quiz_results", "played_at"),
-    ):
-        for row in _db_rows(supabase.table(table).select(f"game_id,{timestamp}")):
+RESULT_SOURCES = (
+    ("quiz_results", "finished_at"),
+    ("online_quiz_results", "played_at"),
+    ("jeopardy_results", "played_at"),
+    ("millionaire_results", "finished_at"),
+)
+
+
+def _ai_metrics(usage: list[dict], logs: list[dict], cutoff: datetime | None) -> dict[str, Any]:
+    filtered_usage = [row for row in usage if _is_after(row.get("created_at"), cutoff)]
+    filtered_logs = [row for row in logs if _is_after(row.get("created_at"), cutoff)]
+    # Prefer detailed telemetry only when it covers at least the quota/event
+    # rows; otherwise usage remains the complete request-count source.
+    request_rows = filtered_logs if filtered_logs and len(filtered_logs) >= len(filtered_usage) else filtered_usage
+
+    by_type: dict[str, int] = {}
+    daily: dict[str, int] = {}
+    for row in request_rows:
+        request_type = row.get("request_type") or row.get("topic") or "other"
+        by_type[request_type] = by_type.get(request_type, 0) + 1
+        day = _activity_day(row.get("created_at"))
+        if day:
+            daily[day] = daily.get(day, 0) + 1
+
+    models: dict[str, int] = {}
+    for row in filtered_logs:
+        model = row.get("model") or "unknown"
+        models[model] = models.get(model, 0) + 1
+    completed = sum(max(0, int(row.get("completion_tokens") or 0)) for row in filtered_logs)
+    prompted = sum(max(0, int(row.get("prompt_tokens") or 0)) for row in filtered_logs)
+    successes = sum(1 for row in filtered_logs if row.get("success") is True)
+    errors = sum(1 for row in filtered_logs if row.get("success") is False)
+    return {
+        "usage": filtered_usage,
+        "logs": filtered_logs,
+        "request_rows": request_rows,
+        "requests": len(request_rows),
+        "successful": successes,
+        "errors": errors,
+        "success_rate": round(successes / len(filtered_logs) * 100, 1) if filtered_logs else None,
+        "prompt_tokens": prompted,
+        "completion_tokens": completed,
+        "total_tokens": prompted + completed,
+        "daily": daily,
+        "by_type": by_type,
+        "by_model": models,
+        "recent_errors": [row for row in filtered_logs if row.get("success") is False][:20],
+    }
+
+
+def _build_dashboard(
+    period: str,
+    users: list[dict],
+    games: list[dict],
+    results: dict[str, list[dict]],
+    usage: list[dict],
+    logs: list[dict],
+    errors: list[dict],
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    days = {"7d": 7, "30d": 30, "90d": 90}.get(period)
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=days) if days else None
+    filtered_games = [row for row in games if _is_after(row.get("created_at"), cutoff)]
+    filtered_errors = [row for row in errors if _is_after(row.get("created_at"), cutoff)]
+    ai = _ai_metrics(usage, logs, cutoff)
+    result_counts: dict[str, int] = {}
+    result_total = 0
+    online_sessions = 0
+    filtered_result_rows: list[tuple[str, dict]] = []
+    active_user_ids: set[str] = set()
+    known_user_ids = {row.get("id") for row in users if isinstance(row.get("id"), str)}
+
+    for table, timestamp in RESULT_SOURCES:
+        for row in results.get(table, []):
             if not _is_after(row.get(timestamp), cutoff):
                 continue
+            filtered_result_rows.append((timestamp, row))
+            result_total += 1
+            if table == "online_quiz_results":
+                online_sessions += 1
             game_id = row.get("game_id")
             if isinstance(game_id, str):
-                counts[game_id] = counts.get(game_id, 0) + 1
-    return counts
+                result_counts[game_id] = result_counts.get(game_id, 0) + 1
+            user_id = row.get("user_id")
+            if isinstance(user_id, str) and user_id in known_user_ids:
+                active_user_ids.add(user_id)
+
+    activity: dict[str, dict[str, int]] = {}
+
+    def add_activity(name: str, rows: list[dict], timestamp: str) -> None:
+        for row in rows:
+            if not _is_after(row.get(timestamp), cutoff):
+                continue
+            day = _activity_day(row.get(timestamp))
+            if day:
+                activity.setdefault(day, {"users": 0, "games": 0, "plays": 0, "ai": 0})[name] += 1
+
+    add_activity("users", users, "created_at")
+    add_activity("games", filtered_games, "created_at")
+    for timestamp, row in filtered_result_rows:
+        day = _activity_day(row.get(timestamp))
+        if day:
+            activity.setdefault(day, {"users": 0, "games": 0, "plays": 0, "ai": 0})["plays"] += 1
+    for row in ai["request_rows"]:
+        day = _activity_day(row.get("created_at"))
+        if day:
+            activity.setdefault(day, {"users": 0, "games": 0, "plays": 0, "ai": 0})["ai"] += 1
+
+    for game in filtered_games:
+        owner_id = game.get("owner_id")
+        if isinstance(owner_id, str) and owner_id in known_user_ids:
+            active_user_ids.add(owner_id)
+    for row in ai["usage"] + ai["logs"]:
+        user_id = row.get("user_id")
+        if isinstance(user_id, str) and user_id in known_user_ids:
+            active_user_ids.add(user_id)
+
+    distribution = {"types": {}, "visibility": {}}
+    for game in filtered_games:
+        kind = game.get("kind") or "unknown"
+        distribution["types"][kind] = distribution["types"].get(kind, 0) + 1
+        visibility = game.get("visibility") or "private"
+        distribution["visibility"][visibility] = distribution["visibility"].get(visibility, 0) + 1
+    top_games = sorted(
+        [
+            {"id": game.get("id"), "title": _game_title(game), "plays": result_counts.get(game.get("id"), 0)}
+            for game in games
+            if result_counts.get(game.get("id"), 0) > 0
+        ],
+        key=lambda row: row["plays"],
+        reverse=True,
+    )[:5]
+    return {
+        "period": period,
+        "kpis": {
+            "users": len(users),
+            "new_users": sum(1 for row in users if _is_after(row.get("created_at"), cutoff)),
+            "active_users": len(active_user_ids),
+            "games": len(filtered_games),
+            "plays": result_total,
+            "online_sessions": online_sessions,
+            "ai_requests": ai["requests"],
+            "errors": len(filtered_errors),
+        },
+        "activity": [{"date": day, **values} for day, values in sorted(activity.items())],
+        "distribution": distribution,
+        "top_games": top_games,
+    }
 
 
 def _assert_not_self(target_id: str, user: dict, action: str) -> None:
@@ -471,86 +637,40 @@ def _assert_not_self(target_id: str, user: dict, action: str) -> None:
 @router.get("/dashboard")
 def get_admin_dashboard(period: Literal["7d", "30d", "90d", "all"] = "30d", user=Depends(get_current_user)):
     require_admin(user)
-    cutoff = _cutoff(period)
     users = _db_rows(supabase.table("users").select("id,created_at"))
-    games = _db_rows(supabase.table("games").select("id,kind,visibility,created_at,play_count,data"))
-    usage = _db_rows(supabase.table("ai_usage").select("id,created_at,request_type"))
+    games = _db_rows(supabase.table("games").select("id,kind,visibility,created_at,owner_id,data"))
+    usage = _db_rows(supabase.table("ai_usage").select("id,user_id,created_at,request_type"))
+    logs = _db_rows(supabase.table("ai_logs").select("id,user_id,topic,model,prompt_tokens,completion_tokens,success,error,created_at"))
     errors = _db_rows(supabase.table("error_logs").select("id,created_at"))
-    result_counts = _result_count_by_game(cutoff)
-    result_total = sum(result_counts.values())
-    filtered_games = [row for row in games if _is_after(row.get("created_at"), cutoff)]
-    filtered_usage = [row for row in usage if _is_after(row.get("created_at"), cutoff)]
-    filtered_errors = [row for row in errors if _is_after(row.get("created_at"), cutoff)]
-    activity: dict[str, dict[str, int]] = {}
-    for name, rows in (("users", users), ("games", filtered_games), ("ai", filtered_usage)):
-        for row in rows:
-            value = row.get("created_at")
-            if not isinstance(value, str) or not _is_after(value, cutoff):
-                continue
-            day = value[:10]
-            activity.setdefault(day, {"users": 0, "games": 0, "plays": 0, "ai": 0})[name] += 1
-    distribution = {"types": {}, "visibility": {}}
-    for game in games:
-        distribution["types"][game.get("kind") or "unknown"] = distribution["types"].get(game.get("kind") or "unknown", 0) + 1
-        visibility = game.get("visibility") or "private"
-        distribution["visibility"][visibility] = distribution["visibility"].get(visibility, 0) + 1
-    top_games = sorted(
-        [{"id": game.get("id"), "title": _game_title(game), "plays": result_counts.get(game.get("id"), game.get("play_count") or 0)} for game in games],
-        key=lambda row: row["plays"],
-        reverse=True,
-    )[:5]
-    return {
-        "period": period,
-        "kpis": {
-            "users": len(users),
-            "new_users": sum(1 for row in users if _is_after(row.get("created_at"), cutoff)),
-            "active_users": None,
-            "games": len(games),
-            "plays": result_total,
-            "online_sessions": _db_count(supabase.table("online_quiz_results").select("id", count="exact")),
-            "ai_requests": len(filtered_usage),
-            "errors": len(filtered_errors),
-        },
-        "activity": [{"date": day, **values} for day, values in sorted(activity.items())],
-        "distribution": distribution,
-        "top_games": top_games,
+    results = {
+        table: _db_rows(supabase.table(table).select(f"game_id,{timestamp},user_id" if table in {"quiz_results", "millionaire_results"} else f"game_id,{timestamp}"))
+        for table, timestamp in RESULT_SOURCES
     }
+    return _build_dashboard(period, users, games, results, usage, logs, errors)
 
 
 @router.get("/analytics/ai")
 def get_ai_analytics(period: Literal["7d", "30d", "90d", "all"] = "30d", user=Depends(get_current_user)):
     require_admin(user)
     cutoff = _cutoff(period)
-    usage = [row for row in _db_rows(supabase.table("ai_usage").select("id,request_type,created_at")) if _is_after(row.get("created_at"), cutoff)]
-    logs = [row for row in _db_rows(supabase.table("ai_logs").select("id,model,prompt_tokens,completion_tokens,success,error,created_at")) if _is_after(row.get("created_at"), cutoff)]
-    by_type: dict[str, int] = {}
-    daily: dict[str, int] = {}
-    for row in usage:
-        request_type = row.get("request_type") or "other"
-        by_type[request_type] = by_type.get(request_type, 0) + 1
-        date = str(row.get("created_at") or "")[:10]
-        if date:
-            daily[date] = daily.get(date, 0) + 1
-    models: dict[str, int] = {}
-    for row in logs:
-        model = row.get("model") or "unknown"
-        models[model] = models.get(model, 0) + 1
-    completed = sum(max(0, int(row.get("completion_tokens") or 0)) for row in logs)
-    prompted = sum(max(0, int(row.get("prompt_tokens") or 0)) for row in logs)
-    successes = sum(1 for row in logs if row.get("success") is True)
+    usage = _db_rows(supabase.table("ai_usage").select("id,request_type,created_at"))
+    logs = _db_rows(supabase.table("ai_logs").select("id,topic,model,prompt_tokens,completion_tokens,success,error,created_at"))
+    ai = _ai_metrics(usage, logs, cutoff)
     return {
         "period": period,
-        "requests": len(usage),
-        "successful": successes,
-        "errors": sum(1 for row in logs if row.get("success") is False),
-        "success_rate": round(successes / len(logs) * 100, 1) if logs else None,
-        "prompt_tokens": prompted,
-        "completion_tokens": completed,
-        "total_tokens": prompted + completed,
-        "daily": [{"date": day, "requests": count} for day, count in sorted(daily.items())],
-        "by_type": by_type,
-        "by_model": models,
-        "recent_errors": [row for row in logs if row.get("success") is False][:20],
+        "requests": ai["requests"],
+        "logged_requests": len(ai["logs"]),
+        "telemetry_coverage_percent": round(len(ai["logs"]) / ai["requests"] * 100, 1) if ai["requests"] else None,
+        "successful": ai["successful"],
+        "errors": ai["errors"],
+        "success_rate": ai["success_rate"],
+        "prompt_tokens": ai["prompt_tokens"],
+        "completion_tokens": ai["completion_tokens"],
+        "total_tokens": ai["total_tokens"],
+        "daily": [{"date": day, "requests": count} for day, count in sorted(ai["daily"].items())],
+        "by_type": ai["by_type"],
+        "by_model": ai["by_model"],
+        "recent_errors": ai["recent_errors"],
     }
 
 

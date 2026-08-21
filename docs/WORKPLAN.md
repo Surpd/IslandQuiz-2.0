@@ -134,6 +134,12 @@
 - **Фактический результат:** production Groq response подтвердил root cause: configured `llama-3.3-70b-versatile` больше недоступна текущему key (`model_not_found`). Strict backend validation из `6f6b3d6` маскировал provider error как invalid Quiz/variants, но не был первопричиной. H11 использует `response_format: json_object`, configurable `GROQ_MODEL` и controlled 502 для provider/parser failures. Production smoke подтвердил full Quiz, per-question/helper, matching, Jeopardy categories/questions и save/open/play path.
 - **Проверки:** current-key Groq model listing; Qwen JSON-mode probes для full Quiz (10 questions) и helper (3 variants); Python syntax, `npx tsc --noEmit`, `npm run build`, `git diff --check`; production UI smoke: generate-quiz, generate-question, Jeopardy categories/questions, save/open/play. `npm run lint` не проходит на существующем общем Prettier/ESLint baseline (2145 problems), не исправлявшемся в H11. Transient Groq `429 rate_limit_exceeded` корректно стал 502; UX/monitoring policy для rate limits остаётся H8/H7/M9 follow-up.
 
+#### H12. Исправить Admin Overview / Analytics metrics — `DONE`
+
+- **Файлы:** `backend/routes/admin.py`, `backend/routes/ai.py`, `backend/services/ai_telemetry.py`, analytics regression tests, `docs/AI.md`, `docs/ARCHITECTURE.md`.
+- **Фактический результат:** все четыре result tables входят в единый plays aggregator; period filters используют UTC; active users и game distributions больше не placeholders/all-time mismatches; activity chart и KPI используют одинаковые filtered events. Центральный AI client пишет success/error telemetry, model и provider token usage с `null` fallback.
+- **Проверки:** controlled fixtures и telemetry tests; backend full suite `125/125`; `npx tsc --noEmit` и build passed; Playwright `39 passed`, 2 pre-existing failures; lint не проходит на repository-wide Prettier/CRLF baseline.
+
 #### H10. Ограничить доверие к WebSocket input и стабилизировать protocol validation — `DONE`
 
 - **Зависимости:** сначала описать state machine и все action/state fields; реализация следует после C2 и согласования scoring/room protocol.

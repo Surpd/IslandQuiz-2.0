@@ -195,6 +195,12 @@
 - **Самостоятельность:** да в рамках текущего API contract; если потребуется менять canonical AI schema или `games.data`, остановиться и вынести решение в H8.
 - **Результат:** error/empty/malformed payload отклоняется до использования в UI; full/file Quiz и helpers больше не блокируются strict server validator. Transient Groq `429 rate_limit_exceeded` возвращается controlled 502 и не блокирует H11; отдельные UX, retry/monitoring contract checks — H8/H7/M9 follow-up.
 
+### H12. Исправить Admin Overview / Analytics metrics — `DONE`
+
+- **Результат:** dashboard использует единые UTC period filters; «Прохождения» включает `quiz_results`, `online_quiz_results`, `jeopardy_results` и `millionaire_results`, online KPI — только online results, а activity chart использует те же result rows. Games/distributions считаются по существующим games, `active_users` — по реальным user-linked events.
+- **AI telemetry:** общий AI client пишет `ai_logs` для success/provider/parser errors с user, model, token usage и timestamp; request type дублируется в legacy `topic`, а provider usage без tokens сохраняется как `null`. Старые `ai_usage` rows остаются fallback для исторического request count.
+- **Проверки:** controlled analytics fixtures, AI success/error telemetry tests, backend full suite `125/125`, `npx tsc --noEmit`, frontend build и Playwright `39 passed / 2 pre-existing failures`; lint остаётся repository-wide Prettier/CRLF baseline.
+
 ## 🟡 Medium
 
 ### M1. Убрать двусмысленность вокруг legacy `backend/models.py`

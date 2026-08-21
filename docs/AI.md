@@ -171,7 +171,7 @@ Rate limits:
 - premium: 100 запросов в день;
 - admin: без этого лимита.
 
-Usage записывается в `ai_usage`. Счётчик увеличивается до вызова провайдера.
+Quota attempts записываются в `ai_usage` до вызова провайдера, чтобы ошибки провайдера не позволяли обходить дневной лимит. Каждый вызов общего AI-клиента дополнительно пишет одну строку в `ai_logs` с `user_id`, моделью, `success/error`, `prompt_tokens`, `completion_tokens` и `created_at`; request type хранится в `ai_usage.request_type` и дублируется в legacy-поле `ai_logs.topic`. Если provider не прислал usage, token fields остаются `null`. Ошибка telemetry не ломает пользовательский AI-запрос.
 
 Если `OPENAI_API_KEY` отсутствует, backend возвращает mock JSON, который не является полноценной генерацией и, как правило, не проходит дальнейшую валидацию.
 

@@ -71,6 +71,12 @@ Frontend — React + TypeScript + Vite/TanStack Start с file-based routing.
 
 Точная production schema не хранится в репозитории и требует отдельной проверки в Supabase. `backend/models.py` — legacy SQLAlchemy-описание, не используемое текущими роутами; оно не отражает текущий persistence layer.
 
+## Admin analytics
+
+`/api/admin/dashboard` считает одно прохождение как одну строку в любой из `quiz_results`, `online_quiz_results`, `jeopardy_results` или `millionaire_results`. `online_sessions` включает только `online_quiz_results`; activity chart использует те же отфильтрованные result rows и даты в UTC, поэтому сумма `plays` по дням совпадает с KPI. Created games и distributions считают только существующие `games` rows, созданные в выбранном периоде; отдельной таблицы удаления/аудита нет, поэтому удалённые игры задним числом не восстанавливаются, а оставшиеся orphan results всё ещё входят в общий счётчик прохождений.
+
+`active_users` — число существующих пользователей с `owner_id` у созданной игры, `user_id` у Quiz/Millionaire result или AI usage/log row в периоде. Online/Jeopardy rows без `user_id` не приписываются пользователям. AI request count использует полный `ai_usage` event set (с fallback на `ai_logs` при отсутствии usage), а model/tokens/success/error берутся из централизованного `ai_logs` telemetry.
+
 ## Authentication
 
 Email/password flow:

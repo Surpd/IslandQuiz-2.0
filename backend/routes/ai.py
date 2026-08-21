@@ -100,6 +100,9 @@ async def call_openai(
     prompt: str,
     model: str | None = None,
     temperature: float = 0.7,
+    *,
+    user_id: str | None = None,
+    request_type: str = "ai_request",
 ) -> str:
     """
     Несмотря на название, используется Groq API
@@ -114,11 +117,32 @@ async def call_openai(
 
     selected_model = model or AI_MODEL
 
+    def finish(
+        raw: str,
+        *,
+        success: bool,
+        error: str | None = None,
+        usage: dict | None = None,
+    ) -> str:
+        from services.ai_telemetry import record_ai_request
+
+        usage = usage if isinstance(usage, dict) else {}
+        record_ai_request(
+            user_id=user_id,
+            request_type=request_type,
+            model=selected_model,
+            success=success,
+            error=error,
+            prompt_tokens=usage.get("prompt_tokens") if isinstance(usage.get("prompt_tokens"), int) else None,
+            completion_tokens=usage.get("completion_tokens") if isinstance(usage.get("completion_tokens"), int) else None,
+        )
+        return raw
+
     if not OPENAI_API_KEY:
-        return json.dumps({
+        return finish(json.dumps({
             "mock": True,
             "prompt": prompt[:100],
-        })
+        }), success=False, error="mock_ai_response")
 
     try:
         async with httpx.AsyncClient(
@@ -168,13 +192,13 @@ async def call_openai(
                         "[AI] Groq model unavailable:",
                         selected_model,
                     )
-                    return json.dumps({
+                    return finish(json.dumps({
                         "error": (
                             "AI provider configuration error: "
                             "configured Groq model is unavailable."
                         ),
                         "code": provider_code,
-                    })
+                    }), success=False, error=provider_code)
 
                 print(
                     "[AI] Groq HTTP error:",
@@ -183,11 +207,11 @@ async def call_openai(
                     provider_code,
                 )
 
-                return json.dumps({
+                return finish(json.dumps({
                     "error": "Groq API error",
                     "status_code": response.status_code,
                     "code": "ai_provider_error",
-                })
+                }), success=False, error="ai_provider_error")
 
             try:
                 data = response.json()
@@ -195,10 +219,10 @@ async def call_openai(
             except Exception:
                 print("[AI] Groq returned invalid JSON")
 
-                return json.dumps({
+                return finish(json.dumps({
                     "error": "Invalid response from Groq",
                     "code": "invalid_provider_response",
-                })
+                }), success=False, error="invalid_provider_response")
 
             if (
                 "choices" not in data
@@ -209,10 +233,10 @@ async def call_openai(
                     sorted(data.keys()) if isinstance(data, dict) else [],
                 )
 
-                return json.dumps({
+                return finish(json.dumps({
                     "error": "Empty response from AI",
                     "code": "empty_ai_response",
-                })
+                }), success=False, error="empty_ai_response")
 
             message = data["choices"][0].get(
                 "message",
@@ -230,37 +254,44 @@ async def call_openai(
                     ai_output_diagnostic(content),
                 )
 
-                return json.dumps({
+                return finish(json.dumps({
                     "error": "AI returned empty content",
                     "diagnostic": ai_output_diagnostic(content),
                     "code": "empty_ai_response",
-                })
+                }), success=False, error="empty_ai_response")
 
-            return content
+            try:
+                json.loads(content)
+                content_success = True
+                content_error = None
+            except json.JSONDecodeError:
+                content_success = False
+                content_error = "invalid_ai_json"
+            return finish(content, success=content_success, error=content_error, usage=data.get("usage"))
 
     except httpx.TimeoutException:
         print("[AI] Groq timeout")
 
-        return json.dumps({
+        return finish(json.dumps({
             "error": "AI request timeout",
             "code": "ai_provider_timeout",
-        })
+        }), success=False, error="ai_provider_timeout")
 
     except httpx.RequestError:
         print("[AI] Groq request error")
 
-        return json.dumps({
+        return finish(json.dumps({
             "error": "AI connection error",
             "code": "ai_provider_connection_error",
-        })
+        }), success=False, error="ai_provider_connection_error")
 
     except Exception:
         print("[AI] Unexpected error")
 
-        return json.dumps({
+        return finish(json.dumps({
             "error": "Unexpected AI error",
             "code": "ai_provider_error",
-        })
+        }), success=False, error="ai_provider_error")
 
 
 # ============================================================
@@ -791,7 +822,11 @@ async def generate_question(
             ),
         )
 
-        raw = await call_openai(prompt)
+        raw = await call_openai(
+            prompt,
+            user_id=user.get("id") if user else None,
+            request_type="generate_question",
+        )
 
         if (
             not raw
@@ -842,7 +877,11 @@ async def generate_question(
         count=3,
     )
 
-    raw = await call_openai(prompt)
+    raw = await call_openai(
+        prompt,
+        user_id=user.get("id") if user else None,
+        request_type="generate_question",
+    )
 
     if (
         not raw
@@ -906,7 +945,11 @@ async def improve_question(
         ),
     )
 
-    raw = await call_openai(prompt)
+    raw = await call_openai(
+        prompt,
+        user_id=user.get("id") if user else None,
+        request_type="improve_question",
+    )
 
     if (
         not raw
@@ -1003,7 +1046,11 @@ async def generate_quiz(
         wishes=input.wishes,
     )
 
-    raw = await call_openai(prompt)
+    raw = await call_openai(
+        prompt,
+        user_id=user.get("id") if user else None,
+        request_type="generate_quiz",
+    )
 
     if (
         not raw
@@ -1058,7 +1105,11 @@ async def generate_jeopardy_categories(
         )
     )
 
-    raw = await call_openai(prompt)
+    raw = await call_openai(
+        prompt,
+        user_id=user.get("id") if user else None,
+        request_type="generate_jeopardy_categories",
+    )
 
     if (
         not raw
@@ -1113,7 +1164,11 @@ async def generate_jeopardy_questions(
         )
     )
 
-    raw = await call_openai(prompt)
+    raw = await call_openai(
+        prompt,
+        user_id=user.get("id") if user else None,
+        request_type="generate_jeopardy_questions",
+    )
 
     if (
         not raw
@@ -1351,7 +1406,11 @@ async def generate_from_file(
         wishes=wishes,
     )
 
-    raw = await call_openai(prompt)
+    raw = await call_openai(
+        prompt,
+        user_id=user.get("id") if user else None,
+        request_type="generate_from_file",
+    )
 
     if (
         not raw
