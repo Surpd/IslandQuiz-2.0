@@ -1,6 +1,6 @@
 # IslandQuiz — AI architecture
 
-Статус: canonical AI contract на 2026-08-19.
+Статус: canonical AI contract и telemetry на 2026-08-21.
 
 ## Provider and entry point
 
@@ -171,7 +171,9 @@ Rate limits:
 - premium: 100 запросов в день;
 - admin: без этого лимита.
 
-Quota attempts записываются в `ai_usage` до вызова провайдера, чтобы ошибки провайдера не позволяли обходить дневной лимит. Каждый вызов общего AI-клиента дополнительно пишет одну строку в `ai_logs` с `user_id`, моделью, `success/error`, `prompt_tokens`, `completion_tokens` и `created_at`; request type хранится в `ai_usage.request_type` и дублируется в legacy-поле `ai_logs.topic`. Если provider не прислал usage, token fields остаются `null`. Ошибка telemetry не ломает пользовательский AI-запрос.
+Quota attempts записываются в `ai_usage` до вызова провайдера, поэтому provider failures не освобождают дневную квоту. Проверка сейчас выполняется как `count → insert` и не является атомарной при параллельных запросах; atomic quota enforcement остаётся technical backlog. Каждый вызов общего AI-клиента дополнительно пишет одну строку в `ai_logs` с `user_id`, моделью, `success/error`, `prompt_tokens`, `completion_tokens` и `created_at`; request type хранится в `ai_usage.request_type` и дублируется в legacy-поле `ai_logs.topic`. Если provider не прислал usage, token fields остаются `null`. Ошибка telemetry не ломает пользовательский AI-запрос.
+
+Historical telemetry неполна: старые `ai_usage` rows могут не иметь соответствующей детальной записи `ai_logs`. Эти данные не следует искусственно восстанавливать.
 
 Если `OPENAI_API_KEY` отсутствует, backend возвращает mock JSON, который не является полноценной генерацией и, как правило, не проходит дальнейшую валидацию.
 

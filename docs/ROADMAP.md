@@ -1,78 +1,60 @@
 # IslandQuiz — текущая карта и ближайший маршрут
 
-Статус: краткая roadmap-карта на 2026-08-19. Источники статусов и acceptance criteria: `docs/WORKPLAN.md` и `docs/BACKLOG.md`; модель для выполнения задач — `docs/CODEX_MODEL_GUIDE.md`.
+Статус: актуально на 2026-08-21. Источник подробных acceptance criteria — `docs/BACKLOG.md`; порядок выполнения и owner decisions — `docs/WORKPLAN.md`.
 
-## Current state
+## Где проект находится сейчас
 
-- Основные frontend/backend baseline/contracts уже приведены в рабочее состояние: H1, H2, H3, H7, H8, C2 и C4 отмечены `DONE`.
-- Supabase production snapshot и deployment topology документированы; H5 и C5 закрыты.
-- Backend deployment automation H6 закрыта: GitHub Actions публикует exact SHA на VPS, проверяет syntax/systemd/local health и SHA. Documentation-only и frontend-only push не запускают backend deploy.
-- Добавлена минимальная Playwright E2E foundation: `cd frontend; npm run test:e2e` проверяет mocked login → Quiz Builder → save → Library → reopen → offline player → answer/finish flow. Реальные backend/Supabase, Telegram, AI, online rooms, permissions и production results остаются непокрыты.
-- Cloudflare public check остаётся diagnostic warning: `403` от edge не означает failure backend deployment.
-- Rollback capability через `workflow_dispatch(target_sha)` существует, но полный controlled rehearsal ещё не проведён.
-- Codex model routing зафиксирован в `docs/CODEX_MODEL_GUIDE.md` и связан с процессом через `AGENTS.md`.
-- H10 закрыта: Quiz и Jeopardy room protocol validation синхронизированы между backend и frontend, добавлены valid/invalid state-transition regressions.
+Основной demo-flow работает: email/password login → Quiz Builder → сохранение → Library → повторное открытие → offline player → answer → finish → Results.
 
-## Recently completed
+В текущем `main` подтверждены:
 
-- **H1 / DONE:** устранены исходные TypeScript errors.
-- **H2 / DONE:** синхронизирован Admin API/frontend contract.
-- **H3 / DONE:** visibility сохраняется при edit/create/fork по D6.
-- **C4 / DONE:** базовая JWT-защита усилена.
-- **H5 / DONE:** подтверждена single-instance Telegram polling topology.
-- **C5 / DONE:** выполнен read-only Supabase schema/RLS/RPC snapshot.
-- **H6 / DONE:** backend deployment automation работает; rollback rehearsal вынесен в H6.1.
-- **H8 / DONE:** canonical AI contract закреплён для Quiz, file и Jeopardy; provider/output failures имеют controlled error envelope.
-- **H7 / DONE:** baseline critical regression suite вырос с 16 до 35 backend tests и покрывает текущие auth, Telegram, visibility/results, AI и room contracts без изменения security architecture.
-- **H9 / DONE:** единый result access matrix закрывает owner/non-owner/admin/private/public/link paths; Jeopardy owner submit и cross-user played-game access исправлены, malformed result rows и PII filtering покрыты regression tests.
-- **H10 / DONE:** WebSocket room actions валидируют phase, shape, IDs, bounds, timers, payload limits и replay/duplicate actions для Quiz и Jeopardy; signed snapshot остаётся только серверным, `create_room` имеет отдельный limit, а frontend не отправляет oversized profile avatar при join.
-- **M4 / DONE:** backend routers нормализуют Supabase/API exceptions, `None`, empty и malformed responses; provider failures и room result persistence возвращают controlled errors, добавлены 80 regression tests.
-- **M7 / DONE:** отдельный GitHub CI на PR/push в `main` выполняет frontend clean install/typecheck/build, backend compile/tests, dependency audit и hygiene check без изменения production deploy workflow. Только owner-approved advisories `GHSA-4r6h-8v6p-xvw6` и `GHSA-5pgg-2g8v-p4x9` для `xlsx@0.18.5` временно allowlisted с видимым warning; остальные high/critical findings блокируют gate. Branch protection остаётся отдельным follow-up.
-- **P7 / DONE:** Quiz Excel import распознаёт schema v2 по `_islandquiz` или человекочитаемым заголовкам, сохраняет существующие question models, валидирует matching/close/ordering, поддерживает legacy XLSX/CSV и скачивает стилизованный v2-шаблон.
-- **CODEX_MODEL_GUIDE:** для задач добавлен выбор Luna/Terra/Sol с условиями escalation.
+- Admin Panel v2 и Admin analytics;
+- Tag System v1;
+- Official Content Import `library-v1`;
+- Library preview, `show_answers`, `preview/copy` permissions;
+- единый Quiz answer formatter;
+- mobile Results и offline completion screen;
+- canonical AI contract и AI telemetry;
+- server-side WebSocket identity/authorization и trusted scoring.
 
-## Broken / needs fix now
+## Baseline проверок
 
-### H11 — Quiz Builder AI generation (`DONE`, Terra / high)
+- Backend: `python -m unittest discover -s backend/tests -p 'test*.py'` — **125/125**.
+- Frontend TypeScript: `cd frontend; npx tsc --noEmit` — проходит.
+- Browser suite: `cd frontend; npm run test:e2e` — **41/41**.
+- Известных failing tests нет.
+- `npm run lint` остаётся красным из-за repository-wide CRLF/Prettier baseline (~18 915 сообщений); это не runtime blocker.
 
-`ae47585` устранил два frontend TypeError, но не завершил working flow: production Groq response показал `model_not_found` для configured `llama-3.3-70b-versatile`. Strict gates из `6f6b3d6` маскировали provider error как invalid Quiz/variants; H11 использует configurable `GROQ_MODEL` и Groq JSON mode. Production smoke подтвердил full/per-question/matching/Jeopardy generation и save/open/play path. Transient provider 429 остаётся H8/H7/M9 follow-up для UX и monitoring.
+Playwright использует mocked auth/games/results API. Он подтверждает frontend flows, но не заменяет production/Supabase, Telegram, provider, online-room restart и real-result integration checks.
 
-Первоначально исправлены два пользовательских сбоя:
+## Следующие пять задач
 
-- full quiz generation падает с `Cannot read properties of undefined (reading 'map')`;
-- per-question AI helper падает с `Cannot read properties of undefined (reading 'length')`.
+1. **Telegram replay protection и password-reset token hardening** — закрыть повторное использование Telegram nonce и усилить хранение/одноразовое consume password-reset tokens.
+2. **Supabase RLS/custom JWT strategy** — определить trust boundary между application JWT и Supabase roles, затем закрыть наиболее опасные policy gaps.
+3. **Atomic AI quota enforcement** — заменить `count → insert` на атомарную серверную операцию и добавить concurrent regression test.
+4. **Room persistence/resume** — принять D4 policy и решить потерю онлайн-комнат после backend restart.
+5. **Rollback rehearsal и production monitoring** — провести controlled rehearsal с approval и добавить внешний alerting/retention policy.
 
-Frontend теперь нормализует success payload и переводит error/empty/malformed response в controlled UI error до `.map`/`.length`; legacy malformed QuizData не ломает builder. Jeopardy raw-response backend validation остаётся H8 follow-up.
+## Дальше
 
-Текущий scope H11: `ai-generate-quiz.tsx`, `ai-helper.tsx`, `ai-jeopardy-category.tsx`, `builder.quiz.tsx`, `api.ts` и `backend/routes/ai.py`. Canonical AI schema и `games.data` не меняются.
+Technical debt: DB integrity/RPC hardening, typed REST/WS contracts, legacy models/localStorage cleanup и documentation drift prevention.
 
-## Next 3–5 recommended tasks
+Product backlog: AI review workflow, share/invite improvements, author-facing analytics/exports и accessibility audit.
 
-1. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
-2. **M9 — monitoring** — **Terra / medium**. Safe local/backend-only slice не требует внешнего monitoring.
-3. **P3 — AI review workflow** — **Terra / medium**. После H8/H11 и критической security/data-integrity работы.
-4. **M7 follow-up — заменить или изолировать `xlsx`** — убрать owner-approved accepted risk, сохранив Excel import/export.
+## Сознательно отложено
 
-Отдельный operational follow-up: **H6.1 — rollback rehearsal**, **Terra / high**, только после отдельного owner approval на production operation. Он важен для восстановления, но не является причиной блокировать текущий AI demo fix.
+- normalized `game_snapshots` table — optional hardening; новые результаты уже содержат signed snapshot/version в существующем JSON;
+- полное восстановление historical AI telemetry — старые `ai_usage` rows не имеют полного provider/token/error контекста и не должны искусственно восстанавливаться;
+- repository-wide CRLF/Prettier cleanup — quality debt, но не product/runtime blocker;
+- расширенная AI fact-checking policy — AI не является источником фактической истины;
+- production schema/RLS/RPC/constraint changes — только после read-only verification и owner approval.
 
-## Deferred / not now
+## Completed history
 
-- **H4 / P1 / P4:** persistence и resume комнат — ждут решения D4.
-- **M6 / M10 / M11:** production DB constraints/RPC/RLS/FK — только после targeted proposal и отдельного approval; ничего не менять автоматически.
-- **C1:** Telegram single-use nonce — ждёт выбранного storage/atomic consume и approval.
-- **C4.1:** server-side session lifecycle — отдельная auth-задача, не blocker базовой C4.
-- **M1 / M2 / M8:** legacy models/localStorage/docs cleanup — ждут D8 и не должны отвлекать от demo blocker.
-- **P3 / P5 / P6:** AI review, analytics и accessibility — после исправления основного AI flow и критической security/data-integrity работы.
-- **D9:** fact-checking и расширенная AI policy остаются deferred; H11 не должен превращаться в новую AI product architecture.
+Закрыты: C2–C5, H1–H3, H5–H12, M4, M5, M7, P7, P8. Дополнительные completed slices: Admin Panel v2, Tag System v1, preview/permissions, formatter, mobile Results, offline completion, Admin analytics и AI telemetry.
 
-## Risks / do not touch without approval
+## Операционные ограничения
 
-- Не менять production DB, RLS, RPC, constraints, migrations или data.
-- Не выполнять H6.1 rollback rehearsal без отдельного approval; не путать capability workflow с проведённым rehearsal.
-- Не менять `.github/workflows/backend-deploy.yml`, VPS, secrets, Cloudflare или nginx в рамках H11/roadmap cleanup.
-- Не менять canonical AI schema или `games.data` в рамках точечного bugfix без обновления H8 и проверки всех consumers.
-- Security/room/auth задачи выполнять на рекомендованном Sol и не принимать новые архитектурные решения молча.
-
-## Working formula
-
-H11, H8 и H7 закрыты; далее security/data-integrity work C2/C3/H9. Для обычных docs/process изменений использовать Luna; для AI/frontend integration — Terra; для auth/security/rooms/DB — Sol. Подробные правила выбора находятся в `docs/CODEX_MODEL_GUIDE.md`.
+- Комнаты хранятся в памяти одного backend-процесса и исчезают после restart.
+- Telegram bot запускается внутри единственного production backend process.
+- Production Supabase не меняется documentation-only задачами.

@@ -43,7 +43,7 @@ npm run build
 npm run test:e2e
 ```
 
-`npm run test:e2e` запускает единственный Playwright smoke-тест критического браузерного flow: login → Quiz Builder → save → Library → reopen → offline player → answer/finish. Его auth/games/results API responses замоканы для детерминированного локального запуска; тест не доказывает реальное backend/Supabase persistence, Telegram auth, AI generation, online WebSocket rooms, permissions или production result persistence.
+`npm run test:e2e` запускает текущий Playwright suite (41 tests), включая login → Quiz Builder → save → Library → reopen → offline player → answer/finish, mobile, preview/permissions, tags, imports, admin и room input regressions. Auth/games/results API responses в этих тестах замоканы для детерминированного локального запуска; suite не доказывает реальное backend/Supabase persistence, Telegram auth, provider availability, online-room restart, RLS или production result persistence.
 
 Backend:
 
@@ -51,9 +51,10 @@ Backend:
 cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload
+python -m unittest discover -s tests -p 'test*.py'
 ```
 
-В репозитории нет backend test suite и отдельной команды запуска backend-тестов. Текущий TypeScript check известен как не проходящий; после изменений его нужно запускать снова и отделять новые ошибки от существующих.
+Backend test suite является частью текущего baseline: 125 isolated tests проходят без production credentials/data. TypeScript baseline также проходит; repository-wide `npm run lint` всё ещё содержит примерно 18 915 исторических CRLF/Prettier messages и не должен приниматься за runtime failure.
 
 Backend ожидает переменные окружения. Код не загружает `.env` автоматически. Локальный запуск требует отдельно настроенного окружения и `JWT_SECRET`; startup также запускает Telegram bot и требует `TELEGRAM_BOT_TOKEN`.
 
@@ -88,7 +89,7 @@ Backend ожидает переменные окружения. Код не за
 
 - Протокол room actions и форма состояния определены совместно в `backend/routes/rooms.py` и `frontend/src/lib/api.ts`.
 - Любое изменение action/state требует проверки host view, player view, Jeopardy components, reconnect logic и сохранения online results.
-- Backend сейчас не выполняет полноценной server-side authorization команд комнаты. Не считать WebSocket-команды доверенными при добавлении чувствительных действий.
+- Backend выдаёт server-side host/player credentials, связывает actions с role/player identity и проверяет host/player permissions. Не добавлять чувствительные actions без обновления этой модели и protocol tests.
 - Комнаты исчезают при потере последнего соединения или перезапуске процесса.
 
 ## AI contracts

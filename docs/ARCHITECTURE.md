@@ -1,6 +1,6 @@
 # IslandQuiz — фактическая архитектура
 
-Статус: актуальное описание кода на 2026-08-18. Если этот документ расходится с кодом, источником истины является код и фактическая production-схема Supabase.
+Статус: актуальное описание кода на 2026-08-21. Если этот документ расходится с кодом, источником истины является код и фактическая production-схема Supabase.
 
 ## Общее устройство
 
@@ -144,7 +144,8 @@ Frontend поддерживает reconnect/cache и отправляет action
 - не записываются в Supabase;
 - не переживают перезапуск процесса;
 - не рассчитаны на shared state между несколькими workers;
-- не имеют полноценной server-side проверки host authorization.
+- используют server-issued host/player credentials, role checks и server-side player identity;
+- reconnect поддерживается только в памяти текущего процесса и в пределах короткого grace window.
 
 ## Основные пользовательские сценарии
 
@@ -154,11 +155,11 @@ Builder хранит игру в React state, draft — локально, а о�
 
 ### Одиночная игра
 
-Player загружает игру через `GET /api/games/{id}`, считает ответы и очки на frontend, затем отправляет результат в соответствующую таблицу результатов.
+Player получает signed immutable snapshot, отправляет raw answers, а backend пересчитывает Quiz/Millionaire result из snapshot. Клиентский score не является доверенным.
 
 ### Онлайн Quiz/Jeopardy
 
-Host создаёт комнату, игроки входят по четырёхзначному коду, состояние синхронизируется WebSocket-сообщениями, а итог сохраняется отдельным REST-запросом.
+Host создаёт комнату, игроки входят по четырёхзначному коду, состояние синхронизируется WebSocket-сообщениями, а room backend сохраняет online result из server-held state. Legacy direct online-result submit отключён.
 
 ### Library/profile/admin
 
