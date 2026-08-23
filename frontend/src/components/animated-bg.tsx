@@ -3,11 +3,15 @@
 // re-randomize positions and cause the "jittering" effect. Animations are pure CSS.
 import { memo } from "react";
 import type { PlayerTheme } from "@/lib/types";
+import { SceneRenderer } from "@/theme-engine/scene-renderer";
+import { getThemeDefinition } from "@/theme-engine/registry";
 
 function AnimatedBackgroundImpl({ theme }: { theme: PlayerTheme }) {
+  if (getThemeDefinition(theme)) {
+    return <SceneRenderer theme={theme} mode="full" placement="player" />;
+  }
   if (theme === "ocean") return <Bubbles />;
   if (theme === "forest") return <Leaves />;
-  if (theme === "midnight") return <Stars />;
   if (theme === "amber") return <Sparks />;
   if (theme === "classic") return <Shapes />;
   return null;
@@ -72,32 +76,6 @@ function Leaves() {
               d="M12 2C7 6 4 10 6 16c1 3 4 6 8 6 4 0 6-3 4-8-1-4-4-8-6-12z"
             />
           </svg>
-        );
-      })}
-    </div>
-  );
-}
-
-function Stars() {
-  const stars = Array.from({ length: 40 });
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      {stars.map((_, i) => {
-        const size = 1 + Math.random() * 2;
-        return (
-          <span
-            key={i}
-            className="absolute rounded-full bg-[color:var(--pt-accent-2)]"
-            style={{
-              width: size,
-              height: size,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              opacity: 0.3 + Math.random() * 0.7,
-              animation: `iq-twinkle ${2 + Math.random() * 4}s ease-in-out infinite`,
-              animationDelay: `-${Math.random() * 6}s`,
-            }}
-          />
         );
       })}
     </div>

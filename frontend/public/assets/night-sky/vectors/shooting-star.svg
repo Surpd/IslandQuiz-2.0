@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 120" fill="none">
+  <defs>
+    <linearGradient id="trail" x1="8" y1="108" x2="206" y2="16" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A9B9FF" stop-opacity="0"/><stop offset=".72" stop-color="#C8D4FF" stop-opacity=".35"/><stop offset="1" stop-color="#FFF"/>
+    </linearGradient>
+    <filter id="blur" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="4"/></filter>
+  </defs>
+  <path d="M10 108 207 17" stroke="url(#trail)" stroke-width="8" stroke-linecap="round" filter="url(#blur)"/>
+  <path d="M15 106 207 17" stroke="url(#trail)" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="210" cy="15" r="5" fill="#FFF"/><circle cx="210" cy="15" r="13" fill="#C8D4FF" opacity=".32" filter="url(#blur)"/>
+</svg>

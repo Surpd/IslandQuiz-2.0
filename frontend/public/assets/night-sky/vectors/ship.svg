@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 120" fill="none">
+  <defs>
+    <linearGradient id="sail" x1="90" y1="20" x2="90" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B7C8FF"/><stop offset="1" stop-color="#6176C1"/>
+    </linearGradient>
+  </defs>
+  <path d="M22 82c26 7 83 10 133-2-11 20-29 28-67 28-34 0-54-8-66-26Z" fill="#121B43" stroke="#8EA3E8" stroke-width="2"/>
+  <path d="M89 15v68M93 25c21 7 34 19 45 38H93V25Z" fill="url(#sail)" stroke="#B8C8FF" stroke-width="2"/>
+  <path d="M86 31C69 39 59 51 50 67h36V31Z" fill="#596EB8" stroke="#A6B8F1" stroke-width="2"/>
+  <path d="M40 83c22 4 64 5 91-1" stroke="#D3DFFF" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+  <circle cx="92" cy="14" r="4" fill="#F5F3FF"/>
+</svg>

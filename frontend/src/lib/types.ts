@@ -8,7 +8,7 @@ export const PLAYER_THEMES: { id: PlayerTheme; name: string; hint: string }[] = 
   { id: "amber", name: "Amber", hint: "Тёплое, уютное" },
   { id: "ocean", name: "Ocean", hint: "Глубокое морское" },
   { id: "forest", name: "Forest", hint: "Природное зелёное" },
-  { id: "midnight", name: "Midnight", hint: "Сфокусированное ночное" },
+  { id: "midnight", name: "Night Sky", hint: "Живой ночной мир" },
 ];
 
 export function isPlayerTheme(value: unknown): value is PlayerTheme {

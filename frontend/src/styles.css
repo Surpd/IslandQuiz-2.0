@@ -451,6 +451,368 @@ html.formula-keyboard-open {
 }
 
 /* ============================================================
+   Theme Engine scenes
+   ============================================================ */
+.theme-scene {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+  contain: layout paint;
+}
+.theme-scene--player {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+.theme-scene--builder {
+  inset: 0 0 auto;
+  height: 31rem;
+  z-index: 0;
+  border-radius: 0 0 2rem 2rem;
+}
+.theme-scene--card {
+  inset: 0;
+  border-radius: 0.65rem;
+}
+.theme-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  opacity: var(--theme-opacity);
+  pointer-events: none;
+  user-select: none;
+  will-change: transform, opacity;
+  --theme-current-opacity: var(--theme-opacity);
+}
+.theme-layer--none { will-change: auto; }
+.theme-layer--twinkle { animation: theme-twinkle var(--theme-animation-duration, 6s) ease-in-out var(--theme-animation-delay, 0s) infinite; }
+.theme-layer--breath { animation: theme-breath var(--theme-animation-duration, 10s) ease-in-out var(--theme-animation-delay, 0s) infinite; }
+.theme-layer--drift { animation: theme-drift var(--theme-animation-duration, 36s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--float { animation: theme-float var(--theme-animation-duration, 11s) ease-in-out var(--theme-animation-delay, 0s) infinite; }
+.theme-layer--glow { animation: theme-glow var(--theme-animation-duration, 9s) ease-in-out var(--theme-animation-delay, 0s) infinite; }
+.theme-layer--wave { animation: theme-wave var(--theme-animation-duration, 18s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--star-tiny { animation: theme-star-layer-tiny var(--theme-animation-duration, 31s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--star-medium { animation: theme-star-layer-medium var(--theme-animation-duration, 17s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--star-bright { animation: theme-star-layer-bright var(--theme-animation-duration, 13s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--dust-drift { animation: theme-dust-drift var(--theme-animation-duration, 44s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--nebula-density { animation: theme-nebula-density var(--theme-animation-duration, 131s) ease-in-out var(--theme-animation-delay, 0s) infinite; }
+.theme-layer--aurora-depth { animation: theme-aurora-depth var(--theme-animation-duration, 113s) ease-in-out var(--theme-animation-delay, 0s) infinite; }
+.theme-layer--nebula-breathe { animation: theme-nebula-breathe var(--theme-animation-duration, 26s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--aurora-flow { animation: theme-aurora-flow var(--theme-animation-duration, 24s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--mist-far { animation: theme-mist-far var(--theme-animation-duration, 38s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--mist-near { animation: theme-mist-near var(--theme-animation-duration, 24s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--mist-haze { animation: theme-mist-haze var(--theme-animation-duration, 47s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--grass-sway { transform-origin: 50% 100%; animation: theme-grass-sway var(--theme-animation-duration, 8s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--water-ripple { animation: theme-water-ripple var(--theme-animation-duration, 20s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--water-shimmer { animation: theme-water-shimmer var(--theme-animation-duration, 12s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+
+/* Development-only Night Sky debug scene: intentionally exaggerated ambient motion. */
+.theme-scene--debug-ambient .theme-layer--glow { animation: none; opacity: 0 !important; }
+.theme-scene--debug-ambient .theme-layer--nebula-breathe { animation-name: theme-debug-nebula-breathe; }
+.theme-scene--debug-ambient .theme-layer--nebula-density { animation-name: theme-debug-nebula-density; }
+.theme-scene--debug-ambient .theme-layer--aurora-flow { animation-name: theme-debug-aurora-flow; }
+.theme-scene--debug-ambient .theme-layer--aurora-depth { animation-name: theme-debug-aurora-depth; }
+.theme-scene--debug-ambient .theme-layer--mist-far { animation-name: theme-debug-mist-far; }
+.theme-scene--debug-ambient .theme-layer--mist-near { animation-name: theme-debug-mist-near; }
+.theme-scene--debug-ambient .theme-layer--mist-haze { animation-name: theme-debug-mist-haze; }
+.theme-scene--debug-ambient .theme-star--tiny:not(.theme-star--static) { animation: theme-debug-star-twinkle var(--star-duration, 6s) ease-in-out var(--star-delay, 0s) infinite; }
+.theme-scene--debug-ambient .theme-star:not(.theme-star--static) { animation-name: theme-debug-star-twinkle; }
+.theme-scene--debug-ambient .theme-star--bright { animation-name: theme-debug-star-flash; }
+.theme-layer--stars {
+  overflow: visible;
+}
+.theme-star {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  background: rgb(224 232 255 / 0.78);
+  opacity: var(--star-opacity);
+  animation: theme-star-twinkle var(--star-duration, 6s) ease-in-out var(--star-delay, 0s) infinite;
+  will-change: opacity;
+}
+.theme-star--static { animation: none; }
+.theme-star--medium { background: rgb(215 226 255 / 0.84); }
+.theme-star--bright {
+  background: rgb(240 244 255 / 0.98);
+  box-shadow: 0 0 4px 1px rgb(183 199 255 / 0.36);
+  overflow: visible;
+  will-change: transform, opacity;
+}
+.theme-star--bright::before,
+.theme-star--bright::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 420%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(226 235 255 / 0.72) 42%, rgb(255 255 255 / 0.98) 50%, rgb(226 235 255 / 0.72) 58%, transparent);
+  transform: translate(-50%, -50%);
+  opacity: 0.72;
+  pointer-events: none;
+}
+.theme-star--bright::after { transform: translate(-50%, -50%) rotate(90deg); }
+.theme-star--tiny { box-shadow: none; }
+.theme-star--flash::before,
+.theme-star--flash::after { transition: opacity 300ms ease; }
+.theme-star--flash {
+  animation-name: theme-star-flash;
+}
+
+.theme-event {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.theme-event--shooting-star {
+  top: 17%;
+  left: -18rem;
+  width: min(15rem, 34vw);
+  animation: theme-shooting-star 3.6s ease-in both;
+}
+.theme-event--satellite {
+  top: 23%;
+  left: -8rem;
+  width: 6rem;
+  animation: theme-satellite 5.2s ease-in-out both;
+}
+.theme-event--aurora-pulse {
+  inset: 0;
+  background: radial-gradient(ellipse at 55% 20%, rgb(116 235 255 / 0.2), transparent 48%);
+  animation: theme-aurora-pulse 4.2s ease-in-out both;
+}
+.theme-event--moon-glow-boost {
+  top: -5vh;
+  right: -1vw;
+  width: min(72vh, 42rem);
+  height: min(72vh, 42rem);
+  border-radius: 50%;
+  background: rgb(213 231 255 / 0.18);
+  filter: blur(2rem);
+  animation: theme-moon-glow-boost 3s ease-in-out both;
+}
+.theme-select-preview {
+  position: relative;
+  min-height: 5.5rem;
+  overflow: hidden;
+  background: var(--pt-bg);
+  color: var(--pt-text);
+}
+.theme-select-label {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 10;
+  padding: 1.75rem 0.65rem 0.55rem;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.72));
+}
+@keyframes theme-twinkle { 0%, 100% { opacity: var(--theme-current-opacity); } 50% { opacity: min(1, calc(var(--theme-current-opacity) + 0.16)); } }
+@keyframes theme-breath { 0%, 100% { opacity: var(--theme-current-opacity); } 50% { opacity: min(0.68, calc(var(--theme-current-opacity) + 0.12)); } }
+@keyframes theme-drift { 0%, 100% { transform: translate3d(0, 0, 0) scale(1.005); } 50% { transform: translate3d(0, -1px, 0) scale(1.012); } }
+@keyframes theme-float { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -3px, 0); } }
+@keyframes theme-glow {
+  0%, 100% { opacity: var(--theme-current-opacity); transform: scale(1); }
+  48% { opacity: min(0.62, calc(var(--theme-current-opacity) + 0.07)); transform: scale(1.006); }
+  70% { opacity: min(0.6, calc(var(--theme-current-opacity) + 0.04)); transform: scale(1.003); }
+}
+@keyframes theme-wave { 0%, 100% { transform: translate3d(0, 0, 0) scale(1.02); } 50% { transform: translate3d(0, -1px, 0) scale(1.04); } }
+@keyframes theme-star-layer-tiny {
+  0%, 100% { opacity: var(--theme-current-opacity); transform: scale(1); }
+  48% { opacity: min(0.9, calc(var(--theme-current-opacity) + 0.025)); transform: scale(1.004); }
+}
+@keyframes theme-star-layer-medium {
+  0%, 100% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.002); }
+  52% { opacity: min(0.94, calc(var(--theme-current-opacity) + 0.07)); transform: translate3d(0, -1px, 0) scale(1.008); }
+}
+@keyframes theme-star-layer-bright {
+  0%, 100% { opacity: var(--theme-current-opacity); transform: scale(1); }
+  37% { opacity: min(0.98, calc(var(--theme-current-opacity) + 0.1)); transform: scale(1.012); }
+  71% { opacity: var(--theme-current-opacity); transform: scale(1.004); }
+}
+@keyframes theme-dust-drift {
+  0%, 100% { opacity: var(--theme-current-opacity); }
+  46% { opacity: min(0.205, calc(var(--theme-current-opacity) + 0.012)); }
+  78% { opacity: min(0.195, calc(var(--theme-current-opacity) + 0.006)); }
+}
+@keyframes theme-nebula-breathe {
+  0% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1); filter: brightness(0.92) saturate(0.9); }
+  19% { opacity: min(0.46, calc(var(--theme-current-opacity) + 0.03)); transform: translate3d(0, -2px, 0) scale(1.01); filter: brightness(0.96) saturate(0.96); }
+  43% { opacity: min(0.5, calc(var(--theme-current-opacity) + 0.08)); transform: translate3d(0, -4px, 0) scale(1.028); filter: brightness(1.08) saturate(1.1); }
+  67% { opacity: min(0.48, calc(var(--theme-current-opacity) + 0.055)); transform: translate3d(0, -1px, 0) scale(1.02); filter: brightness(1.04) saturate(1.05); }
+  88% { opacity: calc(var(--theme-current-opacity) - 0.025); transform: translate3d(0, 2px, 0) scale(1.005); filter: brightness(0.91) saturate(0.9); }
+  100% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1); filter: brightness(0.92) saturate(0.9); }
+}
+@keyframes theme-nebula-density {
+  0% { opacity: calc(var(--theme-current-opacity) * 0.5); transform: translate3d(0, 2px, 0) scale(1.025); filter: brightness(0.88) saturate(0.86); }
+  24% { opacity: calc(var(--theme-current-opacity) * 0.8); transform: translate3d(0, -2px, 0) scale(1.04); filter: brightness(1.04) saturate(1.08); }
+  51% { opacity: min(0.28, calc(var(--theme-current-opacity) + 0.1)); transform: translate3d(0, -4px, 0) scale(1.06); filter: brightness(1.16) saturate(1.22); }
+  79% { opacity: min(0.22, calc(var(--theme-current-opacity) + 0.06)); transform: translate3d(0, 0, 0) scale(1.045); filter: brightness(1.08) saturate(1.12); }
+  100% { opacity: calc(var(--theme-current-opacity) * 0.5); transform: translate3d(0, 2px, 0) scale(1.025); filter: brightness(0.88) saturate(0.86); }
+}
+@keyframes theme-aurora-flow {
+  0% { opacity: var(--theme-current-opacity); transform: scale(1) rotate(-0.16deg) skewX(-0.16deg); filter: saturate(0.9) brightness(0.94); }
+  17% { opacity: min(0.29, calc(var(--theme-current-opacity) + 0.018)); transform: scale(1.012) rotate(-0.04deg) skewX(0.03deg); filter: saturate(0.96) brightness(0.98); }
+  38% { opacity: min(0.34, calc(var(--theme-current-opacity) + 0.06)); transform: scale(1.028) rotate(0.14deg) skewX(0.18deg); filter: saturate(1.07) brightness(1.03); }
+  61% { opacity: min(0.38, calc(var(--theme-current-opacity) + 0.1)); transform: scale(1.04) rotate(0.22deg) skewX(0.24deg); filter: saturate(1.12) brightness(1.05); }
+  82% { opacity: min(0.32, calc(var(--theme-current-opacity) + 0.04)); transform: scale(1.018) rotate(-0.06deg) skewX(-0.08deg); filter: saturate(1.04) brightness(1.02); }
+  100% { opacity: var(--theme-current-opacity); transform: scale(1) rotate(-0.16deg) skewX(-0.16deg); filter: saturate(0.9) brightness(0.94); }
+}
+@keyframes theme-aurora-depth {
+  0% { opacity: calc(var(--theme-current-opacity) * 0.5); transform: scale(1.012) rotate(0.16deg) skewX(0.1deg); filter: saturate(0.92) brightness(0.94); }
+  22% { opacity: calc(var(--theme-current-opacity) * 0.65); transform: scale(1.026) rotate(0.04deg) skewX(-0.04deg); filter: saturate(1.04) brightness(0.99); }
+  49% { opacity: min(0.22, calc(var(--theme-current-opacity) + 0.08)); transform: scale(1.05) rotate(-0.14deg) skewX(-0.18deg); filter: saturate(1.13) brightness(1.06); }
+  73% { opacity: min(0.18, calc(var(--theme-current-opacity) + 0.04)); transform: scale(1.035) rotate(-0.03deg) skewX(0.06deg); filter: saturate(1.07) brightness(1.03); }
+  100% { opacity: calc(var(--theme-current-opacity) * 0.5); transform: scale(1.012) rotate(0.16deg) skewX(0.1deg); filter: saturate(0.92) brightness(0.94); }
+}
+@keyframes theme-mist-far {
+  0% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.02); filter: brightness(0.94); }
+  23% { opacity: min(0.29, calc(var(--theme-current-opacity) + 0.03)); transform: translate3d(0, -2px, 0) scale(1.035); filter: brightness(1); }
+  54% { opacity: min(0.39, calc(var(--theme-current-opacity) + 0.09)); transform: translate3d(0, -5px, 0) scale(1.065); filter: brightness(1.1); }
+  81% { opacity: min(0.34, calc(var(--theme-current-opacity) + 0.04)); transform: translate3d(0, -1px, 0) scale(1.05); filter: brightness(1.04); }
+  100% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.02); filter: brightness(0.94); }
+}
+@keyframes theme-mist-near {
+  0% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.025); filter: brightness(0.94); }
+  18% { opacity: min(0.26, calc(var(--theme-current-opacity) + 0.025)); transform: translate3d(0, -2px, 0) scale(1.045); filter: brightness(1); }
+  47% { opacity: min(0.36, calc(var(--theme-current-opacity) + 0.08)); transform: translate3d(0, -5px, 0) scale(1.075); filter: brightness(1.1); }
+  76% { opacity: min(0.3, calc(var(--theme-current-opacity) + 0.04)); transform: translate3d(0, 1px, 0) scale(1.06); filter: brightness(1.04); }
+  100% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.025); filter: brightness(0.94); }
+}
+@keyframes theme-mist-haze {
+  0% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.015); filter: brightness(0.94); }
+  31% { opacity: min(0.1, calc(var(--theme-current-opacity) + 0.02)); transform: translate3d(0, -2px, 0) scale(1.03); filter: brightness(1.02); }
+  63% { opacity: min(0.14, calc(var(--theme-current-opacity) + 0.05)); transform: translate3d(0, -4px, 0) scale(1.05); filter: brightness(1.1); }
+  100% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.015); filter: brightness(0.94); }
+}
+@keyframes theme-grass-sway {
+  0%, 100% { transform: translate3d(-0.3%, 0, 0) rotate(calc(var(--theme-animation-amplitude, 0.3deg) * -1)) scale(1.01); }
+  50% { transform: translate3d(0.35%, -0.15%, 0) rotate(var(--theme-animation-amplitude, 0.3deg)) scale(1.018); }
+}
+@keyframes theme-water-ripple {
+  0%, 100% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.025, 1.02); }
+  38% { opacity: min(0.56, calc(var(--theme-current-opacity) + 0.04)); transform: translate3d(0, -1px, 0) scale(1.035, 1.025); }
+  70% { opacity: min(0.54, calc(var(--theme-current-opacity) + 0.02)); transform: translate3d(0, 1px, 0) scale(1.03, 1.035); }
+}
+@keyframes theme-water-shimmer {
+  0%, 100% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.02, 1.01); }
+  50% { opacity: min(0.3, calc(var(--theme-current-opacity) + 0.045)); transform: translate3d(0, -1px, 0) scale(1.035, 1.018); }
+}
+@keyframes theme-star-twinkle {
+  0% { opacity: calc(var(--star-opacity) * 0.42); }
+  24% { opacity: calc(var(--star-opacity) * 1.12); }
+  51% { opacity: calc(var(--star-opacity) * 0.28); }
+  76% { opacity: calc(var(--star-opacity) * 1.24); }
+  100% { opacity: calc(var(--star-opacity) * 0.48); }
+}
+@keyframes theme-star-flash {
+  0%, 100% { opacity: calc(var(--star-opacity) * 0.48); transform: scale(0.94); }
+  43% { opacity: calc(var(--star-opacity) * 0.96); transform: scale(1); }
+  51% { opacity: min(1, calc(var(--star-opacity) * 1.65)); transform: scale(1.16); }
+  61% { opacity: calc(var(--star-opacity) * 0.9); transform: scale(1.02); }
+}
+@keyframes theme-shooting-star { 0% { opacity: 0; transform: translate3d(0, 0, 0) rotate(8deg); } 12% { opacity: 0.9; } 100% { opacity: 0; transform: translate3d(125vw, 42vh, 0) rotate(8deg); } }
+@keyframes theme-satellite { 0% { opacity: 0; transform: translate3d(0, 0, 0) rotate(8deg); } 15%, 80% { opacity: 0.48; } 100% { opacity: 0; transform: translate3d(115vw, 28vh, 0) rotate(8deg); } }
+@keyframes theme-aurora-pulse { 0%, 100% { opacity: 0; } 35%, 70% { opacity: 1; } }
+@keyframes theme-moon-glow-boost { 0%, 100% { opacity: 0; transform: scale(0.92); } 40%, 65% { opacity: 1; transform: scale(1.04); } }
+
+@keyframes theme-debug-glow {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  32% { opacity: 0.72; transform: scale(1.035); }
+  58% { opacity: 0.9; transform: scale(1.06); }
+  78% { opacity: 0.5; transform: scale(1.02); }
+}
+@keyframes theme-debug-nebula-breathe {
+  0% { opacity: calc(var(--theme-current-opacity) * 0.4); transform: translate3d(0, 5px, 0) scale(1); filter: brightness(0.84) saturate(0.65); }
+  19% { opacity: calc(var(--theme-current-opacity) * 0.8); transform: translate3d(0, -3px, 0) scale(1.05); filter: brightness(1) saturate(1); }
+  43% { opacity: calc(var(--theme-current-opacity) * 1.6); transform: translate3d(0, -9px, 0) scale(1.15); filter: brightness(1.32) saturate(1.45); }
+  67% { opacity: calc(var(--theme-current-opacity) * 1.3); transform: translate3d(0, -2px, 0) scale(1.1); filter: brightness(1.2) saturate(1.25); }
+  88% { opacity: calc(var(--theme-current-opacity) * 0.4); transform: translate3d(0, 7px, 0) scale(1); filter: brightness(0.84) saturate(0.65); }
+  100% { opacity: calc(var(--theme-current-opacity) * 0.4); transform: translate3d(0, 5px, 0) scale(1); filter: brightness(0.84) saturate(0.65); }
+}
+@keyframes theme-debug-nebula-density {
+  0% { opacity: calc(var(--theme-current-opacity) * 0.4); transform: translate3d(0, 6px, 0) scale(1); filter: brightness(0.84) saturate(0.65); }
+  24% { opacity: calc(var(--theme-current-opacity) * 0.9); transform: translate3d(0, -4px, 0) scale(1.08); filter: brightness(1.08) saturate(1.15); }
+  51% { opacity: calc(var(--theme-current-opacity) * 1.6); transform: translate3d(0, -10px, 0) scale(1.15); filter: brightness(1.32) saturate(1.5); }
+  79% { opacity: calc(var(--theme-current-opacity) * 1.2); transform: translate3d(0, -1px, 0) scale(1.1); filter: brightness(1.2) saturate(1.3); }
+  100% { opacity: calc(var(--theme-current-opacity) * 0.4); transform: translate3d(0, 6px, 0) scale(1); filter: brightness(0.84) saturate(0.65); }
+}
+@keyframes theme-debug-aurora-flow {
+  0% { opacity: calc(var(--theme-current-opacity) * 0.8); transform: scale(1) rotate(-2deg) skewX(-2.5deg); filter: saturate(1) brightness(1); }
+  17% { opacity: calc(var(--theme-current-opacity) * 1.2); transform: scale(1.08) rotate(-0.5deg) skewX(0.25deg); filter: saturate(1.2) brightness(1.15); }
+  38% { opacity: calc(var(--theme-current-opacity) * 1.7); transform: scale(1.15) rotate(1deg) skewX(1.6deg); filter: saturate(1.55) brightness(1.4); }
+  61% { opacity: calc(var(--theme-current-opacity) * 2); transform: scale(1.2) rotate(2deg) skewX(2.5deg); filter: saturate(1.8) brightness(1.6); }
+  82% { opacity: calc(var(--theme-current-opacity) * 1.35); transform: scale(1.1) rotate(-0.8deg) skewX(-1deg); filter: saturate(1.35) brightness(1.25); }
+  100% { opacity: calc(var(--theme-current-opacity) * 0.8); transform: scale(1) rotate(-2deg) skewX(-2.5deg); filter: saturate(1) brightness(1); }
+}
+@keyframes theme-debug-aurora-depth {
+  0% { opacity: calc(var(--theme-current-opacity) * 0.8); transform: scale(1) rotate(2deg) skewX(1.5deg); filter: saturate(1) brightness(1); }
+  22% { opacity: calc(var(--theme-current-opacity) * 1.1); transform: scale(1.08) rotate(0.3deg) skewX(-0.35deg); filter: saturate(1.2) brightness(1.15); }
+  49% { opacity: calc(var(--theme-current-opacity) * 2); transform: scale(1.2) rotate(-2deg) skewX(-2.5deg); filter: saturate(1.8) brightness(1.6); }
+  73% { opacity: calc(var(--theme-current-opacity) * 1.4); transform: scale(1.12) rotate(-0.4deg) skewX(0.7deg); filter: saturate(1.45) brightness(1.3); }
+  100% { opacity: calc(var(--theme-current-opacity) * 0.8); transform: scale(1) rotate(2deg) skewX(1.5deg); filter: saturate(1) brightness(1); }
+}
+@keyframes theme-debug-mist-far {
+  0% { opacity: 0.12; transform: translate3d(0, 7px, 0) scale(1); filter: brightness(0.8); }
+  23% { opacity: 0.24; transform: translate3d(0, -3px, 0) scale(1.05); filter: brightness(1); }
+  54% { opacity: 0.44; transform: translate3d(0, -12px, 0) scale(1.1); filter: brightness(1.3); }
+  81% { opacity: 0.32; transform: translate3d(0, -2px, 0) scale(1.08); filter: brightness(1.15); }
+  100% { opacity: 0.12; transform: translate3d(0, 7px, 0) scale(1); filter: brightness(0.8); }
+}
+@keyframes theme-debug-mist-near {
+  0% { opacity: 0.12; transform: translate3d(0, 7px, 0) scale(1); filter: brightness(0.8); }
+  18% { opacity: 0.24; transform: translate3d(0, -3px, 0) scale(1.05); filter: brightness(1); }
+  47% { opacity: 0.44; transform: translate3d(0, -12px, 0) scale(1.1); filter: brightness(1.3); }
+  76% { opacity: 0.32; transform: translate3d(0, 2px, 0) scale(1.08); filter: brightness(1.15); }
+  100% { opacity: 0.12; transform: translate3d(0, 7px, 0) scale(1); filter: brightness(0.8); }
+}
+@keyframes theme-debug-mist-haze {
+  0% { opacity: 0.12; transform: translate3d(0, 5px, 0) scale(1); filter: brightness(0.8); }
+  31% { opacity: 0.28; transform: translate3d(0, -3px, 0) scale(1.05); filter: brightness(1.05); }
+  63% { opacity: 0.44; transform: translate3d(0, -9px, 0) scale(1.1); filter: brightness(1.3); }
+  100% { opacity: 0.12; transform: translate3d(0, 5px, 0) scale(1); filter: brightness(0.8); }
+}
+@keyframes theme-debug-star-twinkle {
+  0% { opacity: 0; }
+  24% { opacity: 1; }
+  51% { opacity: 0; }
+  76% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes theme-debug-star-flash {
+  0%, 100% { opacity: 0; transform: scale(0.86); filter: brightness(1); }
+  43% { opacity: 0.7; transform: scale(1); filter: brightness(1.5); }
+  51% { opacity: 1; transform: scale(1.28); filter: brightness(2.5); }
+  61% { opacity: 0.15; transform: scale(0.92); filter: brightness(1); }
+}
+
+@media (max-width: 767px) {
+  .theme-scene--builder { height: 22rem; }
+  .theme-layer { --theme-current-opacity: var(--theme-mobile-opacity); opacity: var(--theme-mobile-opacity); }
+  .theme-layer--mobile-hidden { display: none; }
+  .theme-star { transform-origin: center; }
+  .theme-event--shooting-star { top: 21%; width: 10rem; }
+  .theme-event--aurora-pulse { opacity: 0.7; }
+  .theme-event--moon-glow-boost { width: 20rem; height: 20rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-layer,
+  .theme-event,
+  .theme-star { animation: none !important; }
+  .theme-event { display: none; }
+}
+
+.theme-scene[data-reduced-motion="true"] .theme-layer,
+.theme-scene[data-reduced-motion="true"] .theme-event,
+.theme-scene[data-reduced-motion="true"] .theme-star {
+  animation: none !important;
+}
+
+/* ============================================================
    KaTeX safety
    ============================================================ */
 .katex { font-size: 1em; }
