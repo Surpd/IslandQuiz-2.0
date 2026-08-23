@@ -10,14 +10,12 @@ import {
   Globe,
   Lock,
   Link2,
-  UserPlus,
   Play,
   GitFork,
   Trophy,
-  MoreHorizontal,
   Pencil,
-  Check,
   Eye,
+  Star,
   X,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
@@ -31,12 +29,11 @@ import {
 } from "@/lib/api";
 import { cleanupInvalidGames } from "@/lib/storage";
 import { useAuth } from "@/hooks/use-auth";
-import { RatingStars } from "@/components/rating-stars";
 import { Avatar } from "@/components/avatar";
 import { GameContent, gameSummary } from "@/components/game-content";
 import type { GameKind, QuizData, StoredGame } from "@/lib/types";
 import { safeCanonicalTag } from "@/lib/tags";
-import { allowsGameCopy, allowsGamePreview } from "@/lib/game-permissions";
+import { allowsGamePreview } from "@/lib/game-permissions";
 
 
 type TabKey = "my" | "public" | "added" | "played";
@@ -162,12 +159,6 @@ function LibraryPage() {
     }
     return list;
   }, [tabFiltered, search, selectedTags, sortBy]);
-
-  const addedSourceIds = useMemo(
-    () => new Set((games ?? []).filter((g) => g.ownerId === user?.id && g.forkedFrom).map((g) => g.forkedFrom as string)),
-    [games, user],
-  );
-
 
   const onBind = async () => {
     const n = await bindOrphanGames();
@@ -314,13 +305,8 @@ function LibraryPage() {
                 key={`${g.kind}-${g.id}`}
                 g={g}
                 tab={activeTab}
-                alreadyAdded={addedSourceIds.has(g.id)}
                 onPlay={() => setPlayModal({ id: g.id, kind: g.kind })}
                 onPreview={() => setPreviewGame(g)}
-                onForked={() => {
-                  showToast("Игра добавлена в «Мои»");
-                  reload();
-                }}
               />
             ))}
           </div>
@@ -349,44 +335,20 @@ function LibraryPage() {
 function GameCard({
   g,
   tab,
-  alreadyAdded,
   onPlay,
   onPreview,
-  onForked,
 }: {
   g: StoredGame;
   tab: TabKey;
-  alreadyAdded: boolean;
   onPlay: () => void;
   onPreview: () => void;
-  onForked: () => void;
 }) {
-  const { user, forkGame } = useAuth();
+  const { user } = useAuth();
   const nav = useNavigate();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [forking, setForking] = useState(false);
-  const [added, setAdded] = useState(alreadyAdded);
   const Icon = KIND_ICON[g.kind] ?? FileText;
   const VisIcon = g.visibility === "public" ? Globe : g.visibility === "link" ? Link2 : Lock;
   const isMine = !!user && g.ownerId === user.id;
-  const isPrivileged = !!user && (user.role === "admin" || isMine);
-  const copyAllowed = allowsGameCopy(g, isPrivileged);
   const ownerId = g.ownerId;
-
-  const doFork = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (forking || added) return;
-    setForking(true);
-    try {
-      const copy = await forkGame(g.id);
-      if (!copy) return;
-      setAdded(true);
-      onForked();
-    } finally {
-      setForking(false);
-    }
-  };
 
   const openPlay = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -464,7 +426,12 @@ function GameCard({
       )}
       {(() => {
         const { avg, count } = computeRatingStats(g);
-        return count > 0 ? <RatingStars value={avg} count={count} size={12} /> : null;
+        return count > 0 ? (
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground" aria-label={`Рейтинг ${avg.toFixed(1)} из 5, ${count} оценок`}>
+            <Star className="h-3.5 w-3.5 fill-amber text-amber" />
+            {avg.toFixed(1)} <span className="font-normal opacity-70">({count})</span>
+          </span>
+        ) : null;
       })()}
 
       <div className="relative mt-auto flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5 md:gap-2 md:pt-3">
@@ -474,20 +441,8 @@ function GameCard({
         <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground md:text-xs" title="Количество прохождений">
           <Play className="h-3 w-3" /> {g.playCount ?? 0}
         </span>
-        {tab === "public" && user && (
-          <button
-            onClick={doFork}
-            disabled={forking || added || !copyAllowed}
-            title={!copyAllowed ? "Автор запретил копирование этой игры" : undefined}
-            className={`ml-auto inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
-              added ? "cursor-default bg-success-soft text-success" : "bg-primary-soft text-primary hover:bg-primary/20"
-            } ${forking ? "cursor-wait opacity-70" : ""}`}
-          >
-            {added ? <Check className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
-            {forking ? "Добавляем…" : added ? "Добавлено" : copyAllowed ? "Добавить" : "Копирование запрещено"}
-          </button>
-        )}
         <button
+          type="button"
           onClick={openPlay}
           className="inline-flex min-h-8 items-center gap-1 rounded-full bg-foreground px-3 py-1 text-xs font-semibold text-white hover:opacity-90"
         >
@@ -500,60 +455,22 @@ function GameCard({
             e.stopPropagation();
             onPreview();
           }}
-          className="inline-flex min-h-8 items-center gap-1 rounded-full border border-border-strong px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-surface-muted hover:text-foreground"
+          title="Просмотреть"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border-strong text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           aria-label={`Просмотреть ${titleOf(g)}`}
         >
-          <Eye className="h-3 w-3" /> <span className="hidden sm:inline">Просмотреть</span>
+          <Eye className="h-4 w-4" />
         </button>
         {isMine && (
           <button
             type="button"
             onClick={editGame}
-            className="hidden items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 md:inline-flex"
+            title="Редактировать"
+            aria-label={`Редактировать ${titleOf(g)}`}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-soft text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
-            <Pencil className="h-3 w-3" /> Редактировать
+            <Pencil className="h-4 w-4" />
           </button>
-        )}
-        <button
-          type="button"
-          aria-label="Дополнительные действия"
-          aria-expanded={menuOpen}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setMenuOpen((open) => !open);
-          }}
-          className="hidden h-7 w-7 place-items-center rounded-full border border-border-strong text-muted-foreground hover:bg-surface-muted hover:text-foreground md:grid"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
-        {menuOpen && (
-          <div className="absolute bottom-11 right-0 z-20 min-w-44 overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-lift">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setMenuOpen(false);
-                nav({ to: "/game/$id", params: { id: g.id } });
-              }}
-              className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-surface-muted"
-            >
-              Открыть страницу игры
-            </button>
-            {isMine && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  setMenuOpen(false);
-                  editGame(e);
-                }}
-                className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-surface-muted"
-              >
-                Редактировать
-              </button>
-            )}
-          </div>
         )}
         {tab === "played" && (
           <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-semibold text-success">
