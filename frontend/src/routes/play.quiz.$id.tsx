@@ -412,7 +412,7 @@ function FreeNav({
 }) {
   const answeredMap = new Map(answers.map((a) => [a.qId, a]));
   return (
-    <div className="flex flex-wrap gap-1.5 rounded-2xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-3">
+    <div className="player-question-nav flex flex-wrap gap-1.5 rounded-2xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-3">
       {order.map((qIdx, i) => {
         const answered = answeredMap.get(questions[qIdx].id);
         const active = i === current;
@@ -420,14 +420,14 @@ function FreeNav({
           <button
             key={i}
             onClick={() => onGo(i)}
-            className={`grid h-8 w-8 place-items-center rounded-lg text-xs font-bold transition-all ${
+            className={`player-question-nav__item grid h-8 w-8 place-items-center rounded-lg text-xs font-bold transition-all ${
               active
-                ? "bg-[color:var(--pt-accent)] text-black"
+                ? "player-question-nav__item--current bg-[color:var(--pt-accent)] text-black"
                 : answered
                   ? answered.correct
-                    ? "bg-success-soft text-success"
-                    : "bg-danger-soft text-danger"
-                  : "bg-[color:var(--pt-surface-strong)] text-[color:var(--pt-text-muted)] hover:text-[color:var(--pt-text)]"
+                    ? "player-question-nav__item--correct bg-success-soft text-success"
+                    : "player-question-nav__item--incorrect bg-danger-soft text-danger"
+                  : "player-question-nav__item--unanswered bg-[color:var(--pt-surface-strong)] text-[color:var(--pt-text-muted)] hover:text-[color:var(--pt-text)]"
             }`}
           >
             {i + 1}

@@ -450,6 +450,49 @@ html.formula-keyboard-open {
   color: var(--pt-text);
 }
 
+/* Keep the question navigator readable over changing player backgrounds. */
+[data-scope="player"] .player-question-nav {
+  isolation: isolate;
+  background:
+    linear-gradient(rgb(4 7 18 / 0.2), rgb(4 7 18 / 0.2)),
+    var(--pt-surface);
+  border-color: color-mix(in srgb, var(--pt-border) 78%, rgb(255 255 255 / 0.2));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 10px 28px rgb(0 0 0 / 0.16);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+  backdrop-filter: blur(16px) saturate(1.08);
+}
+
+[data-scope="player"] .player-question-nav__item {
+  border: 1px solid rgb(255 255 255 / 0.12);
+  color: var(--pt-text);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.28);
+}
+
+[data-scope="player"] .player-question-nav__item--unanswered {
+  background: color-mix(in srgb, var(--pt-surface-strong) 72%, rgb(4 7 18 / 0.72));
+  border-color: color-mix(in srgb, var(--pt-border) 72%, rgb(255 255 255 / 0.2));
+}
+
+[data-scope="player"] .player-question-nav__item--correct {
+  background: color-mix(in srgb, var(--success) 28%, rgb(4 12 16 / 0.72));
+  border-color: color-mix(in srgb, var(--success) 62%, transparent);
+  color: #b7f7d9;
+}
+
+[data-scope="player"] .player-question-nav__item--incorrect {
+  background: color-mix(in srgb, var(--danger) 28%, rgb(18 6 8 / 0.72));
+  border-color: color-mix(in srgb, var(--danger) 62%, transparent);
+  color: #ffc1c1;
+}
+
+[data-scope="player"] .player-question-nav__item--current {
+  border-color: color-mix(in srgb, var(--pt-accent) 72%, white 28%);
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.18), 0 0 14px color-mix(in srgb, var(--pt-accent) 38%, transparent);
+  text-shadow: none;
+}
+
 /* ============================================================
    Theme Engine scenes
    ============================================================ */

@@ -58,8 +58,52 @@ class ReadSupabase:
     def in_(self, *_args, **_kwargs):
         return self
 
+    def order(self, *_args, **_kwargs):
+        return self
+
+    def or_(self, *_args, **_kwargs):
+        return self
+
+    def range(self, *_args, **_kwargs):
+        return self
+
     def execute(self):
         return SimpleNamespace(data=[self.game] if self.table_name == "games" else [])
+
+
+def preview_game(kind, *, allow_preview=True, show_answers=False):
+    config = {"title": "Preview", "allowPreview": allow_preview}
+    if kind == "quiz":
+        data = {
+            "config": config,
+            "questions": [{"id": "q1", "type": "text", "q": "Visible question", "answer": "SECRET_ANSWER"}],
+        }
+    elif kind == "jeopardy":
+        data = {
+            "config": config,
+            "rounds": [[{"category": "Category", "questions": [{"points": 100, "q": "Visible question", "a": "SECRET_ANSWER"}]}]],
+            "final": {"category": "Final", "q": "Visible final", "a": "SECRET_FINAL"},
+        }
+    else:
+        data = {
+            "config": config,
+            "questions": [{
+                "q": "Visible question",
+                "money": 100,
+                "options": [{"text": "SECRET_OPTION", "correct": True}, {"text": "Other", "correct": False}],
+            }],
+        }
+    return {
+        "id": "game-1",
+        "kind": kind,
+        "owner_id": "owner",
+        "owner_name": "Автор",
+        "visibility": "public",
+        "show_answers": show_answers,
+        "data": data,
+        "created_at": "2026-08-20T00:00:00Z",
+        "updated_at": "2026-08-20T00:00:00Z",
+    }
 
 
 class GamePermissionTests(unittest.TestCase):
@@ -130,6 +174,46 @@ class GamePermissionTests(unittest.TestCase):
         with patch.object(games, "supabase", ReadSupabase(game)):
             playable = games.get_game_for_play("game-1", {"id": "other"})
         self.assertEqual(playable.data["questions"][0]["q"], "Секрет")
+
+    def test_preview_permissions_redact_answers_from_payload_for_all_game_kinds(self):
+        for kind in ("quiz", "jeopardy", "millionaire"):
+            for allow_preview, show_answers, questions_visible, answers_visible in (
+                (False, False, False, False),
+                (False, True, False, False),
+                (True, False, True, False),
+                (True, True, True, True),
+            ):
+                with self.subTest(kind=kind, allow_preview=allow_preview, show_answers=show_answers):
+                    game = preview_game(kind, allow_preview=allow_preview, show_answers=show_answers)
+                    data = games._preview_data(game, {"id": "other"})
+                    serialized = str(data)
+                    self.assertEqual("Visible question" in serialized, questions_visible)
+                    if kind == "millionaire":
+                        self.assertEqual("correct" in serialized, answers_visible)
+                        if questions_visible:
+                            self.assertIn("SECRET_OPTION", serialized)
+                    else:
+                        self.assertEqual("SECRET_" in serialized, answers_visible)
+
+    def test_preview_endpoint_uses_redacted_payload_and_owner_keeps_content(self):
+        game = preview_game("quiz", allow_preview=True, show_answers=False)
+        with patch.object(games, "supabase", ReadSupabase(game)):
+            public_preview = games.get_game_preview("game-1", {"id": "other"})
+        self.assertIn("Visible question", str(public_preview.data))
+        self.assertNotIn("SECRET_ANSWER", str(public_preview.data))
+
+        with patch.object(games, "supabase", ReadSupabase(game)):
+            owner_preview = games.get_game_preview("game-1", {"id": "owner"})
+        self.assertIn("SECRET_ANSWER", str(owner_preview.data))
+
+    def test_public_library_payload_uses_the_same_answer_redaction(self):
+        game = preview_game("millionaire", allow_preview=True, show_answers=False)
+        with patch.object(games, "supabase", ReadSupabase(game)):
+            result = games.list_games(limit=100, offset=0, user={"id": "other"})
+        payload = result["games"][0].data
+        self.assertIn("Visible question", str(payload))
+        self.assertIn("SECRET_OPTION", str(payload))
+        self.assertNotIn("correct", str(payload))
 
 
 if __name__ == "__main__":

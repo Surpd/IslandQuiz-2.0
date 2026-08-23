@@ -198,6 +198,85 @@ def _redact_preview_data(game: dict) -> dict:
     return data
 
 
+def _safe_preview_display(display: object) -> dict | None:
+    if not isinstance(display, dict):
+        return None
+    safe: dict = {}
+    matching = display.get("matching")
+    if isinstance(matching, dict):
+        left = sorted(value for value in matching.get("left", []) if isinstance(value, str))
+        right = sorted(value for value in matching.get("right", []) if isinstance(value, str))
+        if left or right:
+            safe["matching"] = {"left": left, "right": right}
+    ordering = sorted(value for value in display.get("ordering", []) if isinstance(value, str))
+    if ordering:
+        safe["ordering"] = ordering
+    return safe or None
+
+
+def _redact_preview_answers(game: dict) -> dict:
+    """Keep preview questions while removing correct-answer data."""
+    data = _without_persisted_theme(game.get("data") or {})
+    kind = game.get("kind")
+    if not isinstance(data, dict):
+        return {"config": {}}
+    if kind == "quiz":
+        questions = []
+        for question in data.get("questions", []):
+            if not isinstance(question, dict):
+                continue
+            safe_question = {key: value for key, value in question.items() if key != "answer"}
+            safe_display = _safe_preview_display(safe_question.get("display"))
+            if safe_display is None:
+                safe_question.pop("display", None)
+            else:
+                safe_question["display"] = safe_display
+            questions.append(safe_question)
+        data["questions"] = questions
+    elif kind == "jeopardy":
+        data["rounds"] = [
+            [
+                {
+                    "category": category.get("category", ""),
+                    "questions": [
+                        {key: value for key, value in question.items() if key != "a"}
+                        for question in category.get("questions", [])
+                        if isinstance(question, dict)
+                    ],
+                }
+                for category in round_items
+                if isinstance(category, dict)
+            ]
+            for round_items in data.get("rounds", [])
+            if isinstance(round_items, list)
+        ]
+        final = data.get("final")
+        if isinstance(final, dict):
+            data["final"] = {key: value for key, value in final.items() if key != "a"}
+    elif kind == "millionaire":
+        data["questions"] = [
+            {
+                **{key: value for key, value in question.items() if key != "options"},
+                "options": [
+                    {key: value for key, value in option.items() if key != "correct"}
+                    for option in question.get("options", [])
+                    if isinstance(option, dict)
+                ],
+            }
+            for question in data.get("questions", [])
+            if isinstance(question, dict)
+        ]
+    return data
+
+
+def _preview_data(game: dict, user: Optional[dict]) -> dict:
+    if not _allows_preview(game, user):
+        return _redact_preview_data(game)
+    if not _is_privileged(game, user) and not bool(game.get("show_answers")):
+        return _redact_preview_answers(game)
+    return _without_persisted_theme(game.get("data") or {})
+
+
 def _normalized_game_data(game: dict, data: dict) -> dict:
     data = _without_persisted_theme(data)
     if not data.get("config"):
@@ -301,7 +380,7 @@ def get_game_preview(game_id: str, user=Depends(get_current_user_optional)):
     game = game_rows[0]
     if not _can_view(game, user):
         return None
-    data = _redact_preview_data(game) if not _allows_preview(game, user) else game.get("data") or {}
+    data = _preview_data(game, user)
     data = _normalized_game_data(game, data)
     if not data:
         return None
@@ -334,10 +413,7 @@ def get_game(game_id: str, user=Depends(get_current_user_optional)):
     if not _can_view(game, user):
         return None
     
-    data = _normalized_game_data(
-        game,
-        _redact_preview_data(game) if not _allows_preview(game, user) else game.get("data") or {},
-    )
+    data = _normalized_game_data(game, _preview_data(game, user))
     if not data:
         return None
 
@@ -394,9 +470,7 @@ def list_games(
     for g in visible_games:
         if g.get("data") and g["data"].get("config"):
             g["ratings"] = ratings_map.get(g["id"], None)
-            data = _without_persisted_theme(g.get("data") or {})
-            if not _allows_preview(g, user):
-                data = _redact_preview_data(g)
+            data = _preview_data(g, user)
             result.append(GameOut(**{**g, "data": data}))
     
     return {

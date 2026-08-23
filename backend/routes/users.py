@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from database import supabase
 from routes.auth import get_current_user
+from routes.games import _preview_data
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 DB_ERROR_DETAIL = "Ошибка базы данных"
@@ -145,7 +146,7 @@ def get_user_profile(user_id: str, current_user=Depends(get_current_user)):
     return {
         "user": UserOut(**user),
         "games": [
-            GameOut(**{**g, "data": g.get("data") or {}})
+            GameOut(**{**g, "data": _preview_data(g, current_user)})
             for g in visible
             if g.get("data") and g["data"].get("config")
         ],
@@ -175,7 +176,7 @@ def get_user_games(
 
     return {
         "games": [
-            GameOut(**{**g, "data": g.get("data") or {}})
+            GameOut(**{**g, "data": _preview_data(g, current_user)})
             for g in visible
             if g.get("data") and g["data"].get("config")
         ],
