@@ -8,7 +8,7 @@
 
 ## Database overview
 
-Users own games. A game stores the complete game document in `games.data` (`jsonb`), not normalized question rows. Ratings link users to games. Quiz, Jeopardy, Millionaire and online Quiz attempts are stored in separate result tables; several result `game_id` columns are not foreign keys.
+Users own games. A game stores the complete content/configuration document in `games.data` (`jsonb`), not normalized question rows. Player Theme is not part of that persisted document: Offline launches receive it from Play Setup, while Online rooms own it in `online_rooms.state.theme`. Ratings link users to games. Quiz, Jeopardy, Millionaire and online Quiz attempts are stored in separate result tables; several result `game_id` columns are not foreign keys.
 
 ## Tables
 
@@ -250,7 +250,7 @@ RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked. Raw Telegram cre
 | updated_at | timestamptz | no | `now()` | |
 | expires_at | timestamptz | no | — | TTL cleanup boundary |
 
-RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked. Runtime credentials inside `state._credentials` are HMAC digests, not raw values.
+RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked. `state.theme` is the room/session world and defaults to `classic`; runtime credentials inside `state._credentials` are HMAC digests, not raw values.
 
 ## Relationships
 

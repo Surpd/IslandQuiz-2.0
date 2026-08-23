@@ -2,8 +2,6 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Save } from "lucide-react";
 import { SiteHeader } from "./site-header";
-import { AnimatedBackground } from "./animated-bg";
-import type { PlayerTheme } from "@/lib/types";
 
 interface Props {
   title: string;
@@ -12,7 +10,6 @@ interface Props {
   toolbar?: ReactNode;
   sidebar?: ReactNode;
   children: ReactNode;
-  theme?: PlayerTheme;
   onSave?: () => void;
   saveLabel?: string;
   extraFabs?: ReactNode;
@@ -25,25 +22,12 @@ export function BuilderShell({
   toolbar,
   sidebar,
   children,
-  theme,
   onSave,
   saveLabel = "Сохранить игру",
   extraFabs,
 }: Props) {
   return (
-    <div className={`relative min-h-screen bg-background ${theme ? `pt-${theme}` : ""}`}>
-      {theme && (
-        <>
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 hidden h-64 opacity-40 md:block"
-            style={{ background: "var(--pt-bg)" }}
-          />
-          <div className="hidden md:block">
-            <AnimatedBackground theme={theme} />
-          </div>
-        </>
-      )}
+    <div className="relative min-h-screen bg-background">
       <div className="relative z-10">
         <SiteHeader />
         <div className="mx-auto max-w-7xl px-4 py-4 pt-[7.25rem] sm:px-6 md:py-8 md:pt-8">
@@ -63,7 +47,7 @@ export function BuilderShell({
                     className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-2xl text-white shadow-lg"
                     style={{
                       background: "var(--pt-accent, var(--primary))",
-                      color: theme ? "#0b0b0b" : "#fff",
+                      color: "#fff",
                       boxShadow:
                         "0 14px 30px -12px color-mix(in oklab, var(--pt-accent, var(--primary)) 55%, transparent)",
                     }}
@@ -109,8 +93,8 @@ export function BuilderShell({
           onClick={onSave}
           className="fixed bottom-20 right-4 z-40 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold text-white shadow-lift transition-transform hover:scale-[1.03] active:scale-95 sm:bottom-6 sm:right-6 sm:px-6"
           style={{
-            background: theme ? "var(--pt-accent)" : "var(--primary)",
-            color: theme ? "#000" : "#fff",
+            background: "var(--primary)",
+            color: "#fff",
           }}
         >
           <Save className="h-4 w-4" />

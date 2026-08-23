@@ -120,6 +120,7 @@ class RoomPersistenceTests(unittest.IsolatedAsyncioTestCase):
                 "gameKind": "quiz",
                 "gameId": "game-1",
                 "snapshotToken": snapshot_token(),
+                "theme": "midnight",
             })])
             await rooms.room_websocket(host, "ROOM1")
             host_credential = next(item["credential"] for item in host.sent if item["type"] == "room_identity")
@@ -150,6 +151,7 @@ class RoomPersistenceTests(unittest.IsolatedAsyncioTestCase):
 
         state = next(item["state"] for item in reconnect.sent if item["type"] == "room_state")
         self.assertEqual(state["status"], "active")
+        self.assertEqual(state["theme"], "midnight")
         self.assertEqual(state["players"][0]["score"], 1500)
         self.assertIn("ROOM1", rooms.rooms)
 

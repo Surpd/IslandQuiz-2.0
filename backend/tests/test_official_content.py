@@ -25,7 +25,6 @@ def quiz_data():
         "config": {
             "title": "Все типы Quiz",
             "description": "Регрессионный пример",
-            "theme": "amber",
             "shuffleQuestions": False,
             "showResult": "end",
             "defaultTime": 30,
@@ -45,7 +44,7 @@ def quiz_data():
 
 def jeopardy_data():
     return {
-        "config": {"title": "Своя игра", "roundTitles": ["Раунд 1"], "theme": "ocean", "timeBase": 30, "timeStep": 15, "timeFinal": 90},
+        "config": {"title": "Своя игра", "roundTitles": ["Раунд 1"], "timeBase": 30, "timeStep": 15, "timeFinal": 90},
         "rounds": [[
             {"category": "Европа", "questions": [{"points": 100, "q": "Столица Франции?", "a": "Париж"}, {"points": 200, "q": "Столица Италии?", "a": "Рим"}]},
         ]],
@@ -55,7 +54,7 @@ def jeopardy_data():
 
 def millionaire_data():
     return {
-        "config": {"title": "Миллионер", "theme": "classic", "timePerQuestion": 30, "moneyScale": "normal", "milestones": "three", "pointsMode": "classic"},
+        "config": {"title": "Миллионер", "timePerQuestion": 30, "moneyScale": "normal", "milestones": "three", "pointsMode": "classic"},
         "questions": [{"q": "Столица Германии?", "money": 500, "options": [{"text": "Берлин", "correct": True}, {"text": "Вена", "correct": False}, {"text": "Прага", "correct": False}, {"text": "Рим", "correct": False}]}],
     }
 
@@ -65,6 +64,15 @@ def pack(*games):
 
 
 class OfficialContentValidationTests(unittest.TestCase):
+    def test_legacy_theme_is_rejected_from_import_data(self):
+        game = {"content_id": "legacy-theme-v1", "kind": "quiz", "tags": [], "data": quiz_data()}
+        game["data"]["config"]["theme"] = "midnight"
+
+        result = validate_pack(pack(game), TAGS)
+
+        self.assertFalse(result["valid"])
+        self.assertTrue(any(error["path"].endswith("config.theme") for error in result["errors"]))
+
     def test_malformed_schema_and_duplicate_content_id_are_blocking(self):
         result = validate_pack({"schema_version": 2, "games": [{"content_id": "bad", "kind": "quiz", "data": {}}]}, TAGS)
         self.assertFalse(result["valid"])

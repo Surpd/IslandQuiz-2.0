@@ -15,9 +15,12 @@ import { formatQuizAnswer, formatGivenAnswer, checkQuizAnswerCore } from "@/lib/
 import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
-import type { QuizData, QuizQuestion } from "@/lib/types";
+import { isPlayerTheme, type QuizData, type QuizQuestion } from "@/lib/types";
 
 export const Route = createFileRoute("/play/quiz/$id")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    theme: isPlayerTheme(search.theme) ? search.theme : undefined,
+  }),
   component: PlayQuiz,
 });
 
@@ -45,6 +48,7 @@ const checkAnswer = checkQuizAnswerCore;
 
 function PlayQuiz() {
   const { id } = Route.useParams();
+  const { theme: launchTheme } = Route.useSearch();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [stored, setStored] = useState<QuizData | null>(null);
@@ -81,6 +85,7 @@ function PlayQuiz() {
   }, [id]);
 
   const config = stored?.config;
+  const theme = launchTheme ?? "classic";
   const questions = stored?.questions ?? [];
 
   useEffect(() => {
@@ -209,7 +214,7 @@ function PlayQuiz() {
 
   if (loading) {
     return (
-      <PlayerShell theme="amber">
+      <PlayerShell theme={theme}>
         <div className="flex min-h-screen items-center justify-center px-4 text-center">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-[color:var(--pt-border)] border-t-[color:var(--pt-accent)]" />
         </div>
@@ -219,7 +224,7 @@ function PlayQuiz() {
 
   if (!stored || !config) {
     return (
-      <PlayerShell theme="amber">
+      <PlayerShell theme={theme}>
         <div className="flex min-h-screen items-center justify-center px-4 text-center">
           <div>
             <p className="text-lg font-semibold">Игра не найдена</p>
@@ -237,7 +242,7 @@ function PlayQuiz() {
   const correctCount = answers.filter((a) => a.correct).length;
 
   return (
-    <PlayerShell theme={config.theme}>
+    <PlayerShell theme={theme}>
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center px-4 py-16">
         {phase === "start" && (
           <div className="w-full max-w-lg animate-fade-up rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-8 text-center backdrop-blur-md">

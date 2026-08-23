@@ -25,7 +25,7 @@ test("Quiz results format correct and user answers without mobile overflow", asy
           id: "results-display",
           kind: "quiz",
           data: {
-            config: { title: "Results Display", description: "", theme: "amber", orderMode: "sequential", showResult: "end", defaultTime: 30, totalTime: 10 },
+            config: { title: "Results Display", description: "", orderMode: "sequential", showResult: "end", defaultTime: 30, totalTime: 10 },
             questions,
           },
         }),
@@ -39,7 +39,7 @@ test("Quiz results format correct and user answers without mobile overflow", asy
           id: "results-display",
           kind: "quiz",
           data: {
-            config: { title: "Results Display", description: "", theme: "amber", orderMode: "sequential", showResult: "end", defaultTime: 30, totalTime: 10 },
+            config: { title: "Results Display", description: "", orderMode: "sequential", showResult: "end", defaultTime: 30, totalTime: 10 },
             questions,
           },
           visibility: "private",

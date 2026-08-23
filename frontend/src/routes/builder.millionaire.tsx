@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Coins, Plus, Trash2, GripVertical } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
 import { ImageDrop } from "@/lib/image-drop";
-import { ThemeSelect } from "@/components/theme-select";
 import { FormulaButton } from "@/components/formula-popover";
 import { AIHelperButton } from "@/components/ai-helper";
 import { CharCounter } from "@/components/char-counter";
@@ -29,7 +28,6 @@ import type {
   MillionaireData,
   MillionaireQuestion,
   MoneyScale,
-  PlayerTheme,
   PointsMode,
   GameVisibility,
 } from "@/lib/types";
@@ -71,7 +69,6 @@ function BuilderMillionaire() {
   const { id: urlId } = Route.useSearch();
   const navigate = useNavigate();
   const [config, setConfig] = useState<MillionaireConfig>({
-    theme: "amber",
     timePerQuestion: 30,
     moneyScale: "normal",
     milestones: "three",
@@ -308,13 +305,6 @@ function BuilderMillionaire() {
   const settingsPanel = (
     <div className="space-y-4">
       <div className="grid gap-4">
-        <div>
-          <span className="mb-2 block text-xs font-semibold text-muted-foreground">Тема плеера</span>
-          <ThemeSelect
-            value={config.theme}
-            onChange={(theme: PlayerTheme) => setConfig({ ...config, theme })}
-          />
-        </div>
         <label>
           <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">Время на вопрос (сек)</span>
           <input
@@ -432,7 +422,6 @@ function BuilderMillionaire() {
       icon={<Coins className="h-5 w-5" />}
       toolbar={toolbar}
       sidebar={sidebar}
-      theme={config.theme}
       extraFabs={
         <>
           <BuilderFabs

@@ -4,12 +4,16 @@
 export type PlayerTheme = "amber" | "midnight" | "classic" | "ocean" | "forest";
 
 export const PLAYER_THEMES: { id: PlayerTheme; name: string; hint: string }[] = [
-  { id: "amber", name: "Amber Gold", hint: "Тёплое, уютное" },
-  { id: "midnight", name: "Midnight", hint: "Сфокусированное ночное" },
-  { id: "classic", name: "Classic Blue", hint: "Строгая классика" },
-  { id: "ocean", name: "Ocean Deep", hint: "Глубокое морское" },
+  { id: "classic", name: "Classic", hint: "Строгая классика" },
+  { id: "amber", name: "Amber", hint: "Тёплое, уютное" },
+  { id: "ocean", name: "Ocean", hint: "Глубокое морское" },
   { id: "forest", name: "Forest", hint: "Природное зелёное" },
+  { id: "midnight", name: "Midnight", hint: "Сфокусированное ночное" },
 ];
+
+export function isPlayerTheme(value: unknown): value is PlayerTheme {
+  return PLAYER_THEMES.some((theme) => theme.id === value);
+}
 
 // ---------- Quiz ----------
 export type QuizQuestionType = "choice" | "bool" | "text" | "matching" | "close" | "ordering";
@@ -46,7 +50,6 @@ export interface QuizQuestion {
 export interface QuizConfig {
   title: string;
   description: string;
-  theme: PlayerTheme;
   shuffleQuestions: boolean;
   showResult: "each" | "end";
   defaultTime: number;
@@ -85,7 +88,6 @@ export interface JeopardyFinal {
 export interface JeopardyConfig {
   title?: string;
   roundTitles?: string[];
-  theme: PlayerTheme;
   timeBase: number;
   timeStep: number;
   timeFinal: number;
@@ -119,7 +121,6 @@ export type PointsMode = "classic" | "double" | "custom";
 
 export interface MillionaireConfig {
   title?: string;
-  theme: PlayerTheme;
   timePerQuestion: number;
   moneyScale: MoneyScale;
   milestones: MilestoneMode;

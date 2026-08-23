@@ -158,7 +158,7 @@ test("results back links target the source game", async ({ page }) => {
       id: "results-e2e",
       kind: "quiz",
       data: {
-        config: { title: "Results E2E", description: "", theme: "amber", orderMode: "sequential", showResult: "end", defaultTime: 30, totalTime: 10 },
+        config: { title: "Results E2E", description: "", orderMode: "sequential", showResult: "end", defaultTime: 30, totalTime: 10 },
         questions: [],
       },
       visibility: "private",

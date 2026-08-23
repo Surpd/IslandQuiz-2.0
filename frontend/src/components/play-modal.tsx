@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { Copy, Monitor, Radio, X } from "lucide-react";
 import { createRoom } from "@/lib/api";
-import type { GameKind } from "@/lib/types";
+import { ThemeSelect } from "@/components/theme-select";
+import type { GameKind, PlayerTheme } from "@/lib/types";
 
 export function PlayModal({
   gameId,
@@ -15,14 +16,14 @@ export function PlayModal({
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hostView, setHostView] = useState(kind === "millionaire");
-
+  const [hostView, setHostView] = useState(false);
+  const [theme, setTheme] = useState<PlayerTheme>("classic");
 
   const startOnline = async () => {
     setError(null);
     setLoading(true);
     try {
-      const { code } = await createRoom(kind, gameId);
+      const { code } = await createRoom(kind, gameId, theme);
       window.open(`/room/${code}`, "_blank", "noopener");
       onClose();
     } catch (err) {
@@ -34,7 +35,7 @@ export function PlayModal({
   };
 
   if (hostView) {
-    return <OfflineHostView gameId={gameId} kind={kind} onClose={onClose} />;
+    return <OfflineHostView gameId={gameId} kind={kind} theme={theme} onClose={onClose} />;
   }
 
   return (
@@ -47,20 +48,30 @@ export function PlayModal({
           </button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            onClick={startOnline}
-            disabled={loading}
-            className="group flex flex-col items-start gap-2 rounded-2xl border-2 border-border p-5 text-left transition-all hover:border-primary hover:bg-primary-soft disabled:opacity-60"
-          >
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary-soft text-primary">
-              <Radio className="h-5 w-5" />
-            </span>
-            <span className="font-display text-base font-bold">Онлайн-комната</span>
-            <span className="text-xs text-muted-foreground">
-              {loading ? "Создаём…" : "Ученики заходят по коду со своих устройств"}
-            </span>
-          </button>
+        <div className="mb-4 rounded-2xl border border-border bg-surface-muted/60 p-4">
+          <h4 className="font-display text-base font-bold">Мир</h4>
+          <p className="mt-1 text-xs text-muted-foreground">Выберите оформление для запуска игры</p>
+          <div className="mt-3">
+            <ThemeSelect value={theme} onChange={setTheme} />
+          </div>
+        </div>
+
+        <div className={`grid gap-3 ${kind === "millionaire" ? "" : "sm:grid-cols-2"}`}>
+          {kind !== "millionaire" && (
+            <button
+              onClick={startOnline}
+              disabled={loading}
+              className="group flex flex-col items-start gap-2 rounded-2xl border-2 border-border p-5 text-left transition-all hover:border-primary hover:bg-primary-soft disabled:opacity-60"
+            >
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary-soft text-primary">
+                <Radio className="h-5 w-5" />
+              </span>
+              <span className="font-display text-base font-bold">Онлайн-комната</span>
+              <span className="text-xs text-muted-foreground">
+                {loading ? "Создаём…" : "Ученики заходят по коду со своих устройств"}
+              </span>
+            </button>
+          )}
 
           <button
             onClick={() => setHostView(true)}
@@ -87,16 +98,18 @@ export function PlayModal({
 function OfflineHostView({
   gameId,
   kind,
+  theme,
   onClose,
 }: {
   gameId: string;
   kind: GameKind;
+  theme: PlayerTheme;
   onClose: () => void;
 }) {
   const playUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/play/${kind}/${gameId}`
-      : `/play/${kind}/${gameId}`;
+      ? `${window.location.origin}/play/${kind}/${gameId}?theme=${theme}`
+      : `/play/${kind}/${gameId}?theme=${theme}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(playUrl)}`;
   const [copied, setCopied] = useState(false);
 

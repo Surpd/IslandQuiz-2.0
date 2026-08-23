@@ -17,7 +17,6 @@ import { TagInput } from "@/components/tag-input";
 
 import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
-import { ThemeSelect } from "@/components/theme-select";
 import { newId } from "@/lib/storage";  // генерация id
 import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
@@ -35,7 +34,6 @@ import type {
   JeopardyData,
   JeopardyFinal,
   JeopardyQuestion,
-  PlayerTheme,
   GameVisibility,
 } from "@/lib/types";
 
@@ -72,7 +70,6 @@ function BuilderJeopardy() {
   const { id: urlId } = Route.useSearch();
   const navigate = useNavigate();
   const [config, setConfig] = useState<JeopardyConfig>({
-    theme: "amber",
     timeBase: 30,
     timeStep: 15,
     timeFinal: 90,
@@ -257,7 +254,6 @@ function BuilderJeopardy() {
 
   const handleSave = async (): Promise<string | null> => {
     const id = savedId ?? newId();
-    const data: JeopardyData = { config, rounds, final };
     await saveGame({ kind: "jeopardy", id, data: { config, rounds, final }, tags, visibility, showAnswers });
     setSavedSnapshot(currentSnapshot);
     setSavedId(id);
@@ -380,13 +376,6 @@ function BuilderJeopardy() {
   const settingsPanel = (
     <div className="space-y-4">
       <div className="grid gap-4">
-        <div>
-          <span className="mb-2 block text-xs font-semibold text-muted-foreground">Тема плеера</span>
-          <ThemeSelect
-            value={config.theme}
-            onChange={(theme: PlayerTheme) => setConfig({ ...config, theme })}
-          />
-        </div>
         <label>
           <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">Базовое время (сек)</span>
           <input
@@ -492,7 +481,6 @@ function BuilderJeopardy() {
       icon={<Grid3x3 className="h-5 w-5" />}
       toolbar={toolbar}
       sidebar={mode === "list" ? sidebar : undefined}
-      theme={config.theme}
       extraFabs={
         <>
           <BuilderFabs

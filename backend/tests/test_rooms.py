@@ -77,6 +77,7 @@ def room_fixture():
         "code": "ROOM1",
         "gameKind": "quiz",
         "gameId": "game-1",
+        "theme": "classic",
         "hostId": "server-host",
         "status": "waiting",
         "questionIdx": 0,
@@ -135,6 +136,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             "gameId": "game-1",
             "snapshotToken": snapshot_token(),
             "hostId": "spoofed-host",
+            "theme": "midnight",
             "createdAt": 0,
         })])
 
@@ -145,6 +147,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(identity["role"], "host")
         self.assertTrue(identity["credential"])
         self.assertNotEqual(state["hostId"], "spoofed-host")
+        self.assertEqual(state["theme"], "midnight")
         self.assertNotIn("_credentials", state)
 
     async def test_large_snapshot_room_allows_guest_join(self):
@@ -183,6 +186,25 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         identity = next(message for message in guest.sent if message["type"] == "room_identity")
         self.assertEqual(identity["role"], "player")
         self.assertTrue(any(player["nickname"] == "Large Quiz Guest" for player in rooms_route.rooms["ROOM1"]["players"]))
+
+    async def test_room_theme_defaults_to_classic_for_missing_or_invalid_value(self):
+        websocket = FakeWebSocket([json.dumps({
+            "action": "create_room",
+            "gameKind": "quiz",
+            "gameId": "game-1",
+            "snapshotToken": snapshot_token(),
+            "theme": "not-a-world",
+        })])
+
+        await rooms_route.room_websocket(websocket, "ROOM1")
+
+        state = next(message["state"] for message in websocket.sent if message["type"] == "room_state")
+        self.assertEqual(state["theme"], "classic")
+
+    async def test_room_accepts_all_supported_worlds(self):
+        for theme in ("classic", "amber", "ocean", "forest", "midnight"):
+            with self.subTest(theme=theme):
+                self.assertEqual(rooms_route._room_theme(theme), theme)
 
     async def test_large_snapshot_create_and_join_keep_both_sockets_connected(self):
         large_data = {

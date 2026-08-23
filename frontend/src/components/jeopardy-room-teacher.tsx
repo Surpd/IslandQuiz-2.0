@@ -52,9 +52,9 @@ import {
 } from "@/lib/api";
 import { sfx, isMuted, toggleMute } from "@/lib/sounds";
 import { fitQuestionSize } from "@/lib/fit-text";
-import type { JeopardyData } from "@/lib/types";
+import type { JeopardyData, PlayerTheme } from "@/lib/types";
 
-export function JeopardyRoomTeacher({ state, code }: { state: RoomState; code: string }) {
+export function JeopardyRoomTeacher({ state, code, theme }: { state: RoomState; code: string; theme: PlayerTheme }) {
   const [game, setGame] = useState<JeopardyData | null>(null);
   const [muted, setMutedState] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -67,7 +67,6 @@ export function JeopardyRoomTeacher({ state, code }: { state: RoomState; code: s
   }, [state.gameId]);
 
   const j = state.jeopardy!;
-  const theme = game?.config.theme ?? "amber";
 
   useEffect(() => {
     const prev = prevPhase.current;
@@ -1080,4 +1079,3 @@ function FinalRevealAnim({
     </div>
   );
 }
-

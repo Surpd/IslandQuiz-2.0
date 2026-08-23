@@ -11,11 +11,11 @@ import { Trophy, Timer, RefreshCw } from "lucide-react";
 import { PlayerShell } from "@/components/player-shell";
 import { QuizQuestionCard, checkQuizAnswer } from "@/components/quiz-question-card";
 import { formatQuizAnswer, formatGivenAnswer } from "@/lib/format-answer";
-import type { QuizData } from "@/lib/types";
+import type { PlayerTheme, QuizData } from "@/lib/types";
 
 interface Ans { qId: string; correct: boolean; earned: number; points: number }
 
-export function PlayerV1({ data }: { data: QuizData }) {
+export function PlayerV1({ data, theme = "classic" }: { data: QuizData; theme?: PlayerTheme }) {
   const { config, questions } = data;
   const [phase, setPhase] = useState<"start" | "play" | "done">("start");
   const [name, setName] = useState("");
@@ -63,7 +63,7 @@ export function PlayerV1({ data }: { data: QuizData }) {
   const correct = answers.filter((a) => a.correct).length;
 
   return (
-    <PlayerShell theme={config.theme}>
+    <PlayerShell theme={theme}>
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-6 px-4 py-10">
         {phase === "start" && (
           <div className="border-4 border-[color:var(--pt-text)] bg-[color:var(--pt-surface)] p-8 shadow-[8px_8px_0_0_var(--pt-accent)]">

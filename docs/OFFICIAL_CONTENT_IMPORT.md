@@ -46,7 +46,6 @@
 |---|---|
 | `title` | непустая строка, максимум 100 |
 | `description` | строка |
-| `theme` | `amber`, `midnight`, `classic`, `ocean`, `forest` |
 | `shuffleQuestions` | boolean |
 | `showResult` | `each` или `end` |
 | `defaultTime` | положительное целое число секунд |
@@ -80,7 +79,6 @@
         "config": {
           "title": "Европа: все типы вопросов",
           "description": "Полный пример официального Quiz pack",
-          "theme": "amber",
           "shuffleQuestions": false,
           "showResult": "end",
           "defaultTime": 30,
@@ -153,7 +151,7 @@
 
 `data` имеет форму `{ "config": JeopardyConfig, "rounds": JeopardyCategory[][], "final": JeopardyFinal }`.
 
-`config` содержит `theme`, положительные целые `timeBase`, `timeStep`, `timeFinal`; `title` и `roundTitles` необязательны. Раунд содержит от 1 до 6 категорий, категория — `category` и от 1 до 5 вопросов. Вопрос содержит положительные очки, кратные 100, `q`, `a` и необязательный `image`. `final` содержит непустые `category`, `q`, `a` и необязательный `image`.
+`config` содержит положительные целые `timeBase`, `timeStep`, `timeFinal`; `title` и `roundTitles` необязательны. Раунд содержит от 1 до 6 категорий, категория — `category` и от 1 до 5 вопросов. Вопрос содержит положительные очки, кратные 100, `q`, `a` и необязательный `image`. `final` содержит непустые `category`, `q`, `a` и необязательный `image`.
 
 ### Valid Jeopardy example
 
@@ -169,7 +167,6 @@
         "config": {
           "title": "Европейская своя игра",
           "roundTitles": ["Страны и столицы"],
-          "theme": "ocean",
           "timeBase": 30,
           "timeStep": 15,
           "timeFinal": 90
@@ -209,7 +206,7 @@
 
 `data` имеет форму `{ "config": MillionaireConfig, "questions": MillionaireQuestion[] }`.
 
-`config` содержит `theme`, положительное целое `timePerQuestion`, `moneyScale` (`easy`, `normal`, `hard`), `milestones` (`classic`, `three`, `none`) и необязательный `pointsMode` (`classic`, `double`, `custom`). `title` необязателен. Каждый вопрос содержит непустой `q`, положительное `money` и ровно 4 `{ "text": string, "correct": boolean }` с ровно одним `correct: true`.
+`config` содержит положительное целое `timePerQuestion`, `moneyScale` (`easy`, `normal`, `hard`), `milestones` (`classic`, `three`, `none`) и необязательный `pointsMode` (`classic`, `double`, `custom`). `title` необязателен. Каждый вопрос содержит непустой `q`, положительное `money` и ровно 4 `{ "text": string, "correct": boolean }` с ровно одним `correct: true`.
 
 ### Valid Millionaire example
 
@@ -224,7 +221,6 @@
       "data": {
         "config": {
           "title": "Кто хочет стать знатоком Европы",
-          "theme": "classic",
           "timePerQuestion": 30,
           "moneyScale": "normal",
           "milestones": "three",

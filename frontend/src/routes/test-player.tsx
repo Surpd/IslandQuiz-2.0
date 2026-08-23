@@ -14,7 +14,6 @@ export const Route = createFileRoute("/test-player")({
 const mockData: QuizData = {
   config: {
     title: "Тестовый квиз",
-    theme: "amber",
     defaultTime: 30,
     shuffleQuestions: false,
     showResult: "end",
@@ -58,9 +57,9 @@ function TestPlayer() {
           </button>
         ))}
       </div>
-      {variant === 1 && <PlayerV1 data={mockData} />}
-      {variant === 2 && <PlayerV2Full data={mockData} />}
-      {variant === 3 && <PlayerV3 data={mockData} />}
+      {variant === 1 && <PlayerV1 data={mockData} theme="amber" />}
+      {variant === 2 && <PlayerV2Full data={mockData} theme="amber" />}
+      {variant === 3 && <PlayerV3 data={mockData} theme="amber" />}
     </div>
   );
 }

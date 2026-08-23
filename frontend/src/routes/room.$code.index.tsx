@@ -126,7 +126,7 @@ function TeacherRoom() {
     }
   }, [state, code]);
 
-  const theme = quiz?.config.theme ?? "amber";
+  const theme = state?.theme ?? "classic";
 
   if (!state) {
     return (
@@ -148,7 +148,7 @@ function TeacherRoom() {
   }
 
   if (state.gameKind === "jeopardy" && state.jeopardy) {
-    return <JeopardyRoomTeacher state={state} code={code} />;
+    return <JeopardyRoomTeacher state={state} code={code} theme={theme} />;
   }
 
   if (state.gameKind !== "quiz") {

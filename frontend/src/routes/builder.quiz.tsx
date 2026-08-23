@@ -27,7 +27,6 @@ import { SortableQuestionCards } from "@/components/sortable-question-cards";
 import { Upload } from "lucide-react";
 import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
-import { ThemeSelect } from "@/components/theme-select";
 import { newId } from "@/lib/storage";  // генерация id
 import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
@@ -40,7 +39,6 @@ import {
   printQuiz,
 } from "@/lib/exports";
 import type {
-  PlayerTheme,
   QuizConfig,
   QuizData,
   QuizQuestion,
@@ -75,7 +73,6 @@ const TYPE_META: Record<QuizQuestionType, { label: string; icon: typeof Circle; 
 const DEFAULT_QUIZ_CONFIG: QuizConfig = {
   title: "Новый квиз",
   description: "",
-  theme: "amber",
   shuffleQuestions: false,
   showResult: "end",
   defaultTime: 30,
@@ -95,11 +92,9 @@ function isQuizQuestionType(value: unknown): value is QuizQuestionType {
 
 function normalizeQuizConfig(value: unknown): QuizConfig {
   if (!isRecord(value)) return DEFAULT_QUIZ_CONFIG;
-  const theme = value.theme;
   return {
     title: typeof value.title === "string" ? value.title : DEFAULT_QUIZ_CONFIG.title,
     description: typeof value.description === "string" ? value.description : "",
-    theme: theme === "amber" || theme === "midnight" || theme === "classic" || theme === "ocean" || theme === "forest" ? theme : "amber",
     shuffleQuestions: typeof value.shuffleQuestions === "boolean" ? value.shuffleQuestions : false,
     showResult: value.showResult === "each" || value.showResult === "end" ? value.showResult : "end",
     defaultTime: typeof value.defaultTime === "number" && value.defaultTime > 0 ? value.defaultTime : 30,
@@ -483,13 +478,6 @@ function BuilderQuiz() {
   const settingsPanel = (
     <div className="space-y-4">
       <div className="grid gap-4">
-        <div>
-          <span className="mb-2 block text-xs font-semibold text-muted-foreground">Тема плеера</span>
-          <ThemeSelect
-            value={config.theme}
-            onChange={(theme: PlayerTheme) => setConfig({ ...config, theme })}
-          />
-        </div>
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">
             {config.orderMode === "free" ? "Общее время (мин)" : "Таймер на вопрос (сек)"}
@@ -624,7 +612,6 @@ function BuilderQuiz() {
       icon={<FileText className="h-5 w-5" />}
       toolbar={toolbar}
       sidebar={sidebar}
-      theme={config.theme}
       extraFabs={
         <>
           <BuilderFabs

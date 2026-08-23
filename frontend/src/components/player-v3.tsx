@@ -9,11 +9,11 @@
 import { useEffect, useRef, useState } from "react";
 import { PlayerShell } from "@/components/player-shell";
 import { QuizQuestionCard, checkQuizAnswer } from "@/components/quiz-question-card";
-import type { QuizData } from "@/lib/types";
+import type { PlayerTheme, QuizData } from "@/lib/types";
 
 interface Ans { qId: string; correct: boolean; earned: number; points: number; q: string }
 
-export function PlayerV3({ data }: { data: QuizData }) {
+export function PlayerV3({ data, theme = "classic" }: { data: QuizData; theme?: PlayerTheme }) {
   const { config, questions } = data;
   const [phase, setPhase] = useState<"start" | "play" | "done">("start");
   const [name, setName] = useState("");
@@ -63,7 +63,7 @@ export function PlayerV3({ data }: { data: QuizData }) {
   const filled = Math.round((time / Math.max(totalTime, 1)) * barCells);
 
   return (
-    <PlayerShell theme={config.theme}>
+    <PlayerShell theme={theme}>
       {/* CRT scanlines */}
       <div aria-hidden className="pointer-events-none fixed inset-0 z-0 opacity-[0.08]"
            style={{ background: "repeating-linear-gradient(to bottom, var(--pt-accent) 0 1px, transparent 1px 3px)" }} />

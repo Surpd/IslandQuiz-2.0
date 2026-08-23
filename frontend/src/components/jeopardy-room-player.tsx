@@ -28,7 +28,7 @@ import {
 } from "@/lib/api";
 import { sfx, isMuted, toggleMute } from "@/lib/sounds";
 import { fitQuestionSize } from "@/lib/fit-text";
-import type { JeopardyData } from "@/lib/types";
+import type { JeopardyData, PlayerTheme } from "@/lib/types";
 
 interface Me {
   playerId: string;
@@ -40,10 +40,12 @@ export function JeopardyRoomPlayer({
   state,
   code,
   me,
+  theme,
 }: {
   state: RoomState;
   code: string;
   me: Me;
+  theme: PlayerTheme;
 }) {
   const [game, setGame] = useState<JeopardyData | null>(null);
   const [muted, setMutedState] = useState(true);
@@ -65,7 +67,6 @@ export function JeopardyRoomPlayer({
   }, [state.players, me.playerId, navigate]);
 
   const j = state.jeopardy!;
-  const theme = game?.config.theme ?? "amber";
   const myPlayer = state.players.find((p) => p.id === me.playerId);
   const currentRound = game?.rounds[j.round] ?? [];
   const currentPlayer = state.players[j.currentPlayerIdx] ?? null;
@@ -571,4 +572,3 @@ function BuzzAnswerBox({
     </div>
   );
 }
-

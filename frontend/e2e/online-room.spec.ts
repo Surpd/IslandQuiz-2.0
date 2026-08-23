@@ -65,6 +65,7 @@ test("joins a room with a large profile avatar without exceeding the room action
                   },
                 ],
                 status: "waiting",
+                theme: "midnight",
               },
             }),
           }),
@@ -89,4 +90,66 @@ test("joins a room with a large profile avatar without exceeding the room action
   const sent = await page.evaluate(() => window.roomMessages);
   expect(sent).toHaveLength(1);
   expect(new TextEncoder().encode(sent![0]).byteLength).toBeLessThanOrEqual(16 * 1024);
+});
+
+test("createRoom sends the Play Setup theme as room runtime state", async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as Window & { roomMessages?: string[] }).roomMessages = [];
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      if (String(input).includes("/api/games/game-1/play-snapshot")) {
+        return new Response(JSON.stringify({ snapshotToken: "snapshot-token", version: "1", data: {} }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return originalFetch(input, init);
+    };
+    class RoomWebSocket {
+      static OPEN = 1;
+      readyState = RoomWebSocket.OPEN;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent<string>) => void) | null = null;
+
+      constructor() {
+        setTimeout(() => {
+          this.onopen?.(new Event("open"));
+        });
+      }
+
+      send(raw: string) {
+        (window as Window & { roomMessages?: string[] }).roomMessages?.push(raw);
+        const message = JSON.parse(raw) as { theme?: string; gameKind?: string; gameId?: string };
+        this.onmessage?.(
+          new MessageEvent("message", {
+            data: JSON.stringify({
+              type: "room_state",
+              state: {
+                code: "1234",
+                gameKind: message.gameKind,
+                gameId: message.gameId,
+                theme: message.theme,
+                status: "waiting",
+                players: [],
+              },
+            }),
+          }),
+        );
+      }
+
+      close() {}
+    }
+    Object.defineProperty(window, "WebSocket", { value: RoomWebSocket });
+  });
+
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const { createRoom } = await import("/src/lib/api.ts");
+    return createRoom("quiz", "game-1", "midnight");
+  });
+
+  expect(result.code).toMatch(/^\d{4}$/);
+  expect(result.room_url).toBe(`/room/${result.code}`);
+  const sent = await page.evaluate(() => window.roomMessages);
+  expect(JSON.parse(sent![0])).toMatchObject({ action: "create_room", theme: "midnight" });
 });

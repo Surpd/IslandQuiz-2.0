@@ -24,6 +24,11 @@ MAX_ROOM_MESSAGE_BYTES = 16 * 1024
 MAX_ROOM_CREATE_MESSAGE_BYTES = 256 * 1024
 MAX_ANSWER_LENGTH = 2000
 ROOM_RESULT_DB_ERROR = "Не удалось сохранить результат комнаты"
+ROOM_THEMES = frozenset({"classic", "amber", "ocean", "forest", "midnight"})
+
+
+def _room_theme(value: object) -> str:
+    return value if isinstance(value, str) and value in ROOM_THEMES else "classic"
 
 HOST_ACTIONS = {
     "start", "reveal", "leaderboard", "next_question", "finish", "restart", "kick", "adjust_score",
@@ -271,6 +276,7 @@ def _load_persisted_room(code: str) -> dict | None:
     if not isinstance(persisted_credentials, dict):
         return None
     state = dict(state)
+    state["theme"] = _room_theme(state.get("theme"))
     state["_credentials"] = {}
     state["_credential_hashes"] = persisted_credentials
     return state
@@ -469,6 +475,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                     "code": code,
                     "gameKind": game_kind,
                     "gameId": game_id,
+                    "theme": _room_theme(data.get("theme")),
                     "hostId": f"host-{secrets.token_urlsafe(12)}",
                     "status": "waiting",
                     "questionIdx": 0,

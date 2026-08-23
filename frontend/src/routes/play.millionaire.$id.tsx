@@ -7,9 +7,12 @@ import { LaTeX } from "@/lib/latex";
 import { createPlaySnapshot, loadGame, submitMillionaireResult, type MillionaireAnswerDetail } from "@/lib/api";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
-import type { MilestoneMode, MillionaireData, MillionaireQuestion } from "@/lib/types";
+import { isPlayerTheme, type MilestoneMode, type MillionaireData, type MillionaireQuestion } from "@/lib/types";
 
 export const Route = createFileRoute("/play/millionaire/$id")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    theme: isPlayerTheme(search.theme) ? search.theme : undefined,
+  }),
   component: PlayMillionaire,
 });
 
@@ -28,6 +31,7 @@ function guaranteedMoney(idx: number, questions: MillionaireQuestion[], mileston
 
 function PlayMillionaire() {
   const { id } = Route.useParams();
+  const { theme: launchTheme } = Route.useSearch();
   const { user } = useAuth();
   const [data, setData] = useState<MillionaireData | null>(null);
   const [idx, setIdx] = useState(0);
@@ -57,6 +61,7 @@ function PlayMillionaire() {
   }, [id]);
 
   const config = data?.config;
+  const theme = launchTheme ?? "classic";
   const questions = data?.questions ?? [];
   const milestones = useMemo(
     () => milestoneIndices(config?.milestones ?? "three", questions.length),
@@ -117,7 +122,7 @@ function PlayMillionaire() {
 
   if (!data || !config) {
     return (
-      <PlayerShell theme="amber">
+      <PlayerShell theme={theme}>
         <div className="flex min-h-screen items-center justify-center">
           <p>Игра не найдена</p>
         </div>
@@ -127,7 +132,7 @@ function PlayMillionaire() {
 
   if (!current) {
     return (
-      <PlayerShell theme={config.theme}>
+      <PlayerShell theme={theme}>
         <div className="flex min-h-screen items-center justify-center">
           <p>Нет вопросов</p>
         </div>
@@ -193,7 +198,7 @@ function PlayMillionaire() {
 
 
   return (
-    <PlayerShell theme={config.theme}>
+    <PlayerShell theme={theme}>
       {user && (
         <div className="fixed left-4 top-4 z-40 flex items-center gap-2 rounded-full border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] px-3 py-1.5 backdrop-blur-md">
           <Avatar name={user.name} avatar={user.avatar} size={26} />

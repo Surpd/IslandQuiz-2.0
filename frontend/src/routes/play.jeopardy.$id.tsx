@@ -5,9 +5,12 @@ import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { LaTeX } from "@/lib/latex";
 import { createPlaySnapshot, submitJeopardyResult } from "@/lib/api";
 import { fitQuestionSize } from "@/lib/fit-text";
-import type { JeopardyData } from "@/lib/types";
+import { isPlayerTheme, type JeopardyData } from "@/lib/types";
 
 export const Route = createFileRoute("/play/jeopardy/$id")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    theme: isPlayerTheme(search.theme) ? search.theme : undefined,
+  }),
   component: PlayJeopardy,
 });
 
@@ -33,6 +36,7 @@ type JeopardyDecision =
 
 function PlayJeopardy() {
   const { id } = Route.useParams();
+  const { theme: launchTheme } = Route.useSearch();
   const [data, setData] = useState<JeopardyData | null>(null);
   const [stage, setStage] = useState<"round" | "final-bets" | "final-question" | "results">("round");
   const [roundIdx, setRoundIdx] = useState(0);
@@ -68,6 +72,7 @@ function PlayJeopardy() {
   }, [id]);
 
   const config = data?.config;
+  const theme = launchTheme ?? "classic";
 
   // Question timer (starts when modal opens, stops when answer is shown)
   useEffect(() => {
@@ -135,7 +140,7 @@ function PlayJeopardy() {
 
   if (!data || !config) {
     return (
-      <PlayerShell theme="amber">
+      <PlayerShell theme={theme}>
         <div className="flex min-h-screen items-center justify-center text-center">
           <p>Игра не найдена</p>
         </div>
@@ -211,7 +216,7 @@ function PlayJeopardy() {
   if (stage === "results") {
     const sorted = [...teams].sort((a, b) => b.score - a.score);
     return (
-      <PlayerShell theme={config.theme}>
+      <PlayerShell theme={theme}>
         <div className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-4 py-16">
           <Trophy className="mb-4 h-16 w-16 text-[color:var(--pt-accent)]" />
           <h1 className="font-display text-4xl font-black">Итоги</h1>
@@ -247,7 +252,7 @@ function PlayJeopardy() {
   }
 
   return (
-    <PlayerShell theme={config.theme}>
+    <PlayerShell theme={theme}>
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-16">
         {stage === "round" && (
           <>

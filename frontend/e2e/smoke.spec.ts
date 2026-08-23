@@ -16,7 +16,6 @@ function gameRecord(id: string, data?: unknown) {
       config: {
         title,
         description: "Deterministic browser smoke test",
-        theme: "amber",
         orderMode: "sequential",
         showResult: "end",
         defaultTime: 30,
@@ -151,11 +150,13 @@ test("login, save, reopen, and play a quiz", async ({ page }) => {
   await expect(page.getByPlaceholder("Название квиза")).toHaveValue(title);
 
   await page.getByRole("button", { name: "Играть" }).click();
+  await expect(page.getByRole("heading", { name: "Мир" })).toBeVisible();
+  await page.getByRole("button", { name: "Мир: Classic" }).click();
   await page.getByRole("button", { name: "Офлайн" }).click();
   const popupPromise = page.waitForEvent("popup");
   await page.getByRole("button", { name: /Открыть плеер/ }).click();
   const player = await popupPromise;
-  await expect(player).toHaveURL(/\/play\/quiz\/[^/]+$/);
+  await expect(player).toHaveURL(/\/play\/quiz\/[^/]+\?theme=classic$/);
   await expect(player.getByRole("heading", { name: title })).toBeVisible();
   await player.getByRole("button", { name: /Начать/ }).click();
   await player.getByRole("button", { name: "Paris" }).click();

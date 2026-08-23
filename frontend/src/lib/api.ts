@@ -14,6 +14,7 @@ import type {
   GameKind,
   GameVisibility,
   JeopardyData,
+  PlayerTheme,
   QuizData,
   QuizQuestion,
   StoredGame,
@@ -592,6 +593,7 @@ export interface RoomState {
   code: string;
   gameKind: GameKind;
   gameId: string;
+  theme: PlayerTheme;
   hostId: string;
   status: RoomStatus;
   questionIdx: number;
@@ -777,7 +779,7 @@ export function subscribeRoom(code: string, handler: (s: RoomState) => void) {
   };
 }
 
-export async function createRoom(gameKind: GameKind, gameId: string) {
+export async function createRoom(gameKind: GameKind, gameId: string, theme: PlayerTheme = "classic") {
   const snapshot = await createPlaySnapshot(gameKind, gameId);
   const code = String(Math.floor(1000 + Math.random() * 9000));
   const conn = ensureRoomConn(code);
@@ -790,6 +792,7 @@ export async function createRoom(gameKind: GameKind, gameId: string) {
     action: "create_room",
     gameKind,
     gameId,
+    theme,
     snapshotToken: snapshot.snapshotToken,
   });
   const message = await creation;

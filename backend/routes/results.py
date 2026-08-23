@@ -1,3 +1,4 @@
+import copy
 import uuid
 from typing import Optional, List
 from datetime import datetime, timezone
@@ -11,6 +12,14 @@ from services.trusted_scoring import issue_snapshot_token, result_payload, score
 
 router = APIRouter(prefix="/api", tags=["results"])
 DB_ERROR_DETAIL = "Ошибка базы данных"
+
+
+def _without_persisted_theme(data: dict) -> dict:
+    cleaned = copy.deepcopy(data)
+    config = cleaned.get("config")
+    if isinstance(config, dict):
+        config.pop("theme", None)
+    return cleaned
 
 
 def _db_response(query):
@@ -247,6 +256,7 @@ def create_play_snapshot(gameId: str, payload: SnapshotRequest, current_user=Dep
     data = game.get("data")
     if not isinstance(data, dict):
         raise HTTPException(status_code=400, detail="Некорректные данные игры")
+    data = _without_persisted_theme(data)
     snapshot, token = issue_snapshot_token(gameId, payload.kind, data)
     return {"data": data, "version": snapshot["version"], "snapshotToken": token}
 

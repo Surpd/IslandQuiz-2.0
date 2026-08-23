@@ -12,7 +12,7 @@ import { QuizQuestionCard } from "@/components/quiz-question-card";
 import { JeopardyRoomPlayer } from "@/components/jeopardy-room-player";
 import { subscribeRoom, loadGame, submitAnswer, type RoomState } from "@/lib/api";
 import { sfx, isMuted, toggleMute } from "@/lib/sounds";
-import type { QuizData, QuizQuestion } from "@/lib/types";
+import type { PlayerTheme, QuizData, QuizQuestion } from "@/lib/types";
 
 
 export const Route = createFileRoute("/room/$code/play")({
@@ -61,7 +61,7 @@ function StudentPlay() {
     loadGame<QuizData>("quiz", state.gameId).then((rec) => rec && setQuiz(rec.data));
   }, [state, quiz]);
 
-  const theme = quiz?.config.theme ?? "amber";
+  const theme = state?.theme ?? "classic";
   const question: QuizQuestion | undefined =
     quiz && state ? quiz.questions[state.questionIdx] : undefined;
   const myPlayer = useMemo(() => state?.players.find((p) => p.id === me?.playerId), [state, me]);
@@ -199,7 +199,7 @@ function StudentPlay() {
 
   // Dispatch to Jeopardy player when the game is a Jeopardy room
   if (state.gameKind === "jeopardy" && state.jeopardy) {
-    return <JeopardyRoomPlayer state={state} code={code} me={me} />;
+    return <JeopardyRoomPlayer state={state} code={code} me={me} theme={theme} />;
   }
 
 
@@ -418,7 +418,7 @@ function StudentPlay() {
   );
 }
 
-function FullScreen({ theme, msg }: { theme: QuizData["config"]["theme"]; msg: string }) {
+function FullScreen({ theme, msg }: { theme: PlayerTheme; msg: string }) {
   return (
     <PlayerShell theme={theme}>
       <div className="mx-auto max-w-md px-6 py-24 text-center">

@@ -13,7 +13,7 @@ import { formatQuizAnswer, formatGivenAnswer, checkQuizAnswerCore } from "@/lib/
 import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
-import type { QuizData, QuizQuestion } from "@/lib/types";
+import type { PlayerTheme, QuizData, QuizQuestion } from "@/lib/types";
 
 interface QAnswer {
   qId: string; correct: boolean; earned: number; question: string;
@@ -31,7 +31,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 const checkAnswer = checkQuizAnswerCore;
 
-export function PlayerV2Full({ data, gameId }: { data: QuizData; gameId?: string }) {
+export function PlayerV2Full({ data, gameId, theme = "classic" }: { data: QuizData; gameId?: string; theme?: PlayerTheme }) {
   const { user } = useAuth();
   const { config, questions } = data;
   const [phase, setPhase] = useState<"start" | "playing" | "done">("start");
@@ -137,7 +137,7 @@ export function PlayerV2Full({ data, gameId }: { data: QuizData; gameId?: string
   const totalTime = questions[order[idx]]?.time || config?.defaultTime || 30;
 
   return (
-    <PlayerShell theme={config?.theme || "amber"}>
+    <PlayerShell theme={theme}>
       <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         <div className="absolute -left-32 top-10 h-96 w-96 rounded-full opacity-40 blur-3xl"
              style={{ background: "radial-gradient(circle, var(--pt-accent), transparent 60%)" }} />

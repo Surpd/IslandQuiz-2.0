@@ -15,7 +15,6 @@ MAX_QUESTION_LENGTH = 500
 MAX_OPTION_LENGTH = 200
 MAX_CATEGORY_LENGTH = 60
 ALLOWED_KINDS = {"quiz", "jeopardy", "millionaire"}
-ALLOWED_THEMES = {"amber", "midnight", "classic", "ocean", "forest"}
 CONTENT_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*-v[0-9]+$")
 
 
@@ -134,8 +133,8 @@ def _validate_quiz(data: dict[str, Any], path: str, errors: list[dict[str, str]]
     _non_empty_string(config.get("title"), f"{path}.config.title", errors, max_length=MAX_TITLE_LENGTH)
     if not isinstance(config.get("description"), str):
         errors.append(_error(f"{path}.config.description", "Ожидается строка."))
-    if config.get("theme") not in ALLOWED_THEMES:
-        errors.append(_error(f"{path}.config.theme", "Неизвестная тема плеера."))
+    if "theme" in config:
+        errors.append(_error(f"{path}.config.theme", "Поле Theme больше не поддерживается в game data."))
     if not isinstance(config.get("shuffleQuestions"), bool):
         errors.append(_error(f"{path}.config.shuffleQuestions", "Ожидается boolean."))
     if config.get("showResult") not in {"each", "end"}:
@@ -159,8 +158,8 @@ def _validate_jeopardy(data: dict[str, Any], path: str, errors: list[dict[str, s
         return
     if "title" in config:
         _non_empty_string(config.get("title"), f"{path}.config.title", errors, max_length=MAX_TITLE_LENGTH)
-    if config.get("theme") not in ALLOWED_THEMES:
-        errors.append(_error(f"{path}.config.theme", "Неизвестная тема плеера."))
+    if "theme" in config:
+        errors.append(_error(f"{path}.config.theme", "Поле Theme больше не поддерживается в game data."))
     for field in ("timeBase", "timeStep", "timeFinal"):
         _positive_number(config.get(field), f"{path}.config.{field}", errors, integer=True)
     round_titles = config.get("roundTitles")
@@ -210,8 +209,8 @@ def _validate_millionaire(data: dict[str, Any], path: str, errors: list[dict[str
         return
     if "title" in config:
         _non_empty_string(config.get("title"), f"{path}.config.title", errors, max_length=MAX_TITLE_LENGTH)
-    if config.get("theme") not in ALLOWED_THEMES:
-        errors.append(_error(f"{path}.config.theme", "Неизвестная тема плеера."))
+    if "theme" in config:
+        errors.append(_error(f"{path}.config.theme", "Поле Theme больше не поддерживается в game data."))
     _positive_number(config.get("timePerQuestion"), f"{path}.config.timePerQuestion", errors, integer=True)
     if config.get("moneyScale") not in {"easy", "normal", "hard"}:
         errors.append(_error(f"{path}.config.moneyScale", "Неизвестная шкала денег."))

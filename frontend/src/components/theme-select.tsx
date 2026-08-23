@@ -22,6 +22,8 @@ export function ThemeSelect({
           key={t.id}
           type="button"
           onClick={() => onChange(t.id)}
+          aria-pressed={value === t.id}
+          aria-label={`Мир: ${t.name}`}
           className={`flex items-center gap-2 rounded-xl border-2 p-2 text-left transition-all ${
             value === t.id
               ? "border-primary bg-primary-soft"

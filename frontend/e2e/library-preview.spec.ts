@@ -18,7 +18,6 @@ test("Library preview respects show_answers and renders all game kinds", async (
           config: {
             title: "Preview Quiz",
             description: "Описание quiz",
-            theme: "amber",
             orderMode: "sequential",
             showResult: "end",
             defaultTime: 30,
@@ -105,7 +104,6 @@ test("Library preview respects show_answers and renders all game kinds", async (
         data: {
           config: {
             title: "Preview Jeopardy",
-            theme: "ocean",
             timeBase: 30,
             timeStep: 15,
             timeFinal: 90,
@@ -132,7 +130,6 @@ test("Library preview respects show_answers and renders all game kinds", async (
         data: {
           config: {
             title: "Preview Millionaire",
-            theme: "classic",
             timePerQuestion: 30,
             moneyScale: "normal",
             milestones: "three",

@@ -18,6 +18,14 @@ VALID_VISIBILITY = {"private", "link", "public"}
 DB_ERROR_DETAIL = "Ошибка базы данных"
 
 
+def _without_persisted_theme(data: dict) -> dict:
+    cleaned = copy.deepcopy(data)
+    config = cleaned.get("config")
+    if isinstance(config, dict):
+        config.pop("theme", None)
+    return cleaned
+
+
 def _db_response(query):
     try:
         response = query.execute()
@@ -148,7 +156,7 @@ def _allows_copy(game: dict, user: Optional[dict]) -> bool:
 
 def _redact_preview_data(game: dict) -> dict:
     """Keep game metadata and shape, but remove playable question content."""
-    data = copy.deepcopy(game.get("data") or {})
+    data = _without_persisted_theme(game.get("data") or {})
     kind = game.get("kind")
     if not isinstance(data, dict):
         return {"config": {}}
@@ -191,6 +199,7 @@ def _redact_preview_data(game: dict) -> dict:
 
 
 def _normalized_game_data(game: dict, data: dict) -> dict:
+    data = _without_persisted_theme(data)
     if not data.get("config"):
         return {}
     if game.get("kind") == "jeopardy" and not isinstance(data.get("rounds"), list):
@@ -238,6 +247,7 @@ def _enforce_game_limits(user: dict, visibility: str, *, creating: bool, was_pub
 @router.post("/", response_model=dict)
 def save_game(input: SaveGameInput, user=Depends(get_current_user)):
     game_id = input.id or str(uuid.uuid4())
+    data = _without_persisted_theme(input.data)
 
     existing_rows = _db_rows(supabase.table("games").select("*").eq("id", game_id))
 
@@ -247,7 +257,7 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
             raise HTTPException(status_code=403, detail="Нет доступа к редактированию этой игры")
         
         update = {
-            "data": input.data,
+            "data": data,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         if input.show_answers is not None:
@@ -272,7 +282,7 @@ def save_game(input: SaveGameInput, user=Depends(get_current_user)):
         _db_rows(supabase.table("games").insert({
             "id": game_id,
             "kind": input.kind,
-            "data": input.data,
+            "data": data,
             "owner_id": user["id"] if user else None,
             "owner_name": user["name"] if user else None,
             "visibility": visibility,
@@ -384,7 +394,7 @@ def list_games(
     for g in visible_games:
         if g.get("data") and g["data"].get("config"):
             g["ratings"] = ratings_map.get(g["id"], None)
-            data = g.get("data") or {}
+            data = _without_persisted_theme(g.get("data") or {})
             if not _allows_preview(g, user):
                 data = _redact_preview_data(g)
             result.append(GameOut(**{**g, "data": data}))
@@ -423,7 +433,7 @@ def fork_game(game_id: str, user=Depends(get_current_user)):
     _db_rows(supabase.table("games").insert({
         "id": new_id,
         "kind": src["kind"],
-        "data": src["data"],
+        "data": _without_persisted_theme(src["data"]),
         "owner_id": user["id"],
         "owner_name": user["name"],
         "visibility": "private",

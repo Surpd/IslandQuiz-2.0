@@ -59,6 +59,21 @@ class RoutedResultSupabase:
 
 
 class VisibilityAndResultsTests(unittest.TestCase):
+    def test_play_snapshot_does_not_carry_legacy_game_theme(self):
+        game = {
+            "kind": "quiz",
+            "visibility": "public",
+            "data": {"config": {"title": "Quiz", "theme": "midnight"}, "questions": []},
+        }
+
+        with patch.object(results, "_check_can_submit", return_value=game), patch.object(
+            results, "issue_snapshot_token", return_value=({"version": "1"}, "token")
+        ) as issue_snapshot:
+            output = results.create_play_snapshot("game-1", results.SnapshotRequest(kind="quiz"), None)
+
+        self.assertNotIn("theme", output["data"]["config"])
+        self.assertNotIn("theme", issue_snapshot.call_args.args[2]["config"])
+
     def test_game_visibility_follows_d6_for_owner_and_anonymous(self):
         owner = {"id": "owner"}
         non_owner = {"id": "other"}

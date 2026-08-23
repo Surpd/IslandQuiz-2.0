@@ -12,7 +12,6 @@ test("offline quiz completion offers replay, library and home actions", async ({
       config: {
         title: "Completion E2E",
         description: "",
-        theme: "amber",
         orderMode: "sequential",
         showResult: "end",
         defaultTime: 30,
