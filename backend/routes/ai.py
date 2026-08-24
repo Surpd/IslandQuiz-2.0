@@ -16,7 +16,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 from datetime import datetime
 
 from routes.auth import get_current_user
@@ -706,6 +706,50 @@ class GenerateQuizInput(BaseModel):
 
     wishes: Optional[str] = None
 
+    type_distribution: Optional[dict[str, StrictInt]] = None
+
+
+QUIZ_TYPE_WEIGHTS = {
+    "choice": 6,
+    "text": 2,
+    "bool": 1,
+    "matching": 1,
+    "close": 0,
+    "ordering": 0,
+}
+
+
+def get_quiz_type_distribution(count: int) -> dict[str, int]:
+    exact = {qtype: count * weight for qtype, weight in QUIZ_TYPE_WEIGHTS.items()}
+    distribution = {qtype: amount // 10 for qtype, amount in exact.items()}
+    remaining = count - sum(distribution.values())
+    ranked = sorted(
+        QUIZ_TYPE_WEIGHTS,
+        key=lambda qtype: (exact[qtype] % 10, QUIZ_TYPE_WEIGHTS[qtype]),
+        reverse=True,
+    )
+    for qtype in ranked[:remaining]:
+        distribution[qtype] += 1
+    return distribution
+
+
+def normalize_quiz_type_distribution(
+    distribution: object,
+    count: int,
+) -> tuple[dict[str, int] | None, str | None]:
+    if distribution is None:
+        return None, None
+    if not isinstance(distribution, dict) or set(distribution) != set(QUIZ_TYPE_WEIGHTS):
+        return None, "Укажите количество для каждого поддерживаемого типа вопроса."
+    if any(
+        not isinstance(amount, int) or isinstance(amount, bool) or amount < 0
+        for amount in distribution.values()
+    ):
+        return None, "Количество вопросов каждого типа должно быть целым неотрицательным числом."
+    if sum(distribution.values()) != count:
+        return None, "Сумма вопросов по типам должна совпадать с общим количеством."
+    return dict(distribution), None
+
 
 class GenerateJeopardyCategoriesInput(BaseModel):
 
@@ -965,6 +1009,15 @@ async def improve_question(
 # GENERATE QUIZ
 # ============================================================
 
+@router.get("/quiz-type-distribution/{count}")
+async def quiz_type_distribution(
+    count: int,
+    user=Depends(get_current_user),
+):
+    if count < 5 or count > 20:
+        return ai_client_error("Количество вопросов должно быть от 5 до 20.", "invalid_count")
+    return {"distribution": get_quiz_type_distribution(count)}
+
 @router.post(
     "/generate-quiz",
     response_model=dict,
@@ -1010,6 +1063,13 @@ async def generate_quiz(
 
         difficulty = "mixed"
 
+    type_distribution, distribution_error = normalize_quiz_type_distribution(
+        input.type_distribution,
+        count,
+    )
+    if distribution_error:
+        return ai_client_error(distribution_error, "invalid_type_distribution")
+
     # --------------------------------------------------------
     # Prompt
     # --------------------------------------------------------
@@ -1022,6 +1082,7 @@ async def generate_quiz(
         count=count,
         difficulty=difficulty,
         wishes=input.wishes,
+        type_distribution=type_distribution,
     )
 
     raw = await call_openai(
@@ -1041,7 +1102,11 @@ async def generate_quiz(
         result = parse_ai_json(raw)
         if is_ai_error(result):
             return ai_error_response(result)
-        validation = validate_quiz(result, expected_count=count)
+        validation = validate_quiz(
+            result,
+            expected_count=count,
+            expected_distribution=type_distribution,
+        )
         if not validation["valid"]:
             return invalid_ai_response(validation["error"])
         return validation["quiz"]
@@ -1191,6 +1256,7 @@ async def generate_from_file(
     count: int = Form(10),
     difficulty: str = Form("mixed"),
     wishes: str = Form(""),
+    type_distribution: str = Form(""),
     user=Depends(get_current_user),
 ):
 
@@ -1373,6 +1439,19 @@ async def generate_from_file(
         ),
     )
 
+    parsed_distribution = None
+    if type_distribution:
+        try:
+            parsed_distribution = json.loads(type_distribution)
+        except json.JSONDecodeError:
+            return ai_client_error("Некорректное распределение типов.", "invalid_type_distribution")
+    normalized_distribution, distribution_error = normalize_quiz_type_distribution(
+        parsed_distribution,
+        count,
+    )
+    if distribution_error:
+        return ai_client_error(distribution_error, "invalid_type_distribution")
+
     # --------------------------------------------------------
     # PROMPT
     # --------------------------------------------------------
@@ -1382,6 +1461,7 @@ async def generate_from_file(
         count=count,
         difficulty=difficulty,
         wishes=wishes,
+        type_distribution=normalized_distribution,
     )
 
     raw = await call_openai(
@@ -1401,7 +1481,11 @@ async def generate_from_file(
         result = parse_ai_json(raw)
         if is_ai_error(result):
             return ai_error_response(result)
-        validation = validate_quiz(result, expected_count=count)
+        validation = validate_quiz(
+            result,
+            expected_count=count,
+            expected_distribution=normalized_distribution,
+        )
         if not validation["valid"]:
             return invalid_ai_response(validation["error"])
         return validation["quiz"]

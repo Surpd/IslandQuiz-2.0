@@ -1,14 +1,16 @@
 // «Сгенерировать квиз»
 // AI generation with topic/file, question count, difficulty and wishes.
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Sparkles, Loader2, X, Upload } from "lucide-react";
+import { Sparkles, Loader2, Minus, Plus, RotateCcw, X, Upload } from "lucide-react";
 import {
   generateQuiz,
   generateQuizFromFile,
+  getQuizTypeDistribution,
   type GeneratedQuizQuestion,
   type QuizDifficulty,
+  type QuizTypeDistribution,
 } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { AIAuthPrompt } from "@/components/ai-auth-prompt";
@@ -19,6 +21,14 @@ const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
 const MIN_QUESTION_COUNT = 5;
 const MAX_QUESTION_COUNT = 20;
 const QUESTION_COUNT_ERROR = "Количество вопросов должно быть от 5 до 20.";
+const QUESTION_TYPES: { type: GeneratedQuizQuestion["type"]; label: string }[] = [
+  { type: "choice", label: "Выбор ответа" },
+  { type: "bool", label: "Правда / Ложь" },
+  { type: "text", label: "Текстовый ответ" },
+  { type: "matching", label: "Соответствие" },
+  { type: "close", label: "Заполнить пропуск" },
+  { type: "ordering", label: "Порядок" },
+];
 
 function parseQuestionCount(value: string): number | null {
   const trimmed = value.trim();
@@ -53,6 +63,10 @@ export function AIGenerateQuizButton({
   const [topic, setTopic] = useState(currentTitle);
   const [count, setCount] = useState("10");
   const [countError, setCountError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"quick" | "advanced">("quick");
+  const [distribution, setDistribution] = useState<QuizTypeDistribution | null>(null);
+  const [distributionLoading, setDistributionLoading] = useState(false);
+  const distributionRequestId = useRef(0);
 
   const [difficulty, setDifficulty] =
     useState<QuizDifficulty>("mixed");
@@ -93,12 +107,67 @@ export function AIGenerateQuizButton({
     setError(null);
   };
 
-  const resetAndClose = () => {
+  const resetAndClose = useCallback(() => {
     setOpen(false);
     setFile(null);
     setError(null);
     setCountError(null);
     setStatus("idle");
+    setMode("quick");
+    setDistribution(null);
+    distributionRequestId.current += 1;
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") resetAndClose();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [open, resetAndClose]);
+
+  const loadAutomaticDistribution = async (questionCount: number) => {
+    const requestId = ++distributionRequestId.current;
+    setDistributionLoading(true);
+    setError(null);
+    try {
+      const nextDistribution = await getQuizTypeDistribution(questionCount);
+      if (requestId === distributionRequestId.current) setDistribution(nextDistribution);
+    } catch (err) {
+      if (requestId === distributionRequestId.current) {
+        setError(err instanceof Error ? err.message : "Не удалось загрузить распределение типов.");
+      }
+    } finally {
+      if (requestId === distributionRequestId.current) setDistributionLoading(false);
+    }
+  };
+
+  const selectAdvancedMode = async () => {
+    const parsedCount = parseQuestionCount(count);
+    if (parsedCount === null) {
+      setCountError(QUESTION_COUNT_ERROR);
+      return;
+    }
+    setMode("advanced");
+    setCountError(null);
+    if (!distribution) await loadAutomaticDistribution(parsedCount);
+  };
+
+  const distributionTotal = distribution
+    ? Object.values(distribution).reduce((sum, amount) => sum + amount, 0)
+    : 0;
+
+  const adjustType = (type: GeneratedQuizQuestion["type"], delta: -1 | 1) => {
+    setDistribution((current) => {
+      if (!current) return current;
+      const total = Object.values(current).reduce((sum, amount) => sum + amount, 0);
+      if ((delta < 0 && (current[type] === 0 || total <= MIN_QUESTION_COUNT)) ||
+          (delta > 0 && total >= MAX_QUESTION_COUNT)) return current;
+      const next = { ...current, [type]: current[type] + delta };
+      setCount(String(total + delta));
+      return next;
+    });
   };
 
   const run = async () => {
@@ -110,9 +179,13 @@ export function AIGenerateQuizButton({
       return;
     }
 
-    const parsedCount = parseQuestionCount(count);
+    const parsedCount = mode === "advanced" ? distributionTotal : parseQuestionCount(count);
     if (parsedCount === null) {
       setCountError(QUESTION_COUNT_ERROR);
+      return;
+    }
+    if (mode === "advanced" && (!distribution || distributionLoading)) {
+      setError("Дождитесь загрузки распределения типов.");
       return;
     }
     setCount(String(parsedCount));
@@ -132,6 +205,7 @@ export function AIGenerateQuizButton({
           count: parsedCount,
           difficulty,
           wishes: wishes.trim() || undefined,
+          type_distribution: mode === "advanced" ? distribution ?? undefined : undefined,
         });
 
         onGenerated(result);
@@ -173,6 +247,7 @@ export function AIGenerateQuizButton({
         count: parsedCount,
         difficulty,
         wishes: wishes.trim() || undefined,
+        type_distribution: mode === "advanced" ? distribution ?? undefined : undefined,
       });
 
       onGenerated(result);
@@ -203,6 +278,9 @@ export function AIGenerateQuizButton({
             return;
           }
           setTopic(currentTitle);
+          setMode("quick");
+          setDistribution(null);
+          distributionRequestId.current += 1;
           setOpen(true);
           setError(null);
           setCountError(null);
@@ -220,16 +298,19 @@ export function AIGenerateQuizButton({
       {open &&
         createPortal(
           <div
-            className="fixed inset-0 z-[70] grid place-items-center bg-foreground/40 p-4"
+            className="fixed inset-0 z-[70] flex items-end justify-center bg-foreground/40 md:grid md:place-items-center md:p-4"
             onClick={resetAndClose}
           >
             <div
-              className="w-full max-w-md animate-fade-up rounded-3xl bg-surface p-5 shadow-lift"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="ai-generate-quiz-title"
+              className="max-h-[calc(100dvh-1rem)] w-full max-w-md animate-fade-up overflow-y-auto rounded-t-3xl bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-lift md:max-h-[calc(100dvh-2rem)] md:rounded-3xl md:p-5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h2 className="flex items-center gap-2 font-display text-lg font-bold">
+                  <h2 id="ai-generate-quiz-title" className="flex items-center gap-2 font-display text-lg font-bold">
                     <Sparkles className="h-5 w-5 text-primary" />
                     Сгенерировать квиз
                   </h2>
@@ -249,12 +330,31 @@ export function AIGenerateQuizButton({
                 </button>
               </div>
 
+              <div className="mb-4 grid grid-cols-2 rounded-xl bg-surface-muted p-1" aria-label="Режим генерации">
+                <button
+                  type="button"
+                  onClick={() => setMode("quick")}
+                  aria-pressed={mode === "quick"}
+                  className={`min-h-10 rounded-lg px-2 text-sm font-semibold transition-colors ${mode === "quick" ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Быстро
+                </button>
+                <button
+                  type="button"
+                  onClick={selectAdvancedMode}
+                  aria-pressed={mode === "advanced"}
+                  className={`min-h-10 rounded-lg px-2 text-sm font-semibold transition-colors ${mode === "advanced" ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Настроить типы
+                </button>
+              </div>
+
               {/* ============================
                   Файл
               ============================ */}
 
               <div
-                className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
+                className={`hidden rounded-xl border-2 border-dashed p-5 text-center transition-colors md:block ${
                   dragOver
                     ? "border-primary bg-primary-soft"
                     : "border-border-strong"
@@ -329,6 +429,37 @@ export function AIGenerateQuizButton({
                 )}
               </div>
 
+              <div className="flex min-h-14 items-center gap-1 rounded-xl border border-border-strong px-2 py-1 md:hidden">
+                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-1 py-2">
+                  <Upload className="h-5 w-5 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">
+                      {file ? file.name : "Добавить материал"}
+                    </span>
+                    <span className="block text-[11px] text-muted-foreground">PDF, DOCX, TXT, MD · до 10 МБ</span>
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt,.md"
+                    className="hidden"
+                    onChange={(event) => {
+                      const selected = event.target.files?.[0];
+                      if (selected) handleFile(selected);
+                    }}
+                  />
+                </label>
+                {file && (
+                  <button
+                    type="button"
+                    onClick={(event) => { event.preventDefault(); setFile(null); }}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-surface-muted hover:text-danger"
+                    aria-label="Удалить выбранный файл"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
               {/* ============================
                   Разделитель
               ============================ */}
@@ -365,7 +496,7 @@ export function AIGenerateQuizButton({
                   Количество
               ============================ */}
 
-              <label className="mb-3 block">
+              {mode === "quick" ? <label className="mb-3 block">
                 <span className="mb-1 block text-xs font-semibold text-muted-foreground">
                   Количество вопросов
                 </span>
@@ -380,6 +511,8 @@ export function AIGenerateQuizButton({
                   onChange={(e) => {
                     setCount(e.target.value);
                     setCountError(null);
+                    setDistribution(null);
+                    distributionRequestId.current += 1;
                   }}
                   onBlur={() => {
                     const parsedCount = parseQuestionCount(count);
@@ -399,7 +532,63 @@ export function AIGenerateQuizButton({
                 >
                   {countError ?? "От 5 до 20 вопросов."}
                 </span>
-              </label>
+              </label> : (
+                <section className="mb-3" aria-labelledby="ai-type-distribution-title">
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <span id="ai-type-distribution-title" className="text-xs font-semibold text-muted-foreground">
+                      Типы вопросов
+                    </span>
+                    <span className="text-xs font-semibold" aria-live="polite">
+                      Всего: {distributionTotal} из {MAX_QUESTION_COUNT}
+                    </span>
+                  </div>
+                  {distributionLoading ? (
+                    <div className="grid min-h-36 place-items-center" aria-label="Загрузка распределения">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    </div>
+                  ) : distribution ? (
+                    <div className="divide-y divide-border rounded-xl border border-border px-3">
+                      {QUESTION_TYPES.map(({ type, label }) => (
+                        <div key={type} className="flex min-h-12 items-center gap-2 py-1">
+                          <span className="min-w-0 flex-1 text-sm font-medium">{label}</span>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => adjustType(type, -1)}
+                              disabled={distribution[type] === 0 || distributionTotal <= MIN_QUESTION_COUNT}
+                              className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
+                              aria-label={`Уменьшить количество: ${label}`}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <output className="w-7 text-center text-sm font-bold" aria-label={`${label}: ${distribution[type]}`}>
+                              {distribution[type]}
+                            </output>
+                            <button
+                              type="button"
+                              onClick={() => adjustType(type, 1)}
+                              disabled={distributionTotal >= MAX_QUESTION_COUNT}
+                              className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
+                              aria-label={`Увеличить количество: ${label}`}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => loadAutomaticDistribution(distributionTotal || parseQuestionCount(count) || 10)}
+                    disabled={distributionLoading}
+                    className="mt-1 flex min-h-10 items-center gap-1.5 text-xs font-semibold text-primary disabled:opacity-50"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Вернуть авто-распределение
+                  </button>
+                </section>
+              )}
 
               {/* ============================
                   Сложность
@@ -465,6 +654,8 @@ export function AIGenerateQuizButton({
                 disabled={
                   status === "loading" ||
                   onCooldown ||
+                  distributionLoading ||
+                  (mode === "advanced" && !distribution) ||
                   (!file && !topic.trim())
                 }
                 className="btn-accent w-full justify-center"
@@ -491,10 +682,11 @@ export function AIGenerateQuizButton({
                   Информация
               ============================ */}
 
-              <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                Типы вопросов подбираются автоматически:
-                choice, text, Да/Нет и matching.
-              </p>
+              {mode === "quick" && (
+                <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                  Типы вопросов подбираются автоматически.
+                </p>
+              )}
             </div>
           </div>,
           document.body,

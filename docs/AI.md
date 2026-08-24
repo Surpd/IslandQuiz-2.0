@@ -1,6 +1,6 @@
 # IslandQuiz — AI architecture
 
-Статус: canonical AI contract, telemetry и quota enforcement на 2026-08-22.
+Статус: canonical AI contract, telemetry и quota enforcement на 2026-08-24.
 
 ## Provider and entry point
 
@@ -71,11 +71,16 @@ Frontend передаёт параметры в `frontend/src/lib/api.ts`; promp
 - `topic?`;
 - `count?`;
 - `difficulty?`;
-- `wishes?`.
+- `wishes?`;
+- `type_distribution?` — точные неотрицательные количества для всех шести canonical Quiz types; сумма должна совпадать с `count`.
 
 `count` ограничивается backend диапазоном 5–20. Успешный ответ — объект с `title` и ровно запрошенным после этого ограничения количеством вопросов; вопросы используют поля `type`, `difficulty`, `question` и type-specific fields.
 
-Текущий input использует общие `count` и `difficulty`, но это не ограничение продуктовой модели: последующее расширение может добавить отдельный объект generation preferences для типов вопросов, пропорций/количества по типам, mix сложности и дополнительных constraints. Такое расширение не должно менять текущие success shapes.
+Без `type_distribution` сохраняется прежняя гибкая автоматическая логика prompt. При переданном распределении prompt требует точные количества, а backend отклоняет AI response, если фактическое распределение отличается.
+
+### `GET /api/ai/quiz-type-distribution/{count}`
+
+Возвращает нормализованное стартовое распределение для advanced UI из canonical backend-пропорций. `count` должен быть 5–20; frontend не копирует эти пропорции.
 
 ### `POST /api/ai/generate-jeopardy-categories`
 
@@ -117,6 +122,7 @@ Multipart form fields:
 - `count`, default 10;
 - `difficulty`, default `mixed`;
 - `wishes`, default empty string.
+- `type_distribution`, optional JSON object с тем же контрактом, что у `generate-quiz`.
 
 Успешный ответ имеет тот же формат, что и `generate-quiz`: `{title, questions}` с ровно запрошенным (после ограничения 5–20) количеством вопросов.
 
@@ -139,7 +145,7 @@ Prompt требует JSON, разнообразные вопросы, есте�
 2. `clean_json` удаляет Markdown code fences и лишний текст.
 3. `parse_ai_json` вызывает `json.loads`.
 4. `normalize_variants` приводит legacy top-level формы к `variants` и добавляет `correctAnswer` для совместимости.
-5. Backend валидирует canonical success shape: 3 variants, requested Quiz count, 5 Jeopardy categories или точные Jeopardy slots.
+5. Backend валидирует canonical success shape: 3 variants, requested Quiz count, точное Quiz type distribution при его передаче, 5 Jeopardy categories или точные Jeopardy slots.
 6. Frontend повторно проверяет success shape до обращения к arrays и показывает controlled error для empty/malformed payload.
 
 `backend/services/ai_validator.py` — server-side gate для всех AI success responses.

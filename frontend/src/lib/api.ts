@@ -1272,6 +1272,31 @@ export interface GeneratedQuizQuestion {
   pairs?: { left: string; right: string }[];
 }
 
+export type QuizTypeDistribution = Record<GeneratedQuizQuestion["type"], number>;
+
+export async function getQuizTypeDistribution(count: number): Promise<QuizTypeDistribution> {
+  const response = requireAIResponse(
+    await apiFetch(`/api/ai/quiz-type-distribution/${count}`),
+    "распределение типов",
+  );
+  const distribution = requireAIResponse(response.distribution, "распределение типов");
+  const types: GeneratedQuizQuestion["type"][] = [
+    "choice", "bool", "text", "matching", "close", "ordering",
+  ];
+  const normalized = {} as QuizTypeDistribution;
+  for (const type of types) {
+    const amount = distribution[type];
+    if (!Number.isInteger(amount) || (amount as number) < 0) {
+      throw new Error("AI вернул некорректное распределение типов.");
+    }
+    normalized[type] = amount as number;
+  }
+  if (Object.values(normalized).reduce((sum, amount) => sum + amount, 0) !== count) {
+    throw new Error("AI вернул некорректное общее количество типов.");
+  }
+  return normalized;
+}
+
 export interface GeneratedJeopardyCategory {
   name: string;
   description: string;
@@ -1325,6 +1350,7 @@ export async function generateQuiz(input: {
   count?: number;
   difficulty?: QuizDifficulty;
   wishes?: string;
+  type_distribution?: QuizTypeDistribution;
 }): Promise<{
   title: string;
   questions: GeneratedQuizQuestion[];
@@ -1348,6 +1374,7 @@ export async function generateQuizFromFile(input: {
   count: number;
   difficulty: QuizDifficulty;
   wishes?: string;
+  type_distribution?: QuizTypeDistribution;
 }): Promise<{ title: string; questions: GeneratedQuizQuestion[] }> {
   const expectedCount = Math.min(20, Math.max(5, input.count));
   const formData = new FormData();
@@ -1355,6 +1382,9 @@ export async function generateQuizFromFile(input: {
   formData.append("count", String(input.count));
   formData.append("difficulty", input.difficulty);
   if (input.wishes) formData.append("wishes", input.wishes);
+  if (input.type_distribution) {
+    formData.append("type_distribution", JSON.stringify(input.type_distribution));
+  }
 
   const response = requireAIResponse(
     await uploadAIFile("/api/ai/generate-from-file", formData),

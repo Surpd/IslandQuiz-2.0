@@ -357,6 +357,7 @@ def validate_variants(
 def validate_quiz(
     quiz: Any,
     expected_count: int,
+    expected_distribution: dict[str, int] | None = None,
 ) -> dict:
     """
     Проверяет полноценный квиз.
@@ -386,6 +387,18 @@ def validate_quiz(
             f"Expected {expected_count} questions, "
             f"got {len(questions)}"
         )
+
+    if expected_distribution is not None:
+        actual_distribution = {qtype: 0 for qtype in ALLOWED_TYPES}
+        for question in questions:
+            if isinstance(question, dict) and question.get("type") in actual_distribution:
+                actual_distribution[question["type"]] += 1
+
+        if actual_distribution != expected_distribution:
+            return _error(
+                f"Expected type distribution {expected_distribution}, "
+                f"got {actual_distribution}"
+            )
 
     for index, question in enumerate(questions):
         result = validate_question(question)

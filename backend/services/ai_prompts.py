@@ -802,6 +802,13 @@ def generate_quiz_prompt(
             distribution_lines
         )
 
+        distribution_text += """
+
+Используй РОВНО это количество вопросов каждого указанного типа.
+Типы с количеством 0 или отсутствующие в списке НЕ используй.
+Перед ответом проверь сумму и фактическое распределение типов.
+"""
+
         if not distribution_text:
             distribution_text = """
 - choice: примерно 60%

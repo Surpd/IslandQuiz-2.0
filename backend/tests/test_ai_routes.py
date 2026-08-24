@@ -29,6 +29,21 @@ def choice_question(index: int) -> dict:
     }
 
 
+def bool_question(index: int) -> dict:
+    return {"type": "bool", "difficulty": "medium", "question": f"Statement {index}", "correct": True}
+
+
+def text_question(index: int) -> dict:
+    return {"type": "text", "difficulty": "medium", "question": f"Question {index}?", "correctAnswer": "Answer"}
+
+
+def five_question_auto_quiz() -> dict:
+    return {
+        "title": "Quiz",
+        "questions": [choice_question(1), choice_question(2), choice_question(3), text_question(4), bool_question(5)],
+    }
+
+
 class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
     request = object()
 
@@ -44,7 +59,7 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
                 ai_route,
                 "call_openai",
                 new=AsyncMock(return_value=json.dumps(payload)),
-            ),
+            ) as call_openai,
         ):
             response = await ai_route.generate_quiz.__wrapped__(
                 self.request,
@@ -53,6 +68,60 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(response, payload)
+        self.assertNotIn("Используй РОВНО это количество", call_openai.await_args.args[0])
+
+    async def test_generate_quiz_passes_and_validates_manual_distribution(self):
+        distribution = {"choice": 3, "bool": 2, "text": 0, "matching": 0, "close": 0, "ordering": 0}
+        payload = {
+            "title": "Manual",
+            "questions": [choice_question(1), choice_question(2), choice_question(3), bool_question(4), bool_question(5)],
+        }
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(ai_route, "call_openai", new=AsyncMock(return_value=json.dumps(payload))) as call_openai,
+        ):
+            response = await ai_route.generate_quiz.__wrapped__(
+                self.request,
+                ai_route.GenerateQuizInput(count=5, type_distribution=distribution),
+                None,
+            )
+
+        self.assertEqual(response, payload)
+        self.assertIn("- choice: 3", call_openai.await_args.args[0])
+        self.assertIn("- bool: 2", call_openai.await_args.args[0])
+
+    async def test_generate_quiz_rejects_invalid_manual_total(self):
+        distribution = {"choice": 4, "bool": 0, "text": 0, "matching": 0, "close": 0, "ordering": 0}
+        with patch.object(ai_route, "check_ai_limit", return_value=None):
+            response = await ai_route.generate_quiz.__wrapped__(
+                self.request,
+                ai_route.GenerateQuizInput(count=5, type_distribution=distribution),
+                None,
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(json.loads(response.body)["code"], "invalid_type_distribution")
+
+    async def test_generate_quiz_rejects_ai_distribution_mismatch(self):
+        distribution = {"choice": 3, "bool": 2, "text": 0, "matching": 0, "close": 0, "ordering": 0}
+        wrong_payload = five_question_auto_quiz()
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(ai_route, "call_openai", new=AsyncMock(return_value=json.dumps(wrong_payload))),
+        ):
+            response = await ai_route.generate_quiz.__wrapped__(
+                self.request,
+                ai_route.GenerateQuizInput(count=5, type_distribution=distribution),
+                None,
+            )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(json.loads(response.body)["code"], "invalid_ai_response")
+
+    def test_automatic_distribution_covers_limits(self):
+        self.assertEqual(sum(ai_route.get_quiz_type_distribution(5).values()), 5)
+        self.assertEqual(ai_route.get_quiz_type_distribution(10)["choice"], 6)
+        self.assertEqual(sum(ai_route.get_quiz_type_distribution(20).values()), 20)
 
     async def test_generate_question_returns_three_variants(self):
         payload = {"variants": [choice_question(index) for index in range(3)]}
@@ -183,6 +252,7 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
                 "mixed",
                 "",
                 None,
+                None,
             )
 
         self.assertEqual(response.status_code, 400)
@@ -213,6 +283,7 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
                 "mixed",
                 "",
                 None,
+                None,
             )
 
         self.assertEqual(response, payload)
@@ -228,6 +299,7 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
                 5,
                 "mixed",
                 "",
+                None,
                 None,
             )
 
@@ -255,6 +327,7 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
                 5,
                 "mixed",
                 "",
+                None,
                 None,
             )
 

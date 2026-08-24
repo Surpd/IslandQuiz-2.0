@@ -29,7 +29,7 @@ function generatedQuestions(count: number) {
   }));
 }
 
-async function installApi(context: BrowserContext, counts: number[]) {
+async function installApi(context: BrowserContext, counts: number[], payloads: Record<string, unknown>[] = []) {
   await context.route(`${apiOrigin}/**`, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -50,9 +50,19 @@ async function installApi(context: BrowserContext, counts: number[]) {
       return json(route, user);
     }
 
+    if (request.method() === "GET" && url.pathname.startsWith("/api/ai/quiz-type-distribution/")) {
+      const count = Number(url.pathname.split("/").pop());
+      const choice = Math.floor(count * 0.6);
+      const text = Math.floor(count * 0.2);
+      const bool = Math.floor(count * 0.1);
+      const matching = count - choice - text - bool;
+      return json(route, { distribution: { choice, bool, text, matching, close: 0, ordering: 0 } });
+    }
+
     if (request.method() === "POST" && url.pathname === "/api/ai/generate-quiz") {
-      const payload = request.postDataJSON() as { count?: number };
+      const payload = request.postDataJSON() as { count?: number } & Record<string, unknown>;
       counts.push(payload.count ?? 0);
+      payloads.push(payload);
       return json(route, {
         title: "Generated quiz",
         questions: generatedQuestions(payload.count ?? 0),
@@ -167,3 +177,68 @@ for (const acceptedCount of [5, 20]) {
     expect(counts).toEqual([acceptedCount]);
   });
 }
+
+test("advanced mode starts from automatic distribution and sends manual counts", async ({ page }) => {
+  const payloads: Record<string, unknown>[] = [];
+  await installApi(page.context(), [], payloads);
+  const { modal } = await openGenerator(page);
+
+  await modal.getByRole("button", { name: "Настроить типы" }).click();
+  await expect(modal.getByLabel("Выбор ответа: 6")).toBeVisible();
+  await modal.getByRole("button", { name: "Увеличить количество: Правда / Ложь" }).click();
+  await modal.getByRole("button", { name: "Уменьшить количество: Выбор ответа" }).click();
+  await expect(modal.getByText("Всего: 10 из 20")).toBeVisible();
+  await modal.getByRole("button", { name: "Быстро" }).click();
+  await modal.getByRole("button", { name: "Настроить типы" }).click();
+  await expect(modal.getByLabel("Выбор ответа: 5")).toBeVisible();
+  await modal.getByRole("button", { name: "Сгенерировать", exact: true }).click();
+
+  expect(payloads[0]).toMatchObject({
+    count: 10,
+    type_distribution: { choice: 5, bool: 2, text: 2, matching: 1, close: 0, ordering: 0 },
+  });
+});
+
+test("generator closes with Escape and reopens in quick mode", async ({ page }) => {
+  await installApi(page.context(), []);
+  const { modal } = await openGenerator(page);
+  await modal.getByRole("button", { name: "Настроить типы" }).click();
+  await expect(modal.getByText("Типы вопросов")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
+
+  await page.locator('button[aria-label="Сгенерировать квиз"]:visible').click();
+  await expect(modal.locator('input[type="number"]')).toBeVisible();
+});
+
+test("advanced controls enforce total limits and restore automatic distribution", async ({ page }) => {
+  await installApi(page.context(), []);
+  const { modal, count } = await openGenerator(page);
+
+  await count.fill("5");
+  await modal.getByRole("button", { name: "Настроить типы" }).click();
+  await expect(modal.getByRole("button", { name: /Уменьшить количество/ }).first()).toBeDisabled();
+  await modal.getByRole("button", { name: "Увеличить количество: Порядок" }).click();
+  await expect(modal.getByLabel("Порядок: 1")).toBeVisible();
+  await modal.getByRole("button", { name: "Вернуть авто-распределение" }).click();
+  await expect(modal.getByLabel("Порядок: 0")).toBeVisible();
+});
+
+test("advanced mobile layout uses a compact picker without horizontal overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await installApi(page.context(), []);
+  const { modal } = await openGenerator(page);
+
+  await expect(modal.getByText("Добавить материал")).toBeVisible();
+  await expect(modal.getByText("Перетащите файл сюда")).toBeHidden();
+  await modal.locator('input[type="file"]').last().setInputFiles({
+    name: "material.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("facts"),
+  });
+  await expect(modal.getByText("material.txt").last()).toBeVisible();
+  await modal.getByRole("button", { name: "Настроить типы" }).click();
+  await expect(modal.getByRole("button", { name: "Увеличить количество: Порядок" })).toBeVisible();
+  const overflow = await modal.evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});

@@ -8,6 +8,7 @@
 
 ## Ordered execution plan
 
+0. **P9 — расширенная AI-генерация Quiz — DONE:** quick mode сохранён; advanced mode управляет точным распределением через единый backend contract и строгую проверку AI-ответа.
 1. **H6.1 — controlled rollback rehearsal:** проверить exact-SHA recovery procedure и health gates с owner approval; не делать реальный rollback только ради теста.
 2. **M9 — external monitoring:** выбрать реальный notification provider/credentials и настроить alerts поверх существующих request IDs, 5xx summary, health endpoint и deployment gates.
 3. **M6/M11 — DB integrity/RPC hardening:** провести targeted orphan/FK/cascade audit и согласовать additive-safe policy.
@@ -21,6 +22,7 @@ Product tasks P3–P6 идут отдельно и не смешиваются �
 - Auth: Telegram nonce durable single-use, password reset token hash/expiry/atomic consume.
 - Supabase: service-only RLS/grants зафиксированы; custom JWT не переводился на Supabase Auth; `increment_play_count` search path hardened.
 - AI: quota reservation выполняется единым PostgreSQL RPC с transaction-scoped advisory lock; provider failures сохраняют текущую quota semantics.
+- AI Quiz: существующий modal поддерживает secondary advanced type distribution, backend-owned стартовые пропорции и exact response validation только для manual mode.
 - Rooms: `online_rooms` хранит resumable state/snapshot с HMAC-digested credentials, TTL 30 минут; WebSocket connections остаются process-local.
 - Operations: request IDs, sanitized 5xx logs, admin 5xx summary, 90-day error-log cleanup и exact-SHA deployment gates.
 

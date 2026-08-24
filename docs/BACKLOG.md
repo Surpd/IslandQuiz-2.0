@@ -71,4 +71,4 @@ Backend models, `frontend/src/lib/api.ts` и room action/state types подде�
 
 ## Closed in current main
 
-Telegram replay protection; password-reset hardening; C2 WebSocket authorization; C3 server-side scoring; C4 basic JWT protection; C5 read-only Supabase audit; H1–H3, H5 и H7–H12; M4/M5/M7; P7/P8; Admin Panel v2; Tag System v1; Official Content Import; Library preview; permissions; unified answer formatter; mobile Results; offline completion; Admin analytics; AI telemetry; atomic AI quota; room persistence/resume. H6.1 rollback rehearsal remains active.
+Telegram replay protection; password-reset hardening; C2 WebSocket authorization; C3 server-side scoring; C4 basic JWT protection; C5 read-only Supabase audit; H1–H3, H5 и H7–H12; M4/M5/M7; P7/P8; **P9 extended AI Quiz generation**; Admin Panel v2; Tag System v1; Official Content Import; Library preview; permissions; unified answer formatter; mobile Results; offline completion; Admin analytics; AI telemetry; atomic AI quota; room persistence/resume. H6.1 rollback rehearsal remains active.

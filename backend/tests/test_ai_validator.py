@@ -20,6 +20,14 @@ def choice_question(index: int) -> dict:
     }
 
 
+def bool_question(index: int) -> dict:
+    return {"type": "bool", "difficulty": "medium", "question": f"Statement {index}", "correct": True}
+
+
+def text_question(index: int) -> dict:
+    return {"type": "text", "difficulty": "medium", "question": f"Question {index}?", "correctAnswer": "Answer"}
+
+
 class AIValidatorContractTests(unittest.TestCase):
     def test_variants_require_three_valid_questions(self):
         result = validate_variants([choice_question(1), choice_question(2), choice_question(3)], 3)
@@ -39,6 +47,18 @@ class AIValidatorContractTests(unittest.TestCase):
 
         self.assertTrue(validate_quiz(quiz, 2)["valid"])
         self.assertFalse(validate_quiz(quiz, 3)["valid"])
+
+    def test_quiz_requires_requested_type_distribution(self):
+        quiz = {
+            "title": "Quiz",
+            "questions": [choice_question(1), bool_question(2), text_question(3)],
+        }
+        expected = {"choice": 1, "bool": 1, "text": 1, "matching": 0, "close": 0, "ordering": 0}
+
+        self.assertTrue(validate_quiz(quiz, 3, expected)["valid"])
+        expected["choice"] = 2
+        expected["text"] = 0
+        self.assertFalse(validate_quiz(quiz, 3, expected)["valid"])
 
     def test_jeopardy_categories_require_five_unique_items(self):
         categories = [
