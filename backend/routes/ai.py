@@ -25,6 +25,7 @@ from services.ai_prompts import (
     generate_question_prompt,
     improve_question_prompt,
     generate_quiz_prompt,
+    generate_quiz_variant_prompt,
     generate_jeopardy_categories_prompt,
     generate_jeopardy_questions_prompt,
 )
@@ -709,6 +710,10 @@ class GenerateQuizInput(BaseModel):
     type_distribution: Optional[dict[str, StrictInt]] = None
 
 
+class GenerateQuizVariantInput(BaseModel):
+    source_variant: dict
+
+
 QUIZ_TYPE_WEIGHTS = {
     "choice": 6,
     "text": 2,
@@ -1008,6 +1013,50 @@ async def improve_question(
 # ============================================================
 # GENERATE QUIZ
 # ============================================================
+
+@router.post("/generate-quiz-variant", response_model=dict)
+@limiter.limit("5/minute")
+async def generate_quiz_variant(
+    request: Request,
+    input: GenerateQuizVariantInput,
+    user=Depends(get_current_user),
+):
+    limit_error = check_ai_limit(user)
+    if limit_error:
+        return limit_error
+    questions = input.source_variant.get("questions")
+    if not isinstance(questions, list) or not questions:
+        return ai_client_error("Исходный вариант должен содержать вопросы.", "invalid_source_variant")
+    if len(questions) > 100:
+        return ai_client_error("В варианте слишком много вопросов.", "invalid_source_variant")
+    distribution = {qtype: 0 for qtype in ("choice", "bool", "text", "matching", "close", "ordering")}
+    for question in questions:
+        if not isinstance(question, dict) or question.get("type") not in distribution:
+            return ai_client_error("Исходный вариант содержит неподдерживаемый вопрос.", "invalid_source_variant")
+        distribution[question["type"]] += 1
+    prompt = generate_quiz_variant_prompt(input.source_variant)
+    raw = await call_openai(
+        prompt,
+        user_id=user.get("id") if user else None,
+        request_type="generate_quiz_variant",
+    )
+    if not raw or not raw.strip():
+        return ai_failure("Empty response from AI", code="empty_ai_response")
+    try:
+        result = parse_ai_json(raw)
+        if is_ai_error(result):
+            return ai_error_response(result)
+        validation = validate_quiz(result, expected_count=len(questions), expected_distribution=distribution)
+        if not validation["valid"]:
+            return invalid_ai_response(validation["error"])
+        generated = validation["quiz"]["questions"]
+        for index, question in enumerate(generated):
+            source = questions[index]
+            if question.get("type") != source.get("type") or question.get("difficulty") != source.get("difficulty"):
+                return invalid_ai_response(f"Question {index + 1}: type or difficulty changed")
+        return validation["quiz"]
+    except json.JSONDecodeError as error:
+        return ai_failure("AI returned invalid JSON", getattr(error, "ai_diagnostic", None), "invalid_ai_json")
 
 @router.get("/quiz-type-distribution/{count}")
 async def quiz_type_distribution(

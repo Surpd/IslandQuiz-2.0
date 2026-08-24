@@ -29,7 +29,7 @@ import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
 import { newId } from "@/lib/storage";  // генерация id
 import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
-import type { GeneratedQuizQuestion } from "@/lib/api";
+import { generateQuizVariant, type GeneratedQuizQuestion } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
 import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection, GamePermissionSettings } from "@/components/builder-actions";
@@ -44,8 +44,11 @@ import type {
   QuizData,
   QuizQuestion,
   QuizQuestionType,
+  QuizVariant,
 } from "@/lib/types";
+import { MAX_QUIZ_VARIANTS, PRIMARY_VARIANT_ID, quizVariants } from "@/lib/quiz-variants";
 import { normalizeQuizQuestionDisplay, withQuizQuestionDisplay } from "@/lib/format-answer";
+import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 
 import type { GameVisibility } from "@/lib/types";
 
@@ -121,6 +124,7 @@ function normalizeQuizQuestion(value: unknown, defaultTime: number): QuizQuestio
     display: normalizeQuizQuestionDisplay(value.display),
     points: typeof value.points === "number" && value.points > 0 ? value.points : 100,
     time: typeof value.time === "number" && value.time > 0 ? value.time : defaultTime,
+    difficulty: value.difficulty === "easy" || value.difficulty === "medium" || value.difficulty === "hard" ? value.difficulty : undefined,
   };
 }
 
@@ -130,7 +134,17 @@ function normalizeQuizData(value: unknown): QuizData {
   const questions = Array.isArray(data.questions)
     ? data.questions.map((question) => normalizeQuizQuestion(question, config.defaultTime)).filter((question): question is QuizQuestion => question !== null)
     : [];
-  return { config, questions: questions.length ? questions : [makeQuestion("choice", 100, config.defaultTime)] };
+  const variants = Array.isArray(data.variants)
+    ? data.variants.slice(0, MAX_QUIZ_VARIANTS - 1).flatMap((variant, index): QuizVariant[] => {
+        if (!isRecord(variant) || !Array.isArray(variant.questions)) return [];
+        return [{
+          id: typeof variant.id === "string" && variant.id ? variant.id : `variant-${index + 2}`,
+          name: typeof variant.name === "string" && variant.name.trim() ? variant.name : `Вариант ${index + 2}`,
+          questions: variant.questions.map((question) => normalizeQuizQuestion(question, config.defaultTime)).filter((question): question is QuizQuestion => question !== null),
+        }];
+      })
+    : undefined;
+  return { config, questions: questions.length ? questions : [makeQuestion("choice", 100, config.defaultTime)], variants: variants?.length ? variants : undefined };
 }
 
 function makeQuestion(type: QuizQuestionType, points = 100, time = 30): QuizQuestion {
@@ -148,11 +162,45 @@ function serializeCloseAnswer(answer: string | undefined): string {
   return JSON.stringify(values.length ? values : [""]);
 }
 
+function generatedToQuizQuestion(g: GeneratedQuizQuestion, defaultTime: number, source?: QuizQuestion): QuizQuestion {
+  const base = { id: newId(), q: g.question, image: source?.image ?? g.image ?? "", display: source?.display ?? g.display, points: source?.points ?? g.points ?? 100, time: source?.time ?? g.time ?? defaultTime, difficulty: g.difficulty };
+  if (g.type === "choice") {
+    const options = g.options ?? ["", "", "", ""];
+    return { ...base, type: "choice", options, answer: options[typeof g.correct === "number" ? g.correct : 0] ?? "" };
+  }
+  if (g.type === "bool") return { ...base, type: "bool", options: [], answer: g.correct === true ? "true" : "false" };
+  if (g.type === "text") return { ...base, type: "text", options: [], answer: g.correctAnswer ?? "" };
+  if (g.type === "matching") return { ...base, type: "matching", options: [], answer: JSON.stringify(g.pairs ?? []) };
+  if (g.type === "close") return { ...base, type: "close", options: [], answer: serializeCloseAnswer(g.correctAnswer) };
+  return { ...base, type: "ordering", options: [], answer: JSON.stringify(g.options ?? []) };
+}
+
+function quizQuestionToGenerated(question: QuizQuestion): GeneratedQuizQuestion {
+  const base = { type: question.type, difficulty: question.difficulty ?? "medium", question: question.q, image: question.image, display: question.display, points: question.points, time: question.time } as GeneratedQuizQuestion;
+  if (question.type === "choice") return { ...base, options: question.options, correct: Math.max(0, question.options.indexOf(question.answer)) };
+  if (question.type === "bool") return { ...base, correct: question.answer === "true" };
+  if (question.type === "text") return { ...base, correctAnswer: question.answer };
+  if (question.type === "matching") {
+    try { return { ...base, pairs: JSON.parse(question.answer) }; } catch { return { ...base, pairs: [] }; }
+  }
+  if (question.type === "close") {
+    try { return { ...base, correctAnswer: (JSON.parse(question.answer) as string[]).join("|") }; } catch { return { ...base, correctAnswer: question.answer }; }
+  }
+  try { return { ...base, options: JSON.parse(question.answer) }; } catch { return { ...base, options: [] }; }
+}
+
 function BuilderQuiz() {
   const { id: urlId } = Route.useSearch();
   const navigate = useNavigate();
   const [config, setConfig] = useState<QuizConfig>(DEFAULT_QUIZ_CONFIG);
-  const [questions, setQuestions] = useState<QuizQuestion[]>([makeQuestion("choice")]);
+  const [primaryQuestions, setPrimaryQuestions] = useState<QuizQuestion[]>([makeQuestion("choice")]);
+  const [extraVariants, setExtraVariants] = useState<QuizVariant[]>([]);
+  const [activeVariantId, setActiveVariantId] = useState(PRIMARY_VARIANT_ID);
+  const [variantMenuOpen, setVariantMenuOpen] = useState(false);
+  const [manageVariants, setManageVariants] = useState(false);
+  const [createVariantOpen, setCreateVariantOpen] = useState(false);
+  const [creatingAI, setCreatingAI] = useState(false);
+  const [compare, setCompare] = useState<{ referenceId: string; editableId: string } | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -164,6 +212,30 @@ function BuilderQuiz() {
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const questions = useMemo(() => activeVariantId === PRIMARY_VARIANT_ID
+    ? primaryQuestions
+    : extraVariants.find((variant) => variant.id === activeVariantId)?.questions ?? [], [activeVariantId, primaryQuestions, extraVariants]);
+  const setQuestions: React.Dispatch<React.SetStateAction<QuizQuestion[]>> = (update) => {
+    const apply = (current: QuizQuestion[]) => typeof update === "function" ? update(current) : update;
+    if (activeVariantId === PRIMARY_VARIANT_ID) setPrimaryQuestions(apply);
+    else setExtraVariants((current) => current.map((variant) => variant.id === activeVariantId ? { ...variant, questions: apply(variant.questions) } : variant));
+  };
+  const allVariants = quizVariants({ config, questions: primaryQuestions, variants: extraVariants });
+  const activeVariantIndex = Math.max(0, allVariants.findIndex((variant) => variant.id === activeVariantId));
+
+  useEffect(() => {
+    if (!compare) return;
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setCompare(null);
+        showToast("Сравнение доступно на большом экране");
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [compare]);
 
   const questionIds = questions.map((question) => question.id).join("|");
 
@@ -197,11 +269,13 @@ function BuilderQuiz() {
         if (rec) {
           const data = normalizeQuizData(rec.data);
           setConfig(data.config);
-          setQuestions(data.questions);
+          setPrimaryQuestions(data.questions);
+          setExtraVariants(data.variants ?? []);
+          setActiveVariantId(PRIMARY_VARIANT_ID);
           setTags(rec.tags ?? []);
           if (rec.visibility) setVisibility(rec.visibility);
           setShowAnswers(!!rec.showAnswers);
-          setSavedSnapshot(JSON.stringify({ config: data.config, questions: data.questions, tags: rec.tags ?? [], showAnswers: !!rec.showAnswers }));
+          setSavedSnapshot(JSON.stringify({ config: data.config, questions: data.questions, variants: data.variants, tags: rec.tags ?? [], showAnswers: !!rec.showAnswers }));
           setSavedId(urlId);
           setLoadState("idle");
         } else {
@@ -216,19 +290,21 @@ function BuilderQuiz() {
 
   // Draft autosave — only for NEW games (no urlId, no savedId yet).
   const draftEnabled = !urlId;
-  const draftPrompt = useDraftPrompt<{ config: QuizConfig; questions: QuizQuestion[]; tags: string[] }>(
+  const draftPrompt = useDraftPrompt<{ config: QuizConfig; questions: QuizQuestion[]; variants?: QuizVariant[]; tags: string[] }>(
     "quiz",
     draftEnabled,
   );
   const draftPaused = !draftEnabled || !draftPrompt.checked || !!draftPrompt.draft || !!savedId;
-  useAutoDraft("quiz", { config, questions, tags }, { paused: draftPaused });
+  useAutoDraft("quiz", { config, questions: primaryQuestions, variants: extraVariants, tags }, { paused: draftPaused });
 
   const restoreDraft = () => {
     const d = draftPrompt.draft;
     if (!d) return;
     const data = normalizeQuizData(d.data);
     setConfig(data.config);
-    setQuestions(data.questions);
+    setPrimaryQuestions(data.questions);
+    setExtraVariants(data.variants ?? []);
+    setActiveVariantId(PRIMARY_VARIANT_ID);
     setTags(d.data.tags ?? []);
     draftPrompt.accept();
     showToast("Черновик восстановлен");
@@ -263,8 +339,10 @@ function BuilderQuiz() {
   };
 
   const validate = (): boolean => {
-    if (questions.some((q) => !q.q.trim())) {
-      showToast("Заполните текст всех вопросов");
+    const invalid = allVariants.find((variant) => variant.questions.some((question) => !question.q.trim()));
+    if (invalid) {
+      showToast(`Заполните текст всех вопросов: ${invalid.name}`);
+      switchVariant(invalid.id);
       return false;
     }
     return true;
@@ -273,15 +351,19 @@ function BuilderQuiz() {
   // Bug 1.3: если есть savedId — обновляем, иначе создаём.
 
   const currentSnapshot = useMemo(
-    () => JSON.stringify({ config, questions, tags, showAnswers }),
-    [config, questions, tags, showAnswers],
+    () => JSON.stringify({ config, questions: primaryQuestions, variants: extraVariants, tags, showAnswers }),
+    [config, primaryQuestions, extraVariants, tags, showAnswers],
   );
   const saveState = savedSnapshot === currentSnapshot ? "saved" : "dirty";
 
   const handleSave = async (): Promise<string | null> => {
     if (!validate()) return null;
     const id = savedId ?? newId();
-    await saveGame({ kind: "quiz", id, data: { config, questions: questions.map(withQuizQuestionDisplay) }, tags, visibility, showAnswers });
+    await saveGame({ kind: "quiz", id, data: {
+      config,
+      questions: primaryQuestions.map(withQuizQuestionDisplay),
+      variants: extraVariants.length ? extraVariants.map((variant) => ({ ...variant, questions: variant.questions.map(withQuizQuestionDisplay) })) : undefined,
+    }, tags, visibility, showAnswers });
     setSavedSnapshot(currentSnapshot);
     setSavedId(id);
     clearDraft("quiz");
@@ -297,7 +379,8 @@ function BuilderQuiz() {
       id,
       data: {
         config: { ...config, title: `${config.title} (копия)` },
-        questions: questions.map(withQuizQuestionDisplay),
+        questions: primaryQuestions.map(withQuizQuestionDisplay),
+        variants: extraVariants.length ? extraVariants.map((variant) => ({ ...variant, questions: variant.questions.map(withQuizQuestionDisplay) })) : undefined,
       },
       tags,
       showAnswers,
@@ -337,18 +420,101 @@ function BuilderQuiz() {
   const handleImport = async (file: File) => {
     try {
       const imported = await importQuizXlsx(file, config.defaultTime);
-      if (imported.length) {
-        setQuestions(imported);
-        showToast(`Загружено вопросов: ${imported.length}`);
+      if (imported.questions.length) {
+        setPrimaryQuestions(imported.questions);
+        setExtraVariants(imported.variants ?? []);
+        setActiveVariantId(PRIMARY_VARIANT_ID);
+        showToast(`Загружено вопросов: ${imported.questions.length}${imported.variants?.length ? ` · вариантов: ${imported.variants.length + 1}` : ""}`);
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Не удалось прочитать файл импорта");
     }
   };
 
+  const switchVariant = (id: string) => {
+    setActiveVariantId(id);
+    setVariantMenuOpen(false);
+    setActiveQuestionId(null);
+  };
+
+  const addBlankVariant = () => {
+    if (allVariants.length >= MAX_QUIZ_VARIANTS) return;
+    const id = newId();
+    setExtraVariants((current) => [...current, { id, name: `Вариант ${current.length + 2}`, questions: [] }]);
+    switchVariant(id);
+    setCreateVariantOpen(false);
+    showToast("Создан пустой вариант");
+  };
+
+  const addAIVariant = async () => {
+    if (allVariants.length >= MAX_QUIZ_VARIANTS || !questions.length) return;
+    setCreatingAI(true);
+    try {
+      const result = await generateQuizVariant(questions.map(quizQuestionToGenerated));
+      const id = newId();
+      const generated = result.questions.map((question, index) => generatedToQuizQuestion(question, config.defaultTime, questions[index]));
+      setExtraVariants((current) => [...current, { id, name: `Вариант ${current.length + 2}`, questions: generated }]);
+      switchVariant(id);
+      setCreateVariantOpen(false);
+      showToast(`AI создал полный вариант: ${generated.length} вопросов`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Не удалось создать похожий вариант");
+    } finally {
+      setCreatingAI(false);
+    }
+  };
+
+  const removeVariant = (id: string) => {
+    if (allVariants.length <= 1) return;
+    const target = allVariants.find((variant) => variant.id === id);
+    if (!target || !window.confirm(`Удалить ${target.name} (${target.questions.length} вопросов)?`)) return;
+    if (id === PRIMARY_VARIANT_ID) {
+      const promoted = extraVariants[0];
+      if (!promoted) return;
+      setPrimaryQuestions(promoted.questions);
+      setExtraVariants((current) => current.slice(1));
+      setActiveVariantId(PRIMARY_VARIANT_ID);
+    } else {
+      setExtraVariants((current) => current.filter((variant) => variant.id !== id));
+      if (activeVariantId === id) setActiveVariantId(PRIMARY_VARIANT_ID);
+    }
+    setCompare(null);
+    if (allVariants.length === 2) setManageVariants(false);
+    showToast("Вариант удалён");
+  };
+
+  const variantNavigator = allVariants.length >= 2 && (
+    <div className="relative mb-3 flex items-center gap-1" role="group" aria-label="Переключение вариантов">
+      <button type="button" className="btn-ghost h-9 w-9 p-0" aria-label="Предыдущий вариант" disabled={activeVariantIndex === 0} onClick={() => switchVariant(allVariants[activeVariantIndex - 1].id)}><ChevronLeft className="h-4 w-4" /></button>
+      <button type="button" className="btn-ghost min-w-0 flex-1 justify-center px-2 text-xs" aria-expanded={variantMenuOpen} onClick={() => setVariantMenuOpen((open) => !open)}>
+        <span className="truncate">Вариант {activeVariantIndex + 1} из {allVariants.length}</span>
+      </button>
+      <button type="button" className="btn-ghost h-9 w-9 p-0" aria-label="Следующий вариант" disabled={activeVariantIndex === allVariants.length - 1} onClick={() => switchVariant(allVariants[activeVariantIndex + 1].id)}><ChevronRight className="h-4 w-4" /></button>
+      {variantMenuOpen && <div className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-border bg-surface shadow-lift">
+        {allVariants.map((variant, index) => <button key={variant.id} type="button" className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-surface-muted ${variant.id === activeVariantId ? "bg-primary-soft text-primary" : ""}`} onClick={() => switchVariant(variant.id)}><span>{variant.name}</span><span>{variant.questions.length}</span></button>)}
+        <div className="border-t border-border p-1">
+          <button type="button" disabled={allVariants.length >= MAX_QUIZ_VARIANTS} className="w-full rounded-lg px-2 py-2 text-left text-xs font-semibold hover:bg-surface-muted disabled:opacity-50" onClick={() => { setVariantMenuOpen(false); setCreateVariantOpen(true); }}>+ Новый вариант</button>
+          <button type="button" className="w-full rounded-lg px-2 py-2 text-left text-xs font-semibold hover:bg-surface-muted" onClick={() => { setVariantMenuOpen(false); setManageVariants(true); }}>Управление вариантами</button>
+        </div>
+      </div>}
+    </div>
+  );
+
   
-  const sidebar = (
+  const sidebar = manageVariants ? (
+    <div className="space-y-2">
+      <button type="button" className="mb-2 flex items-center gap-1 text-xs font-semibold text-primary" onClick={() => setManageVariants(false)}><ChevronLeft className="h-4 w-4" /> Вопросы</button>
+      <p className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Варианты</p>
+      {allVariants.map((variant) => <div key={variant.id} className={`rounded-xl border p-3 ${variant.id === activeVariantId ? "border-primary bg-primary-soft" : "border-border"}`}>
+        <button type="button" className="w-full text-left" aria-current={variant.id === activeVariantId ? "true" : undefined} onClick={() => { switchVariant(variant.id); setManageVariants(false); }}><span className="block text-sm font-bold">{variant.name}</span><span className="text-xs text-muted-foreground">{variant.questions.length} вопросов{variant.id === activeVariantId ? " · текущий" : ""}</span></button>
+        <button type="button" className="mt-2 text-xs font-semibold text-danger" onClick={() => removeVariant(variant.id)}>Удалить</button>
+      </div>)}
+      <button type="button" className="btn-ghost w-full justify-center" disabled={allVariants.length >= MAX_QUIZ_VARIANTS} onClick={() => setCreateVariantOpen(true)}>+ Новый вариант</button>
+      <button type="button" className="btn-ghost hidden w-full justify-center lg:flex" onClick={() => setCompare({ referenceId: allVariants[0].id, editableId: allVariants[1].id })}>Сравнить варианты</button>
+    </div>
+  ) : (
     <div className="space-y-1">
+      {variantNavigator}
       <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Вопросы
       </p>
@@ -387,93 +553,7 @@ function BuilderQuiz() {
       showToast("AI не вернул вопросы квиза");
       return;
     }
-    const next: QuizQuestion[] = generatedQuestions.map((g) => {
-      if (g.type === "choice") {
-        const opts = g.options ?? ["", "", "", ""];
-        const correctIdx = typeof g.correct === "number" ? g.correct : 0;
-        return {
-          id: newId(),
-          type: "choice",
-          q: g.question,
-          image: "",
-          options: opts,
-          answer: opts[correctIdx] ?? opts[0] ?? "",
-          points: 100,
-          time: config.defaultTime,
-        };
-      }
-      if (g.type === "bool") {
-        return {
-          id: newId(),
-          type: "bool",
-          q: g.question,
-          image: "",
-          options: [],
-          answer: g.correct === true ? "true" : "false",
-          points: 100,
-          time: config.defaultTime,
-        };
-      }
-      if (g.type === "text") {
-        return {
-          id: newId(),
-          type: "text",
-          q: g.question,
-          image: "",
-          options: [],
-          answer: g.correctAnswer ?? "",
-          points: 100,
-          time: config.defaultTime,
-        };
-      }
-      if (g.type === "matching") {
-        return {
-          id: newId(),
-          type: "matching",
-          q: g.question,
-          image: "",
-          options: [],
-          answer: JSON.stringify(g.pairs ?? [{ left: "", right: "" }]),
-          points: 100,
-          time: config.defaultTime,
-        };
-      }
-      if (g.type === "close") {
-        return {
-          id: newId(),
-          type: "close",
-          q: g.question,
-          image: "",
-          options: [],
-          answer: serializeCloseAnswer(g.correctAnswer),
-          points: 100,
-          time: config.defaultTime,
-        };
-      }
-      if (g.type === "ordering") {
-        return {
-          id: newId(),
-          type: "ordering",
-          q: g.question,
-          image: "",
-          options: [],
-          answer: JSON.stringify(g.options ?? []),
-          points: 100,
-          time: config.defaultTime,
-        };
-      }
-      // fallback
-      return {
-        id: newId(),
-        type: "choice",
-        q: g.question,
-        image: "",
-        options: g.options ?? ["", "", "", ""],
-        answer: g.options?.[typeof g.correct === "number" ? g.correct : 0] ?? "",
-        points: 100,
-        time: config.defaultTime,
-      };
-    });
+    const next = generatedQuestions.map((question) => generatedToQuizQuestion(question, config.defaultTime));
     setQuestions(next);
     if (!config.title.trim() || config.title === "Новый квиз") {
       setConfig({ ...config, title: result.title });
@@ -516,6 +596,11 @@ function BuilderQuiz() {
         onAllowPreviewChange={(allowPreview) => setConfig({ ...config, allowPreview })}
         onAllowCopyChange={(allowCopy) => setConfig({ ...config, allowCopy })}
       />
+      <section className="rounded-2xl border border-border bg-surface-muted p-4">
+        <h3 className="font-display text-sm font-bold">Варианты квиза</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Создайте до 4 наборов вопросов в одной игре. Название и настройки останутся общими.</p>
+        {allVariants.length < MAX_QUIZ_VARIANTS ? <button type="button" className="btn-ghost mt-3 w-full justify-center" onClick={() => setCreateVariantOpen(true)}>{allVariants.length === 1 ? "Создать второй вариант" : "Создать новый вариант"}</button> : <p className="mt-3 text-xs font-semibold text-muted-foreground">Максимум — 4 варианта</p>}
+      </section>
     </div>
   );
 
@@ -575,8 +660,8 @@ function BuilderQuiz() {
           kind="quiz"
           onImportFile={handleImport}
           onDownloadTemplate={() => downloadExcelTemplate("quiz")}
-          onExportExcel={() => exportQuizExcel({ config, questions })}
-          onPrint={(withAnswers) => printQuiz({ config, questions }, { withAnswers })}
+          onExportExcel={() => exportQuizExcel({ config, questions: primaryQuestions, variants: extraVariants.length ? extraVariants : undefined })}
+          onPrint={(withAnswers) => printQuiz({ config, questions }, { withAnswers, variantLabel: allVariants.length >= 2 ? allVariants[activeVariantIndex].name : undefined })}
           printAnswers={printAnswers}
           onToggleSettings={() => setShowSettings((s) => !s)}
           settingsOpen={showSettings}
@@ -617,7 +702,7 @@ function BuilderQuiz() {
       subtitle="Тест из вопросов разного типа: выбор ответа, правда/ложь, открытый вопрос, сопоставление"
       icon={<FileText className="h-5 w-5" />}
       toolbar={toolbar}
-      sidebar={sidebar}
+      sidebar={compare ? undefined : sidebar}
       extraFabs={
         <>
           <BuilderFabs
@@ -635,8 +720,8 @@ function BuilderQuiz() {
             onBack={handleBack}
             onImportFile={handleImport}
             onDownloadTemplate={() => downloadExcelTemplate("quiz")}
-            onExportExcel={() => exportQuizExcel({ config, questions })}
-            onPrint={(withAnswers) => printQuiz({ config, questions }, { withAnswers })}
+            onExportExcel={() => exportQuizExcel({ config, questions: primaryQuestions, variants: extraVariants.length ? extraVariants : undefined })}
+            onPrint={(withAnswers) => printQuiz({ config, questions }, { withAnswers, variantLabel: allVariants.length >= 2 ? allVariants[activeVariantIndex].name : undefined })}
             printAnswers={printAnswers}
             onResults={openResults}
             onDelete={handleDelete}
@@ -669,12 +754,29 @@ function BuilderQuiz() {
           onClose={() => setShowSettings(false)}
         />
       )}
+      {allVariants.length >= 2 && !compare && <div className="md:hidden">{variantNavigator}</div>}
       <MobileQuestionNavigator
         questions={questions}
         activeQuestionId={activeQuestionId}
         onSelect={scrollToQuestion}
         onAddQuestion={addQuestion}
       />
+      {compare && (() => {
+        const reference = allVariants.find((variant) => variant.id === compare.referenceId) ?? allVariants[0];
+        const editable = allVariants.find((variant) => variant.id === compare.editableId) ?? allVariants[1];
+        return <section className="hidden space-y-4 lg:block">
+          <div className="surface-card flex flex-wrap items-end gap-3 p-4">
+            <button type="button" className="btn-ghost" onClick={() => { switchVariant(editable.id); setCompare(null); }}>← К редактированию</button>
+            <label className="text-xs font-semibold">Слева — образец<select className="input-base mt-1" value={reference.id} onChange={(event) => setCompare({ ...compare, referenceId: event.target.value })}>{allVariants.filter((variant) => variant.id !== editable.id).map((variant) => <option key={variant.id} value={variant.id}>{variant.name}</option>)}</select></label>
+            <label className="text-xs font-semibold">Справа — редактирование<select className="input-base mt-1" value={editable.id} onChange={(event) => { switchVariant(event.target.value); setCompare({ ...compare, editableId: event.target.value }); }}>{allVariants.filter((variant) => variant.id !== reference.id).map((variant) => <option key={variant.id} value={variant.id}>{variant.name}</option>)}</select></label>
+          </div>
+          <div className="grid grid-cols-2 items-start gap-4">
+            <div className="space-y-3"><p className="text-xs font-bold uppercase text-muted-foreground">Только просмотр · {reference.questions.length} вопросов</p>{reference.questions.map((question, index) => <article key={question.id} className="surface-card p-4"><p className="text-xs font-bold text-muted-foreground">Вопрос {index + 1} · {TYPE_META[question.type].label} · {question.points} баллов · {question.time} сек</p>{question.image && <img src={question.image} alt="" className="mt-3 max-h-44 rounded-xl object-contain" />}<p className="mt-2 whitespace-pre-wrap font-semibold">{question.q}</p>{question.type === "choice" && <ol className="mt-3 grid gap-1 text-sm text-muted-foreground">{question.options.map((option, optionIndex) => <li key={optionIndex}>{String.fromCharCode(65 + optionIndex)}. {option}</li>)}</ol>}<div className="mt-3 rounded-xl bg-success-soft p-3 text-sm text-success"><span className="font-bold">Ответ: </span><QuizAnswerDisplay question={question} /></div></article>)}</div>
+            <div className="space-y-4"><p className="text-xs font-bold uppercase text-primary">Редактирование · {editable.questions.length} вопросов</p>{questions.map((question, index) => <QuestionCard key={question.id} index={index} question={question} topic={config.title} onPatch={(patch) => patchQuestion(question.id, patch)} onRemove={() => removeQuestion(question.id)} />)}<div className="flex flex-wrap gap-2">{(Object.keys(TYPE_META) as QuizQuestionType[]).map((type) => <button key={type} type="button" className="btn-ghost" onClick={() => addQuestion(type)}>+ {TYPE_META[type].label}</button>)}</div></div>
+          </div>
+        </section>;
+      })()}
+      {!compare && <>
       <BuilderGameInfoSection title={config.title}>
         <label className="block">
           <span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
@@ -742,6 +844,17 @@ function BuilderQuiz() {
           );
         })}
       </div>
+      </>}
+
+      {createVariantOpen && <div className="fixed inset-0 z-[70] grid place-items-center bg-foreground/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="create-variant-title">
+        <div className="w-full max-w-lg rounded-3xl bg-surface p-6 shadow-lift">
+          <div className="flex items-start justify-between gap-4"><div><h2 id="create-variant-title" className="font-display text-xl font-bold">Новый вариант</h2><p className="mt-1 text-sm text-muted-foreground">Создайте независимый набор вопросов.</p></div><button type="button" className="btn-ghost h-10 w-10 p-0" aria-label="Закрыть" disabled={creatingAI} onClick={() => setCreateVariantOpen(false)}>×</button></div>
+          <div className="mt-5 grid gap-3">
+            <button type="button" className="rounded-2xl border border-border p-4 text-left hover:border-primary hover:bg-primary-soft" onClick={addBlankVariant}><span className="block font-bold">Пустой вариант</span><span className="mt-1 block text-xs text-muted-foreground">Открыть обычный Builder и заполнить самостоятельно.</span></button>
+            <button type="button" className="rounded-2xl border border-amber-300 p-4 text-left hover:bg-amber-50 disabled:opacity-60" disabled={creatingAI || !questions.length} onClick={() => void addAIVariant()}><span className="block font-bold">{creatingAI ? "AI создаёт вариант…" : "Похожий с AI ✦"}</span><span className="mt-1 block text-xs text-muted-foreground">Создать полный аналог текущей работы с новыми заданиями.</span></button>
+          </div>
+        </div>
+      </div>}
 
       {toast && (
         <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full bg-foreground px-5 py-3 text-sm font-semibold text-white shadow-lift">

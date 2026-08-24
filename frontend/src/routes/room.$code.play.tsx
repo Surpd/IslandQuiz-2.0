@@ -10,7 +10,7 @@ import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
 import { QuizQuestionCard } from "@/components/quiz-question-card";
 import { JeopardyRoomPlayer } from "@/components/jeopardy-room-player";
-import { subscribeRoom, loadGame, submitAnswer, type RoomState } from "@/lib/api";
+import { subscribeRoom, subscribeRoomSnapshot, submitAnswer, type RoomState } from "@/lib/api";
 import { sfx, isMuted, toggleMute } from "@/lib/sounds";
 import type { PlayerTheme, QuizData, QuizQuestion } from "@/lib/types";
 
@@ -54,12 +54,16 @@ function StudentPlay() {
     }
   }, [code]);
 
-  useEffect(() => subscribeRoom(code, setState), [code]);
-
   useEffect(() => {
-    if (!state || quiz) return;
-    loadGame<QuizData>("quiz", state.gameId).then((rec) => rec && setQuiz(rec.data));
-  }, [state, quiz]);
+    const unsubscribeState = subscribeRoom(code, setState);
+    const unsubscribeSnapshot = subscribeRoomSnapshot(code, (snapshot) => {
+      if (snapshot.kind === "quiz") setQuiz(snapshot.data as QuizData);
+    });
+    return () => {
+      unsubscribeState();
+      unsubscribeSnapshot();
+    };
+  }, [code]);
 
   const theme = state?.theme ?? "classic";
   const question: QuizQuestion | undefined =

@@ -32,6 +32,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Avatar } from "@/components/avatar";
 import { GameContent, gameSummary } from "@/components/game-content";
 import type { GameKind, QuizData, StoredGame } from "@/lib/types";
+import { quizVariants, withSelectedQuizVariant } from "@/lib/quiz-variants";
 import { safeCanonicalTag } from "@/lib/tags";
 import { allowsGamePreview } from "@/lib/game-permissions";
 
@@ -389,6 +390,7 @@ function GameCard({
       </div>
       <h3 className="line-clamp-2 font-display text-base font-bold md:text-lg">{titleOf(g)}</h3>
       <p className="truncate text-xs text-muted-foreground">{gameSummary(g)}</p>
+      {g.kind === "quiz" && quizVariants(g.data as QuizData).length >= 2 && <span className="self-start rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{quizVariants(g.data as QuizData).length} варианта</span>}
       {g.forkedOwnerName && (
         <p className="hidden truncate text-xs text-muted-foreground md:block">на основе игры от {g.forkedOwnerName}</p>
       )}
@@ -492,6 +494,9 @@ function LibraryGamePreview({ game, onClose }: { game: StoredGame; onClose: () =
   const privileged = !!user && (user.role === "admin" || user.id === game.ownerId);
   const previewAllowed = allowsGamePreview(game, privileged);
   const config = (game.data as { config?: { title?: string; description?: string } }).config;
+  const variants = game.kind === "quiz" ? quizVariants(game.data as QuizData) : [];
+  const [variantId, setVariantId] = useState(variants[0]?.id);
+  const displayedGame = game.kind === "quiz" ? { ...game, data: withSelectedQuizVariant(game.data as QuizData, variantId) } : game;
   return (
     <div className="fixed inset-0 z-[80] flex items-end bg-foreground/40 p-0 pb-[calc(4rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:p-4 sm:pb-4" onClick={onClose}>
       <section
@@ -517,6 +522,7 @@ function LibraryGamePreview({ game, onClose }: { game: StoredGame; onClose: () =
           </button>
         </header>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+          {variants.length >= 2 && <label className="mb-3 block text-xs font-semibold text-muted-foreground">Вариант для просмотра<select className="input-base mt-1" value={variantId} onChange={(event) => setVariantId(event.target.value)}>{variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.name} · {variant.questions.length} вопросов</option>)}</select></label>}
           <div className="mb-3 rounded-xl bg-surface-muted px-3 py-2 text-xs text-muted-foreground">
             {!previewAllowed
               ? "Автор не разрешил просмотр вопросов до игры. Запустить игру можно ниже на странице игры."
@@ -524,7 +530,7 @@ function LibraryGamePreview({ game, onClose }: { game: StoredGame; onClose: () =
                 ? "Ответы доступны согласно настройкам игры."
                 : "Ответы скрыты настройками игры."}
           </div>
-          {previewAllowed ? <GameContent game={game} withAnswers={!!game.showAnswers} /> : (
+          {previewAllowed ? <GameContent game={displayedGame} withAnswers={!!game.showAnswers} /> : (
             <div className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-sm text-muted-foreground">
               Содержание вопросов скрыто настройками автора.
             </div>

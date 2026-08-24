@@ -141,11 +141,12 @@ Frontend поддерживает reconnect/cache и отправляет action
 
 Комнаты:
 
-- сохраняют state, signed snapshot, progress и scores в `online_rooms` после state broadcasts;
+- сохраняют state, selected-variant signed snapshot, progress и scores в `online_rooms` после state broadcasts; дополнительные Quiz variants в room snapshot не копируются;
 - переживают короткий backend restart в пределах 30-minute TTL;
 - live WebSocket connections остаются process-local, Redis/pub-sub и multi-worker coordination не добавлялись;
 - используют server-issued host/player credentials, role checks и server-side player identity; в БД credentials представлены только HMAC-digests;
-- обычный disconnect сохраняет текущий 60-second reconnect grace, затем abandoned room очищается вместе с persistence row.
+- обычный disconnect сохраняет текущий 60-second reconnect grace, затем abandoned room очищается вместе с persistence row;
+- авторизованный host/player получает selected runtime snapshot отдельным одноразовым WebSocket-сообщением, а не полной editor game.
 
 ## Основные пользовательские сценарии
 

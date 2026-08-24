@@ -70,6 +70,37 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response, payload)
         self.assertNotIn("Используй РОВНО это количество", call_openai.await_args.args[0])
 
+    async def test_generate_quiz_variant_is_one_full_generation_call(self):
+        source = [choice_question(1), bool_question(2)]
+        generated = {"title": "Похожий вариант", "questions": [choice_question(11), bool_question(12)]}
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(ai_route, "call_openai", new=AsyncMock(return_value=json.dumps(generated))) as call_openai,
+        ):
+            response = await ai_route.generate_quiz_variant.__wrapped__(
+                self.request,
+                ai_route.GenerateQuizVariantInput(source_variant={"questions": source}),
+                {"id": "user-1"},
+            )
+        self.assertEqual(response, generated)
+        self.assertEqual(call_openai.await_count, 1)
+        self.assertEqual(call_openai.await_args.kwargs["request_type"], "generate_quiz_variant")
+
+    async def test_generate_quiz_variant_rejects_changed_structure_without_retry(self):
+        source = [choice_question(1), bool_question(2)]
+        changed = {"title": "Broken", "questions": [bool_question(11), choice_question(12)]}
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(ai_route, "call_openai", new=AsyncMock(return_value=json.dumps(changed))) as call_openai,
+        ):
+            response = await ai_route.generate_quiz_variant.__wrapped__(
+                self.request,
+                ai_route.GenerateQuizVariantInput(source_variant={"questions": source}),
+                {"id": "user-1"},
+            )
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(call_openai.await_count, 1)
+
     async def test_generate_quiz_passes_and_validates_manual_distribution(self):
         distribution = {"choice": 3, "bool": 2, "text": 0, "matching": 0, "close": 0, "ordering": 0}
         payload = {

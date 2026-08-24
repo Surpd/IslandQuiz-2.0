@@ -16,10 +16,12 @@ import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
 import { normalizePlayerTheme, type QuizData, type QuizQuestion } from "@/lib/types";
+import { selectQuizVariant, withSelectedQuizVariant } from "@/lib/quiz-variants";
 
 export const Route = createFileRoute("/play/quiz/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
     theme: normalizePlayerTheme(search.theme),
+    variant: typeof search.variant === "string" ? search.variant : undefined,
   }),
   component: PlayQuiz,
 });
@@ -48,7 +50,7 @@ const checkAnswer = checkQuizAnswerCore;
 
 function PlayQuiz() {
   const { id } = Route.useParams();
-  const { theme: launchTheme } = Route.useSearch();
+  const { theme: launchTheme, variant: launchVariant } = Route.useSearch();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [stored, setStored] = useState<QuizData | null>(null);
@@ -76,13 +78,13 @@ function PlayQuiz() {
     (async () => {
       const g = await loadGame<QuizData>("quiz", id);
       if (cancel) return;
-      if (g) setStored(g.data);
+      if (g) setStored(withSelectedQuizVariant(g.data, launchVariant));
       setLoading(false);
     })();
     return () => {
       cancel = true;
     };
-  }, [id]);
+  }, [id, launchVariant]);
 
   const config = stored?.config;
   const theme = launchTheme ?? "classic";
@@ -125,7 +127,7 @@ function PlayQuiz() {
   const start = async () => {
     if (!config) return;
     try {
-      const snapshot = await createPlaySnapshot<QuizData>("quiz", id);
+      const snapshot = await createPlaySnapshot<QuizData>("quiz", id, launchVariant);
       setSnapshotToken(snapshot.snapshotToken);
       setStored(snapshot.data);
     } catch (error) {
@@ -238,6 +240,7 @@ function PlayQuiz() {
   }
 
   const totalPoints = questions.reduce((s, q) => s + q.points, 0);
+  const selectedVariant = stored ? selectQuizVariant(stored, launchVariant) : null;
   const earnedPoints = answers.reduce((s, a) => s + a.earned, 0);
   const correctCount = answers.filter((a) => a.correct).length;
 
@@ -248,6 +251,7 @@ function PlayQuiz() {
           <div className="w-full max-w-lg animate-fade-up rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-8 text-center backdrop-blur-md">
             <div className="mb-4 text-5xl">📝</div>
             <h1 className="font-display text-3xl font-black">{config.title}</h1>
+            {stored && (stored.variants?.length ?? 0) > 0 && selectedVariant && <p className="mt-2 inline-flex rounded-full bg-[color:var(--pt-surface-strong)] px-3 py-1 text-xs font-bold text-[color:var(--pt-text-muted)]">{selectedVariant.name}</p>}
             {config.description && (
               <p className="mt-2 text-[color:var(--pt-text-muted)]">{config.description}</p>
             )}

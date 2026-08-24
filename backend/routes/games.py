@@ -170,6 +170,13 @@ def _redact_preview_data(game: dict) -> dict:
             for question in data.get("questions", [])
             if isinstance(question, dict)
         ]
+        data["variants"] = [
+            {**variant, "questions": [
+                {key: value for key, value in question.items() if key in {"id", "type", "points", "time"}}
+                for question in variant.get("questions", []) if isinstance(question, dict)
+            ]}
+            for variant in data.get("variants", []) if isinstance(variant, dict)
+        ]
     elif kind == "jeopardy":
         data["rounds"] = [
             [
@@ -233,6 +240,23 @@ def _redact_preview_answers(game: dict) -> dict:
                 safe_question["display"] = safe_display
             questions.append(safe_question)
         data["questions"] = questions
+        safe_variants = []
+        for variant in data.get("variants", []):
+            if not isinstance(variant, dict):
+                continue
+            safe_questions = []
+            for question in variant.get("questions", []):
+                if not isinstance(question, dict):
+                    continue
+                safe_question = {key: value for key, value in question.items() if key != "answer"}
+                safe_display = _safe_preview_display(safe_question.get("display"))
+                if safe_display is None:
+                    safe_question.pop("display", None)
+                else:
+                    safe_question["display"] = safe_display
+                safe_questions.append(safe_question)
+            safe_variants.append({**variant, "questions": safe_questions})
+        data["variants"] = safe_variants
     elif kind == "jeopardy":
         data["rounds"] = [
             [
@@ -265,6 +289,13 @@ def _redact_preview_answers(game: dict) -> dict:
             }
             for question in data.get("questions", [])
             if isinstance(question, dict)
+        ]
+        data["variants"] = [
+            {**variant, "questions": [
+                {key: value for key, value in question.items() if key in {"id", "type", "points", "time"}}
+                for question in variant.get("questions", []) if isinstance(question, dict)
+            ]}
+            for variant in data.get("variants", []) if isinstance(variant, dict)
         ]
     return data
 

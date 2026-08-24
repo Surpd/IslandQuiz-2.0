@@ -12,6 +12,7 @@ import type {
   QuizData,
   QuizQuestion,
   QuizQuestionType,
+  QuizVariant,
 } from "./types";
 import { newId } from "./storage";
 import { formatQuizAnswer } from "./format-answer";
@@ -20,7 +21,8 @@ import { formatQuizAnswer } from "./format-answer";
 
 export function exportQuizExcel(data: QuizData) {
   const wb = XLSX.utils.book_new();
-  const rows = data.questions.map((q, i) => ({
+  const appendQuestions = (name: string, questions: QuizQuestion[]) => {
+    const rows = questions.map((q, i) => ({
     "#": i + 1,
     type: q.type,
     question: q.q,
@@ -33,9 +35,15 @@ export function exportQuizExcel(data: QuizData) {
           : q.answer,
     points: q.points,
     time: q.time,
-  }));
-  const ws = XLSX.utils.json_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, "Вопросы");
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name);
+  };
+  if (data.variants?.length) {
+    appendQuestions("Вариант 1", data.questions);
+    data.variants.forEach((variant, index) => appendQuestions(`Вариант ${index + 2}`, variant.questions));
+  } else {
+    appendQuestions("Вопросы", data.questions);
+  }
   XLSX.writeFile(wb, `${data.config.title || "quiz"}.xlsx`);
 }
 
@@ -376,11 +384,12 @@ function parseQuizRow(
   };
 }
 
-export async function importQuizXlsx(file: File, defaultTime: number): Promise<QuizQuestion[]> {
+export async function importQuizXlsx(file: File, defaultTime: number): Promise<{ questions: QuizQuestion[]; variants?: QuizVariant[] }> {
   const { sheets } = await readImportFile(file);
   const metadata = metadataFor(sheets);
   const metadataV2 = metadata.get("format") === "islandquiz_quiz" && metadata.get("schema_version") === "2";
-  const questionEntry = Object.entries(sheets).find(([name]) => name.toLowerCase() === "вопросы") ?? Object.entries(sheets)[0];
+  const entries = Object.entries(sheets).filter(([name]) => name.toLowerCase() === "вопросы" || /^вариант\s+\d+$/i.test(name));
+  const questionEntry = entries.find(([name]) => name.toLowerCase() === "вопросы" || /^вариант\s+1$/i.test(name)) ?? entries[0] ?? Object.entries(sheets)[0];
   if (!questionEntry) throw new QuizImportError("В файле не найден лист с вопросами.");
   const [sheetName, rows] = questionEntry;
   const v2Header = findHeader(rows, V2_HEADERS);
@@ -394,10 +403,19 @@ export async function importQuizXlsx(file: File, defaultTime: number): Promise<Q
   const fieldIndexes = schema === "v2"
     ? { type: indexes[V2_HEADERS[0]], question: indexes[V2_HEADERS[1]], options: indexes[V2_HEADERS[2]], answer: indexes[V2_HEADERS[3]], points: indexes[V2_HEADERS[4]], time: indexes[V2_HEADERS[5]] }
     : { type: indexes.type, question: indexes.question, options: indexes.options, answer: indexes.answer, points: indexes.points, time: indexes.time };
-  return rows
-    .filter(({ rowNumber }) => rowNumber > header.rowNumber)
-    .filter(({ cells }) => !isEmptyRow(cells))
-    .map(({ cells, rowNumber }) => parseQuizRow(cells, rowNumber, fieldIndexes, schema, defaultTime));
+  const parseRows = (sheetRows: ImportRow[]) => {
+    const sheetHeader = findHeader(sheetRows, schema === "v2" ? V2_HEADERS : LEGACY_HEADERS) ?? header;
+    const normalized = sheetHeader.cells.map(normalizeHeader);
+    const sheetIndexes = Object.fromEntries(expected.map((field) => [field, normalized.indexOf(field)]));
+    const fields = schema === "v2"
+      ? { type: sheetIndexes[V2_HEADERS[0]], question: sheetIndexes[V2_HEADERS[1]], options: sheetIndexes[V2_HEADERS[2]], answer: sheetIndexes[V2_HEADERS[3]], points: sheetIndexes[V2_HEADERS[4]], time: sheetIndexes[V2_HEADERS[5]] }
+      : { type: sheetIndexes.type, question: sheetIndexes.question, options: sheetIndexes.options, answer: sheetIndexes.answer, points: sheetIndexes.points, time: sheetIndexes.time };
+    return sheetRows.filter(({ rowNumber }) => rowNumber > sheetHeader.rowNumber).filter(({ cells }) => !isEmptyRow(cells)).map(({ cells, rowNumber }) => parseQuizRow(cells, rowNumber, fields, schema, defaultTime));
+  };
+  const questions = parseRows(rows);
+  const variantEntries = entries.filter(([name]) => /^вариант\s+[2-4]$/i.test(name)).sort(([a], [b]) => a.localeCompare(b, "ru", { numeric: true }));
+  const variants = variantEntries.map(([name, sheetRows], index) => ({ id: newId(), name: name.trim() || `Вариант ${index + 2}`, questions: parseRows(sheetRows) }));
+  return { questions, variants: variants.length ? variants : undefined };
 }
 
 export async function importJeopardyXlsx(
@@ -463,6 +481,7 @@ export async function importMillionaireXlsx(file: File): Promise<MillionaireQues
 
 export interface PrintOptions {
   withAnswers?: boolean;
+  variantLabel?: string;
 }
 
 export function printQuiz(data: QuizData, opts: PrintOptions = {}) {
@@ -594,7 +613,8 @@ export function printQuiz(data: QuizData, opts: PrintOptions = {}) {
     })
     .join("");
 
-  win.document.write(printShell(data.config.title || "Квиз", rows, withAnswers));
+  const title = `${data.config.title || "Квиз"}${opts.variantLabel ? ` — ${opts.variantLabel}` : ""}`;
+  win.document.write(printShell(title, rows, withAnswers));
   win.document.close();
   win.focus();
   setTimeout(() => win.print(), 400);

@@ -460,10 +460,10 @@ export async function getResults(gameId: string) {
   return Array.isArray(list) ? list.map(mapQuizResult) : [];
 }
 
-export async function createPlaySnapshot<T>(kind: GameKind, gameId: string) {
+export async function createPlaySnapshot<T>(kind: GameKind, gameId: string, variantId?: string) {
   return apiFetch(`/api/games/${gameId}/play-snapshot`, {
     method: "POST",
-    body: JSON.stringify({ kind }),
+    body: JSON.stringify({ kind, variantId }),
   }) as Promise<{ data: T; version: string; snapshotToken: string }>;
 }
 
@@ -605,11 +605,19 @@ export interface RoomState {
   jeopardy?: JeopardyRoomState;
 }
 
+export interface RoomSnapshot {
+  gameId: string;
+  kind: GameKind;
+  data: unknown;
+}
+
 type RoomConn = {
   ws: WebSocket;
   handlers: Set<(s: RoomState) => void>;
   onceWaiters: Set<(msg: RoomMessage) => void>;
   state: RoomState | null;
+  snapshot: RoomSnapshot | null;
+  snapshotHandlers: Set<(snapshot: RoomSnapshot) => void>;
   available: boolean;
   openPromise: Promise<void>;
 };
@@ -621,6 +629,7 @@ type RoomMessage = {
   credential?: string;
   role?: "host" | "player";
   playerId?: string;
+  snapshot?: RoomSnapshot;
 };
 
 const ROOM_HOST_CREDENTIAL_PREFIX = "islandquiz.room.host.";
@@ -659,6 +668,7 @@ function ensureRoomConn(code: string): RoomConn {
   const suffix = credential ? `?credential=${encodeURIComponent(credential)}` : "";
   const ws = new WebSocket(`${WS_BASE}/ws/room/${code}${suffix}`);
   const handlers = new Set<(s: RoomState) => void>();
+  const snapshotHandlers = new Set<(snapshot: RoomSnapshot) => void>();
   const onceWaiters = new Set<(msg: RoomMessage) => void>();
 
   let resolveOpen!: () => void;
@@ -666,7 +676,7 @@ function ensureRoomConn(code: string): RoomConn {
     resolveOpen = resolve;
   });
 
-  const conn: RoomConn = { ws, handlers, onceWaiters, state: null, available: false, openPromise };
+  const conn: RoomConn = { ws, handlers, snapshotHandlers, onceWaiters, state: null, snapshot: null, available: false, openPromise };
 
   ws.onopen = () => {
     reconnectAttempts[code] = 0;
@@ -682,6 +692,10 @@ function ensureRoomConn(code: string): RoomConn {
         conn.available = true;
         conn.state = state;
         handlers.forEach((h) => h(state));
+      }
+      if (msg.type === "room_snapshot" && msg.snapshot) {
+        conn.snapshot = msg.snapshot;
+        snapshotHandlers.forEach((h) => h(msg.snapshot!));
       }
       if (msg.type === "room_available") conn.available = true;
       onceWaiters.forEach((w) => w(msg));
@@ -701,7 +715,9 @@ function ensureRoomConn(code: string): RoomConn {
         const newConn = ensureRoomConn(code);
         // Перенести хендлеры в новое соединение
         handlers.forEach(h => newConn.handlers.add(h));
+        snapshotHandlers.forEach(h => newConn.snapshotHandlers.add(h));
         if (conn.state) newConn.state = conn.state;
+        if (conn.snapshot) newConn.snapshot = conn.snapshot;
         roomConns.set(code, newConn);
       }, delay);
     }
@@ -781,8 +797,8 @@ export function subscribeRoom(code: string, handler: (s: RoomState) => void) {
   };
 }
 
-export async function createRoom(gameKind: GameKind, gameId: string, theme: PlayerTheme = "classic") {
-  const snapshot = await createPlaySnapshot(gameKind, gameId);
+export async function createRoom(gameKind: GameKind, gameId: string, theme: PlayerTheme = "classic", variantId?: string) {
+  const snapshot = await createPlaySnapshot(gameKind, gameId, variantId);
   const code = String(Math.floor(1000 + Math.random() * 9000));
   const conn = ensureRoomConn(code);
   await conn.openPromise;
@@ -1270,6 +1286,20 @@ export interface GeneratedQuizQuestion {
   correct?: number | boolean;
   correctAnswer?: string;
   pairs?: { left: string; right: string }[];
+  image?: string;
+  display?: import("./types").QuizQuestionDisplay;
+  points?: number;
+  time?: number;
+}
+
+export function subscribeRoomSnapshot(code: string, handler: (snapshot: RoomSnapshot) => void) {
+  if (typeof window === "undefined") return () => {};
+  const conn = ensureRoomConn(code);
+  conn.snapshotHandlers.add(handler);
+  if (conn.snapshot) handler(conn.snapshot);
+  return () => {
+    conn.snapshotHandlers.delete(handler);
+  };
 }
 
 export type QuizTypeDistribution = Record<GeneratedQuizQuestion["type"], number>;
@@ -1362,6 +1392,23 @@ export async function generateQuiz(input: {
   }), "квиз");
   if (!Array.isArray(response.questions) || response.questions.length !== expectedCount) {
     throw new Error("AI не вернул вопросы квиза.");
+  }
+  return {
+    title: requireNonEmptyString(response.title, "title"),
+    questions: response.questions.map(normalizeGeneratedQuizQuestion),
+  };
+}
+
+export async function generateQuizVariant(
+  sourceQuestions: GeneratedQuizQuestion[],
+): Promise<{ title: string; questions: GeneratedQuizQuestion[] }> {
+  if (!sourceQuestions.length) throw new Error("Исходный вариант пуст.");
+  const response = requireAIResponse(await apiFetch("/api/ai/generate-quiz-variant", {
+    method: "POST",
+    body: JSON.stringify({ source_variant: { questions: sourceQuestions } }),
+  }), "похожий вариант квиза");
+  if (!Array.isArray(response.questions) || response.questions.length !== sourceQuestions.length) {
+    throw new Error("AI не вернул полный вариант квиза.");
   }
   return {
     title: requireNonEmptyString(response.title, "title"),

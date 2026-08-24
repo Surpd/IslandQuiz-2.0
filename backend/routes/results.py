@@ -57,6 +57,21 @@ class QuizResultInput(BaseModel):
 
 class SnapshotRequest(BaseModel):
     kind: str
+    variantId: Optional[str] = None
+
+
+def _select_quiz_variant(data: dict, variant_id: Optional[str]) -> dict:
+    # A play/room snapshot is runtime data, not an editor payload. Keep only
+    # the selected question set so additional variants cannot inflate tokens,
+    # room persistence, or result snapshots.
+    selected_data = {key: value for key, value in data.items() if key != "variants"}
+    if not variant_id or variant_id == "variant-1":
+        return {**selected_data, "selectedVariantId": "variant-1", "selectedVariantName": "Вариант 1"}
+    variants = data.get("variants") if isinstance(data, dict) else None
+    selected = next((variant for variant in variants or [] if isinstance(variant, dict) and variant.get("id") == variant_id), None)
+    if selected is None:
+        raise ValueError("Вариант квиза не найден")
+    return {**selected_data, "questions": selected.get("questions", []), "selectedVariantId": variant_id, "selectedVariantName": selected.get("name")}
 
 
 class QuizResultOut(BaseModel):
@@ -257,6 +272,11 @@ def create_play_snapshot(gameId: str, payload: SnapshotRequest, current_user=Dep
     if not isinstance(data, dict):
         raise HTTPException(status_code=400, detail="Некорректные данные игры")
     data = _without_persisted_theme(data)
+    if payload.kind == "quiz":
+        try:
+            data = _select_quiz_variant(data, payload.variantId)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
     snapshot, token = issue_snapshot_token(gameId, payload.kind, data)
     return {"data": data, "version": snapshot["version"], "snapshotToken": token}
 

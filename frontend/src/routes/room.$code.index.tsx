@@ -34,7 +34,7 @@ import { QuizQuestionCard } from "@/components/quiz-question-card";
 import { JeopardyRoomTeacher } from "@/components/jeopardy-room-teacher";
 import {
   subscribeRoom,
-  loadGame,
+  subscribeRoomSnapshot,
   startRoom,
   nextQuestion,
   finishRoom,
@@ -78,12 +78,16 @@ function TeacherRoom() {
     }
   }, [code, navigate]);
 
-  useEffect(() => subscribeRoom(code, setState), [code]);
-
   useEffect(() => {
-    if (!state || quiz || state.gameKind !== "quiz") return;
-    loadGame<QuizData>("quiz", state.gameId).then((rec) => rec && setQuiz(rec.data));
-  }, [state, quiz]);
+    const unsubscribeState = subscribeRoom(code, setState);
+    const unsubscribeSnapshot = subscribeRoomSnapshot(code, (snapshot) => {
+      if (snapshot.kind === "quiz") setQuiz(snapshot.data as QuizData);
+    });
+    return () => {
+      unsubscribeState();
+      unsubscribeSnapshot();
+    };
+  }, [code]);
 
   // Sound cues on status transitions
   useEffect(() => {

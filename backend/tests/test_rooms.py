@@ -7,6 +7,7 @@ import unittest
 from fastapi import WebSocketDisconnect
 
 from routes import rooms as rooms_route
+from routes.results import _select_quiz_variant
 from services.trusted_scoring import issue_snapshot_token
 
 
@@ -149,6 +150,39 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(state["hostId"], "spoofed-host")
         self.assertEqual(state["theme"], "midnight")
         self.assertNotIn("_credentials", state)
+
+    async def test_four_variant_room_sends_only_selected_variant_snapshot(self):
+        full_data = {
+            "config": {"defaultTime": 30},
+            "questions": [{"id": "root-q", "type": "choice", "q": "Root", "answer": "A", "points": 100, "time": 30}],
+            "variants": [
+                {"id": f"variant-{index}", "name": f"Вариант {index + 1}", "questions": [{"id": f"q-{index}", "type": "choice", "q": f"Question {index}", "answer": "A", "points": 100, "time": 30}]}
+                for index in range(2, 5)
+            ],
+        }
+        selected_data = _select_quiz_variant(full_data, "variant-4")
+        token = issue_snapshot_token("game-1", "quiz", selected_data)[1]
+        websocket = FakeWebSocket([json.dumps({
+            "action": "create_room",
+            "gameKind": "quiz",
+            "gameId": "game-1",
+            "snapshotToken": token,
+        })])
+
+        await rooms_route.room_websocket(websocket, "ROOM1")
+
+        snapshot_message = next(message for message in websocket.sent if message["type"] == "room_snapshot")
+        snapshot = snapshot_message["snapshot"]
+        self.assertEqual(snapshot["data"]["selectedVariantId"], "variant-4")
+        self.assertEqual(snapshot["data"]["questions"][0]["id"], "q-4")
+        self.assertNotIn("variants", snapshot["data"])
+        self.assertLess(len(json.dumps(snapshot).encode("utf-8")), rooms_route.MAX_ROOM_MESSAGE_BYTES)
+
+        guest = FakeWebSocket([json.dumps({"action": "join", "player": {"nickname": "Player", "avatar": ""}})])
+        await rooms_route.room_websocket(guest, "ROOM1")
+        guest_snapshot = next(message for message in guest.sent if message["type"] == "room_snapshot")["snapshot"]
+        self.assertEqual(guest_snapshot["data"]["selectedVariantId"], "variant-4")
+        self.assertNotIn("variants", guest_snapshot["data"])
 
     async def test_large_snapshot_room_allows_guest_join(self):
         large_data = {

@@ -155,6 +155,13 @@ class GamePermissionTests(unittest.TestCase):
         self.assertEqual(data["questions"], [{"id": "q1", "type": "choice"}])
         self.assertNotIn("Секрет", str(data))
 
+    def test_quiz_variant_preview_redaction_covers_every_variant(self):
+        game = {"kind": "quiz", "data": {"config": {"allowPreview": True}, "questions": [], "variants": [{"id": "v2", "name": "Вариант 2", "questions": [{"id": "q2", "type": "text", "q": "Visible", "answer": "SECRET_VARIANT"}]}]}}
+        data = games._redact_preview_answers(game)
+        self.assertEqual(data["variants"][0]["name"], "Вариант 2")
+        self.assertEqual(data["variants"][0]["questions"][0]["q"], "Visible")
+        self.assertNotIn("SECRET_VARIANT", str(data))
+
     def test_regular_game_get_is_redacted_but_play_endpoint_returns_content(self):
         game = {
             "id": "game-1",

@@ -250,7 +250,7 @@ RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked. Raw Telegram cre
 | updated_at | timestamptz | no | `now()` | |
 | expires_at | timestamptz | no | — | TTL cleanup boundary |
 
-RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked. `state.theme` is the room/session world and defaults to `classic`; runtime credentials inside `state._credentials` are HMAC digests, not raw values.
+RLS enabled; direct `PUBLIC/anon/authenticated` grants revoked. `state.theme` is the room/session world and defaults to `classic`; runtime credentials inside `state._credentials` are HMAC digests, not raw values. For Quiz rooms, the signed/persisted runtime snapshot contains only the selected variant's questions; editor-only additional `games.data.variants` are not copied into the room snapshot.
 
 ## Relationships
 

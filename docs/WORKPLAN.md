@@ -1,6 +1,6 @@
 # IslandQuiz — рабочий план
 
-Статус: актуально на 2026-08-22. Security/reliability этапы C1/S1, M10, R1 и H4/P1 закрыты; активный порядок теперь начинается с operational verification.
+Статус: актуально на 2026-08-24. Security/reliability этапы C1/S1, M10, R1 и H4/P1 закрыты; активный порядок теперь начинается с operational verification.
 
 ## Current position
 
@@ -9,6 +9,7 @@
 ## Ordered execution plan
 
 0. **P9 — расширенная AI-генерация Quiz — DONE:** full-generation `close/ordering` payload корректно применяется в Builder; advanced modal адаптирован для desktop two-column и mobile 2×3 layout; manual distribution получает один corrective retry после model mismatch.
+0. **P10 — варианты Quiz — IN_PROGRESS:** функциональная реализация для четырёх независимых наборов в backward-compatible `games.data` готова; до `DONE` остаётся стабилизировать и завершить обязательное E2E-покрытие удаления, save/reopen, copy/fork, XLSX round-trip, AI failure safety, player/PDF selection и compare mode.
 1. **H6.1 — controlled rollback rehearsal:** проверить exact-SHA recovery procedure и health gates с owner approval; не делать реальный rollback только ради теста.
 2. **M9 — external monitoring:** выбрать реальный notification provider/credentials и настроить alerts поверх существующих request IDs, 5xx summary, health endpoint и deployment gates.
 3. **M6/M11 — DB integrity/RPC hardening:** провести targeted orphan/FK/cascade audit и согласовать additive-safe policy.
@@ -23,6 +24,7 @@ Product tasks P3–P6 идут отдельно и не смешиваются �
 - Supabase: service-only RLS/grants зафиксированы; custom JWT не переводился на Supabase Auth; `increment_play_count` search path hardened.
 - AI: quota reservation выполняется единым PostgreSQL RPC с transaction-scoped advisory lock; provider failures сохраняют текущую quota semantics.
 - AI Quiz: существующий modal поддерживает secondary advanced type distribution, backend-owned стартовые пропорции и exact response validation только для manual mode.
+- Quiz variants: root `questions` остаётся Variant 1, optional `variants` содержит только дополнительные наборы; отдельная таблица или game record не вводились.
 - Rooms: `online_rooms` хранит resumable state/snapshot с HMAC-digested credentials, TTL 30 минут; WebSocket connections остаются process-local.
 - Operations: request IDs, sanitized 5xx logs, admin 5xx summary, 90-day error-log cleanup и exact-SHA deployment gates.
 

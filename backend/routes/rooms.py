@@ -211,6 +211,25 @@ def public_room_state(room: dict) -> dict:
     return {key: value for key, value in room.items() if key not in {"_credentials", "_credential_hashes", "_snapshot"}}
 
 
+def public_room_snapshot(room: dict) -> dict | None:
+    """Return only the selected runtime game data, never the editor variants."""
+    snapshot = room.get("_snapshot")
+    if not isinstance(snapshot, dict) or not isinstance(snapshot.get("data"), dict):
+        return None
+    data = {key: value for key, value in snapshot["data"].items() if key != "variants"}
+    return {
+        "gameId": snapshot.get("gameId"),
+        "kind": snapshot.get("kind"),
+        "data": data,
+    }
+
+
+async def send_room_snapshot(websocket: WebSocket, room: dict) -> None:
+    snapshot = public_room_snapshot(room)
+    if snapshot is not None:
+        await websocket.send_json({"type": "room_snapshot", "snapshot": snapshot})
+
+
 def _credential_digest(credential: str) -> str:
     from routes.auth import SECRET_KEY
 
@@ -423,6 +442,7 @@ async def room_websocket(websocket: WebSocket, code: str):
     if code in rooms:
         if identity:
             await websocket.send_json({"type": "room_state", "state": public_room_state(rooms[code])})
+            await send_room_snapshot(websocket, rooms[code])
         else:
             await websocket.send_json({"type": "room_available"})
 
@@ -490,6 +510,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                 }
                 credential, identity = issue_credential(rooms[code], "host")
                 await websocket.send_json({"type": "room_identity", "credential": credential, "role": "host"})
+                await send_room_snapshot(websocket, rooms[code])
                 # Если Jeopardy — добавить начальное состояние
                 if game_kind == "jeopardy":
                     rooms[code]["jeopardy"] = {
@@ -539,6 +560,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                 rooms[code]["players"].append(player)
                 credential, identity = issue_credential(rooms[code], "player", player_id)
                 await websocket.send_json({"type": "room_identity", "credential": credential, "role": "player", "playerId": player_id})
+                await send_room_snapshot(websocket, rooms[code])
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif code not in rooms:

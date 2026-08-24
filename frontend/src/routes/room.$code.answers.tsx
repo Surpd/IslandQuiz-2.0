@@ -3,7 +3,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Eye, FileText } from "lucide-react";
-import { loadGame, subscribeRoom, type RoomState } from "@/lib/api";
+import { loadGame, subscribeRoom, subscribeRoomSnapshot, type RoomState } from "@/lib/api";
 import { LaTeX } from "@/lib/latex";
 import type { JeopardyData, QuizData, MillionaireData, GameKind } from "@/lib/types";
 import { quizQuestionTypeLabel } from "@/lib/format-answer";
@@ -27,14 +27,21 @@ function AnswersPage() {
   const [quiz, setQuiz] = useState<QuizData | null>(null);
   const [millionaire, setMillionaire] = useState<MillionaireData | null>(null);
 
-  useEffect(() => subscribeRoom(code, setState), [code]);
+  useEffect(() => {
+    const unsubscribeState = subscribeRoom(code, setState);
+    const unsubscribeSnapshot = subscribeRoomSnapshot(code, (snapshot) => {
+      if (snapshot.kind === "quiz") setQuiz(snapshot.data as QuizData);
+    });
+    return () => {
+      unsubscribeState();
+      unsubscribeSnapshot();
+    };
+  }, [code]);
   useEffect(() => {
     if (!state) return;
     setKind(state.gameKind);
     if (state.gameKind === "jeopardy") {
       loadGame<JeopardyData>("jeopardy", state.gameId).then((r) => r && setJeopardy(r.data));
-    } else if (state.gameKind === "quiz") {
-      loadGame<QuizData>("quiz", state.gameId).then((r) => r && setQuiz(r.data));
     } else if (state.gameKind === "millionaire") {
       loadGame<MillionaireData>("millionaire", state.gameId).then(
         (r) => r && setMillionaire(r.data),

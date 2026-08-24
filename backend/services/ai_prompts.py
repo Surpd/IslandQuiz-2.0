@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 
 
@@ -1222,5 +1223,48 @@ def generate_jeopardy_questions_prompt(
 
 Создай только указанные слоты.
 
+{_json_rules()}
+""".strip()
+
+
+def generate_quiz_variant_prompt(source_variant: dict) -> str:
+    """Build one full-variant request using only contracts present in the source."""
+    questions = source_variant.get("questions") if isinstance(source_variant, dict) else None
+    questions = questions if isinstance(questions, list) else []
+    used_types = list(dict.fromkeys(
+        question.get("type") for question in questions
+        if isinstance(question, dict) and question.get("type") in TYPE_RULES
+    ))
+    type_contracts = "\n\n".join(
+        f"{name.upper()}:\n{TYPE_RULES[name]}" for name in used_types
+    )
+    source_json = json.dumps({"questions": questions}, ensure_ascii=False)
+    return f"""
+Ты — профессиональный автор параллельных вариантов образовательного квиза.
+
+Создай ОДИН новый вариант на основе исходного JSON ниже. Исходник — главный reference.
+
+ИСХОДНЫЙ ВАРИАНТ:
+{source_json}
+
+ОБЯЗАТЕЛЬНО:
+- сохрани количество и порядок вопросов;
+- для каждой позиции сохрани type и difficulty;
+- сохрани проверяемое знание или навык, тему и приблизительную сложность;
+- создай новое самостоятельное задание, а не перефразирование;
+- уместно меняй числа, данные, объекты, факты, контекст и distractors;
+- после любого изменения условия заново вычисли и проверь правильный ответ;
+- особенно тщательно проверь математику, единицы измерения и вычисляемые ответы;
+- не связывай вопросы техническими id и не уходи в соседнюю тему.
+
+КОНТРАКТЫ ТОЛЬКО ИСПОЛЬЗУЕМЫХ ТИПОВ:
+{type_contracts}
+
+{_quality_rules()}
+
+ФОРМАТ ОТВЕТА:
+{{"title": "Похожий вариант", "questions": [...]}}
+
+Верни только JSON. В questions должно быть ровно {len(questions)} объектов.
 {_json_rules()}
 """.strip()

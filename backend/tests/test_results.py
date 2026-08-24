@@ -10,7 +10,7 @@ fake_database = types.ModuleType("database")
 fake_database.supabase = object()
 sys.modules.setdefault("database", fake_database)
 
-from routes.results import _db_rows
+from routes.results import _db_rows, _select_quiz_variant
 
 
 class FakeQuery:
@@ -25,6 +25,16 @@ class FakeQuery:
 
 
 class ResultsDatabaseResponseTests(unittest.TestCase):
+    def test_quiz_snapshot_selects_requested_variant_and_legacy_defaults_to_root(self):
+        data = {"questions": [{"id": "q1"}], "variants": [{"id": "v2", "name": "Вариант 2", "questions": [{"id": "q2"}]}]}
+        self.assertEqual(_select_quiz_variant(data, None)["questions"][0]["id"], "q1")
+        selected = _select_quiz_variant(data, "v2")
+        self.assertEqual(selected["questions"][0]["id"], "q2")
+        self.assertEqual(selected["selectedVariantName"], "Вариант 2")
+        self.assertNotIn("variants", selected)
+        self.assertNotIn("variants", _select_quiz_variant(data, None))
+        with self.assertRaisesRegex(ValueError, "не найден"):
+            _select_quiz_variant(data, "missing")
     def test_empty_or_malformed_result_envelopes_are_empty(self):
         self.assertEqual(_db_rows(FakeQuery(type("Response", (), {"data": None})())), [])
         self.assertEqual(_db_rows(FakeQuery(type("Response", (), {"data": {"id": "result-1"}})())), [])

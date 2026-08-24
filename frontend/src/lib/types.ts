@@ -50,6 +50,13 @@ export interface QuizQuestion {
   display?: QuizQuestionDisplay;
   points: number;
   time: number;
+  difficulty?: "easy" | "medium" | "hard";
+}
+
+export interface QuizVariant {
+  id: string;
+  name: string;
+  questions: QuizQuestion[];
 }
 
 export interface QuizConfig {
@@ -68,6 +75,8 @@ export interface QuizConfig {
 export interface QuizData {
   config: QuizConfig;
   questions: QuizQuestion[];
+  /** Additional variants only. The root questions remain Variant 1 for legacy compatibility. */
+  variants?: QuizVariant[];
 }
 
 // ---------- Jeopardy ----------

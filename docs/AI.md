@@ -78,6 +78,10 @@ Frontend передаёт параметры в `frontend/src/lib/api.ts`; promp
 
 Без `type_distribution` сохраняется прежняя гибкая автоматическая логика prompt. При переданном распределении prompt требует точные количества, а backend отклоняет AI response, если фактическое распределение отличается.
 
+### `POST /api/ai/generate-quiz-variant`
+
+Вход: `{ "source_variant": { "questions": [...] } }`. Backend делает один provider generation call для всего исходного варианта, передаёт только используемые type contracts и затем проверяет исходное количество, порядок, распределение типов, `type` и `difficulty`. Ошибка или невалидный ответ не сохраняет новый вариант. Размер source variant ограничен backend 100 вопросами; продуктовый Builder использует до 20.
+
 ### `GET /api/ai/quiz-type-distribution/{count}`
 
 Возвращает нормализованное стартовое распределение для advanced UI из canonical backend-пропорций. `count` должен быть 5–20; frontend не копирует эти пропорции.

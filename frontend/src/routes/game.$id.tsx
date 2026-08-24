@@ -41,6 +41,7 @@ import type {
   MillionaireData,
   StoredGame,
 } from "@/lib/types";
+import { PRIMARY_VARIANT_ID, quizVariants, withSelectedQuizVariant } from "@/lib/quiz-variants";
 import { allowsGameCopy, allowsGamePreview } from "@/lib/game-permissions";
 
 
@@ -74,6 +75,7 @@ function GameDashboard() {
   const [titleInput, setTitleInput] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [variantId, setVariantId] = useState(PRIMARY_VARIANT_ID);
 
   const showToast = (m: string) => {
     setToast(m);
@@ -106,7 +108,7 @@ function GameDashboard() {
   const doPrint = () => {
     if (!game) return;
     try {
-      if (game.kind === "quiz") printQuiz(game.data as QuizData, { withAnswers: true });
+      if (game.kind === "quiz") printQuiz(withSelectedQuizVariant(game.data as QuizData, variantId), { withAnswers: true, variantLabel: quizVariants(game.data as QuizData).length >= 2 ? quizVariants(game.data as QuizData).find((variant) => variant.id === variantId)?.name : undefined });
       else if (game.kind === "jeopardy")
         printJeopardy(game.data as JeopardyData, { withAnswers: true });
       else printMillionaire(game.data as MillionaireData, { withAnswers: true });
@@ -575,7 +577,8 @@ function GameDashboard() {
                   </p>
                 </div>
               </div>
-              {previewAllowed && previewGame ? <GameContent game={previewGame} withAnswers={!!previewGame.showAnswers} /> : (
+              {game.kind === "quiz" && quizVariants(game.data as QuizData).length >= 2 && <label className="mb-4 block max-w-sm text-xs font-semibold text-muted-foreground">Вариант для просмотра<select className="input-base mt-1" value={variantId} onChange={(event) => setVariantId(event.target.value)}>{quizVariants(game.data as QuizData).map((variant) => <option key={variant.id} value={variant.id}>{variant.name} · {variant.questions.length} вопросов</option>)}</select></label>}
+              {previewAllowed && previewGame ? <GameContent game={previewGame.kind === "quiz" ? { ...previewGame, data: withSelectedQuizVariant(previewGame.data as QuizData, variantId) } : previewGame} withAnswers={!!previewGame.showAnswers} /> : (
                 <div className="rounded-2xl border border-dashed border-border-strong p-8 text-center text-sm text-muted-foreground">
                   Автор не разрешил просмотр вопросов до игры. Вы можете запустить игру без предварительного просмотра.
                 </div>

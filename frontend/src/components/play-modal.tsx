@@ -1,9 +1,10 @@
 // Shared "Как играем?" modal used by builders and the game dashboard.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Copy, Monitor, Radio, X } from "lucide-react";
-import { createRoom } from "@/lib/api";
+import { createRoom, loadGame } from "@/lib/api";
 import { ThemeSelect } from "@/components/theme-select";
-import type { GameKind, PlayerTheme } from "@/lib/types";
+import type { GameKind, PlayerTheme, QuizData } from "@/lib/types";
+import { PRIMARY_VARIANT_ID, quizVariants } from "@/lib/quiz-variants";
 
 export function PlayModal({
   gameId,
@@ -18,12 +19,20 @@ export function PlayModal({
   const [error, setError] = useState<string | null>(null);
   const [hostView, setHostView] = useState(false);
   const [theme, setTheme] = useState<PlayerTheme>("classic");
+  const [quizData, setQuizData] = useState<QuizData | null>(null);
+  const [variantId, setVariantId] = useState(PRIMARY_VARIANT_ID);
+  const variants = quizData ? quizVariants(quizData) : [];
+
+  useEffect(() => {
+    if (kind !== "quiz") return;
+    void loadGame<QuizData>("quiz", gameId).then((game) => setQuizData(game?.data ?? null));
+  }, [gameId, kind]);
 
   const startOnline = async () => {
     setError(null);
     setLoading(true);
     try {
-      const { code } = await createRoom(kind, gameId, theme);
+      const { code } = await createRoom(kind, gameId, theme, kind === "quiz" ? variantId : undefined);
       window.open(`/room/${code}`, "_blank", "noopener");
       onClose();
     } catch (err) {
@@ -35,7 +44,7 @@ export function PlayModal({
   };
 
   if (hostView) {
-    return <OfflineHostView gameId={gameId} kind={kind} theme={theme} onClose={onClose} />;
+    return <OfflineHostView gameId={gameId} kind={kind} theme={theme} variantId={kind === "quiz" ? variantId : undefined} onClose={onClose} />;
   }
 
   return (
@@ -48,6 +57,7 @@ export function PlayModal({
           </button>
         </div>
 
+        {variants.length >= 2 && <div className="mb-4 rounded-2xl border border-border bg-surface-muted/60 p-4"><h4 className="font-display text-base font-bold">Вариант</h4><p className="mt-1 text-xs text-muted-foreground">Выберите набор вопросов для запуска</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{variants.map((variant) => <button key={variant.id} type="button" aria-pressed={variant.id === variantId} onClick={() => setVariantId(variant.id)} className={`rounded-xl border p-3 text-left ${variant.id === variantId ? "border-primary bg-primary-soft" : "border-border bg-surface"}`}><span className="block text-sm font-bold">{variant.name}</span><span className="text-xs text-muted-foreground">{variant.questions.length} вопросов</span></button>)}</div></div>}
         <div className="mb-4 rounded-2xl border border-border bg-surface-muted/60 p-4">
           <h4 className="font-display text-base font-bold">Мир</h4>
           <p className="mt-1 text-xs text-muted-foreground">Выберите оформление для запуска игры</p>
@@ -99,17 +109,19 @@ function OfflineHostView({
   gameId,
   kind,
   theme,
+  variantId,
   onClose,
 }: {
   gameId: string;
   kind: GameKind;
   theme: PlayerTheme;
+  variantId?: string;
   onClose: () => void;
 }) {
   const playUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/play/${kind}/${gameId}?theme=${theme}`
-      : `/play/${kind}/${gameId}?theme=${theme}`;
+      ? `${window.location.origin}/play/${kind}/${gameId}?theme=${theme}${variantId ? `&variant=${encodeURIComponent(variantId)}` : ""}`
+      : `/play/${kind}/${gameId}?theme=${theme}${variantId ? `&variant=${encodeURIComponent(variantId)}` : ""}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(playUrl)}`;
   const [copied, setCopied] = useState(false);
 
