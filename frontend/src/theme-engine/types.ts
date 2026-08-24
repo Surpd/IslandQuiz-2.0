@@ -22,7 +22,9 @@ export type ThemeAnimation =
   | "mist-haze"
   | "grass-sway"
   | "water-ripple"
-  | "water-shimmer";
+  | "water-shimmer"
+  | "cloud-drift"
+  | "cloud-glow";
 export type ThemeLayerFit = "cover" | "contain";
 export type ThemeLayerKind = "image" | "star-field";
 
@@ -38,6 +40,10 @@ export interface ThemeLayer {
   animationDuration?: string;
   animationDelay?: string;
   animationAmplitude?: string;
+  animationX?: string;
+  animationY?: string;
+  animationRotation?: string;
+  animationScale?: string;
   starCount?: number;
   renderAsset?: boolean;
   fit?: ThemeLayerFit;

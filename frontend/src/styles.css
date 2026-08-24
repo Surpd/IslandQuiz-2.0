@@ -156,6 +156,17 @@
   --pt-accent-2: #60a5fa;
   --pt-glow: 0 0 60px -10px rgba(59, 130, 246, 0.5);
 }
+.pt-color-cloud {
+  --pt-bg: #fbf7f0;
+  --pt-surface: rgba(255, 250, 243, 0.9);
+  --pt-surface-strong: rgba(246, 237, 227, 0.94);
+  --pt-border: rgba(104, 76, 61, 0.2);
+  --pt-text: #2f2930;
+  --pt-text-muted: rgba(64, 55, 60, 0.64);
+  --pt-accent: #bd6d58;
+  --pt-accent-2: #9289bd;
+  --pt-glow: 0 18px 46px -32px rgba(119, 79, 60, 0.42);
+}
 .pt-ocean {
   --pt-bg: radial-gradient(ellipse at center, #0d3b52 0%, #051f2e 70%, #030f18 100%);
   --pt-surface: rgba(94, 234, 212, 0.06);
@@ -493,6 +504,160 @@ html.formula-keyboard-open {
   text-shadow: none;
 }
 
+[data-scope="player"].pt-color-cloud {
+  overflow-x: clip;
+}
+
+[data-scope="player"].pt-color-cloud .player-question-nav {
+  background: rgba(255, 250, 243, 0.9);
+  border-color: rgba(104, 76, 61, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 42px -30px rgba(89, 61, 46, 0.42);
+  -webkit-backdrop-filter: blur(8px) saturate(1.02);
+  backdrop-filter: blur(8px) saturate(1.02);
+}
+
+[data-scope="player"].pt-color-cloud .rounded-3xl {
+  background: rgba(255, 250, 243, 0.9);
+  border-color: rgba(104, 76, 61, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 20px 52px -36px rgba(89, 61, 46, 0.46);
+}
+
+[data-scope="player"].pt-color-cloud .rounded-xl.border-2 {
+  background: rgba(246, 237, 227, 0.94);
+  border-color: rgba(104, 76, 61, 0.2);
+  box-shadow: 0 10px 24px -24px rgba(89, 61, 46, 0.44);
+}
+
+[data-scope="player"].pt-color-cloud input {
+  background: rgba(246, 237, 227, 0.94);
+  border-color: rgba(104, 76, 61, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+[data-scope="player"].pt-color-cloud .player-question-nav__item {
+  border-color: rgba(104, 76, 61, 0.13);
+  color: var(--pt-text);
+  text-shadow: none;
+}
+
+[data-scope="player"].pt-color-cloud .player-question-nav__item--unanswered {
+  background: rgba(248, 241, 233, 0.82);
+  border-color: rgba(104, 76, 61, 0.12);
+  color: var(--pt-text-muted);
+}
+
+[data-scope="player"].pt-color-cloud .player-question-nav__item--correct {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(5, 150, 105, 0.32);
+  color: #087f5b;
+}
+
+[data-scope="player"].pt-color-cloud .player-question-nav__item--incorrect {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(220, 38, 38, 0.28);
+  color: #b42318;
+}
+
+[data-scope="player"].pt-color-cloud .player-question-nav__item--current {
+  color: #fffaf5;
+  box-shadow: 0 0 0 2px rgba(255, 253, 249, 0.88), 0 8px 18px -12px rgba(189, 109, 88, 0.68);
+}
+
+[data-scope="player"].pt-color-cloud [class~="backdrop-blur-md"],
+[data-scope="player"].pt-color-cloud [class~="backdrop-blur-xl"],
+[data-scope="player"].pt-color-cloud [class~="backdrop-blur-2xl"] {
+  -webkit-backdrop-filter: blur(5px) saturate(1.02);
+  backdrop-filter: blur(5px) saturate(1.02);
+}
+
+[data-scope="player"].pt-color-cloud [class~="bg-white/5"] {
+  background-color: rgba(255, 253, 249, 0.74);
+}
+
+[data-scope="player"].pt-color-cloud [class~="bg-white/10"] {
+  background-color: rgba(248, 241, 233, 0.84);
+}
+
+[data-scope="player"].pt-color-cloud [class~="border-white/15"] {
+  border-color: rgba(104, 76, 61, 0.14);
+}
+
+@media (min-width: 1200px) {
+  [data-scope="player"].pt-color-cloud .max-w-3xl {
+    max-width: 54rem;
+  }
+
+  [data-scope="player"].pt-color-cloud .rounded-xl.border-2 {
+    min-height: 4.5rem;
+    padding-top: 1.1rem;
+    padding-bottom: 1.1rem;
+  }
+}
+
+@media (max-width: 767px) {
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-peach,
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-lavender,
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-pink,
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-yellow,
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-mint {
+    inset: auto !important;
+  }
+
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-peach {
+    left: -45vw !important;
+    top: -45vw !important;
+    width: 130vw !important;
+    height: 130vw !important;
+    --theme-animation-x: 10px !important;
+    --theme-animation-y: -7px !important;
+    --theme-animation-scale: 1.008 !important;
+  }
+
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-lavender {
+    left: 2vw !important;
+    top: -4vw !important;
+    width: 120vw !important;
+    height: 120vw !important;
+    --theme-animation-x: -8px !important;
+    --theme-animation-y: 6px !important;
+    --theme-animation-scale: 1.01 !important;
+  }
+
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-pink {
+    left: -10vw !important;
+    top: 14vh !important;
+    width: 135vw !important;
+    height: 135vw !important;
+    --theme-animation-x: 12px !important;
+    --theme-animation-y: -6px !important;
+    --theme-animation-scale: 1.012 !important;
+  }
+
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-yellow {
+    left: 18vw !important;
+    top: 36vh !important;
+    width: 110vw !important;
+    height: 110vw !important;
+    --theme-animation-x: -7px !important;
+    --theme-animation-y: 8px !important;
+    --theme-animation-scale: 1.008 !important;
+  }
+
+  [data-scope="player"].pt-color-cloud .theme-layer--cloud-mint {
+    left: 0 !important;
+    top: 45vh !important;
+    width: 135vw !important;
+    height: 135vw !important;
+    --theme-animation-x: -10px !important;
+    --theme-animation-y: -8px !important;
+    --theme-animation-scale: 1.01 !important;
+  }
+}
+
 /* ============================================================
    Theme Engine scenes
    ============================================================ */
@@ -552,6 +717,8 @@ html.formula-keyboard-open {
 .theme-layer--grass-sway { transform-origin: 50% 100%; animation: theme-grass-sway var(--theme-animation-duration, 8s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
 .theme-layer--water-ripple { animation: theme-water-ripple var(--theme-animation-duration, 20s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
 .theme-layer--water-shimmer { animation: theme-water-shimmer var(--theme-animation-duration, 12s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--cloud-drift { animation: theme-cloud-drift var(--theme-animation-duration, 48s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
+.theme-layer--cloud-glow { animation: theme-cloud-glow var(--theme-animation-duration, 96s) ease-in-out var(--theme-animation-delay, 0s) infinite alternate; }
 
 /* Development-only Night Sky debug scene: intentionally exaggerated ambient motion. */
 .theme-scene--debug-ambient .theme-layer--glow { animation: none; opacity: 0 !important; }
@@ -743,6 +910,30 @@ html.formula-keyboard-open {
 @keyframes theme-water-shimmer {
   0%, 100% { opacity: var(--theme-current-opacity); transform: translate3d(0, 0, 0) scale(1.02, 1.01); }
   50% { opacity: min(0.3, calc(var(--theme-current-opacity) + 0.045)); transform: translate3d(0, -1px, 0) scale(1.035, 1.018); }
+}
+
+@keyframes theme-cloud-drift {
+  0%, 100% {
+    opacity: var(--theme-current-opacity);
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: min(1, calc(var(--theme-current-opacity) + 0.015));
+    transform: translate3d(var(--theme-animation-x, 24px), var(--theme-animation-y, -14px), 0)
+      rotate(var(--theme-animation-rotation, 1deg)) scale(var(--theme-animation-scale, 1.025));
+  }
+}
+
+@keyframes theme-cloud-glow {
+  0%, 100% {
+    opacity: var(--theme-current-opacity);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    opacity: min(1, calc(var(--theme-current-opacity) + 0.01));
+    transform: translate3d(var(--theme-animation-x, 18px), var(--theme-animation-y, -10px), 0)
+      scale(var(--theme-animation-scale, 1.03));
+  }
 }
 @keyframes theme-star-twinkle {
   0% { opacity: calc(var(--star-opacity) * 0.42); }

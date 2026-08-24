@@ -4,6 +4,7 @@ const SWATCHES: Record<PlayerTheme, string[]> = {
   amber: ["#1a0f04", "#ff9d00", "#e8c547"],
   midnight: ["#0a0a1e", "#a78bfa", "#7c9cff"],
   classic: ["#0c1e3a", "#3b82f6", "#60a5fa"],
+  "color-cloud": ["#fcf8f1", "#c86f59", "#9c93c7"],
   ocean: ["#051f2e", "#14b8a6", "#5eead4"],
   forest: ["#0d1f14", "#84cc16", "#bef264"],
 };
@@ -16,7 +17,7 @@ export function ThemeSelect({
   onChange: (theme: PlayerTheme) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
       {PLAYER_THEMES.map((t) => (
         <button
           key={t.id}
