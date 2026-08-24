@@ -314,6 +314,35 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response, payload)
         self.assertIn("The moon reflects sunlight.", call_openai.await_args.args[0])
 
+    async def test_generate_from_file_retries_manual_distribution_after_model_mismatch(self):
+        distribution = {"choice": 3, "bool": 2, "text": 0, "matching": 0, "close": 0, "ordering": 0}
+        correct_payload = {
+            "title": "Imported quiz",
+            "questions": [choice_question(1), choice_question(2), choice_question(3), bool_question(4), bool_question(5)],
+        }
+        upload = UploadFile(filename="notes.txt", file=io.BytesIO(b"facts"))
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(
+                ai_route,
+                "call_openai",
+                new=AsyncMock(side_effect=[json.dumps(five_question_auto_quiz()), json.dumps(correct_payload)]),
+            ) as call_openai,
+        ):
+            response = await ai_route.generate_from_file.__wrapped__(
+                self.request,
+                upload,
+                5,
+                "mixed",
+                "",
+                json.dumps(distribution),
+                None,
+            )
+
+        self.assertEqual(response, correct_payload)
+        self.assertEqual(call_openai.await_count, 2)
+        self.assertEqual(call_openai.await_args_list[1].kwargs["request_type"], "generate_from_file_retry")
+
     async def test_generate_from_file_rejects_empty_text(self):
         upload = UploadFile(filename="empty.txt", file=io.BytesIO(b"  \n"))
 

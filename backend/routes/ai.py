@@ -1509,6 +1509,29 @@ async def generate_from_file(
             expected_count=count,
             expected_distribution=normalized_distribution,
         )
+        if not validation["valid"] and normalized_distribution:
+            retry_prompt = f"""{prompt}
+
+Предыдущий ответ не прошёл структурную проверку: {validation["error"]}
+Сгенерируй квиз заново и верни только JSON-объект. Соблюдай РОВНОЕ распределение
+вопросов по типам из задания и проверь количество каждого типа перед ответом.
+"""
+            retry_raw = await call_openai(
+                retry_prompt,
+                temperature=0.2,
+                user_id=user.get("id") if user else None,
+                request_type="generate_from_file_retry",
+            )
+            if not retry_raw or not retry_raw.strip():
+                return ai_failure("Empty response from AI", code="empty_ai_response")
+            retry_result = parse_ai_json(retry_raw)
+            if is_ai_error(retry_result):
+                return ai_error_response(retry_result)
+            validation = validate_quiz(
+                retry_result,
+                expected_count=count,
+                expected_distribution=normalized_distribution,
+            )
         if not validation["valid"]:
             return invalid_ai_response(validation["error"])
         return validation["quiz"]
