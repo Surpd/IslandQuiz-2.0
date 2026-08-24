@@ -15,6 +15,7 @@ import {
   ArrowDown, GripVertical,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
 import { FormulaButton } from "@/components/formula-popover";
@@ -110,12 +111,12 @@ function normalizeQuizConfig(value: unknown): QuizConfig {
   };
 }
 
-function normalizeQuizQuestion(value: unknown, defaultTime: number): QuizQuestion | null {
+function normalizeQuizQuestion(value: unknown, defaultTime: number, fallbackId: string): QuizQuestion | null {
   if (!isRecord(value) || !isQuizQuestionType(value.type)) return null;
   const type = value.type;
   const options = Array.isArray(value.options) ? value.options.filter((option): option is string => typeof option === "string") : [];
   return {
-    id: typeof value.id === "string" && value.id ? value.id : newId(),
+    id: typeof value.id === "string" && value.id ? value.id : fallbackId,
     type,
     q: typeof value.q === "string" ? value.q : "",
     image: typeof value.image === "string" ? value.image : "",
@@ -132,7 +133,7 @@ function normalizeQuizData(value: unknown): QuizData {
   const data = isRecord(value) ? value : {};
   const config = normalizeQuizConfig(data.config);
   const questions = Array.isArray(data.questions)
-    ? data.questions.map((question) => normalizeQuizQuestion(question, config.defaultTime)).filter((question): question is QuizQuestion => question !== null)
+    ? data.questions.map((question, index) => normalizeQuizQuestion(question, config.defaultTime, `quiz-question-${index + 1}`)).filter((question): question is QuizQuestion => question !== null)
     : [];
   const variants = Array.isArray(data.variants)
     ? data.variants.slice(0, MAX_QUIZ_VARIANTS - 1).flatMap((variant, index): QuizVariant[] => {
@@ -140,15 +141,15 @@ function normalizeQuizData(value: unknown): QuizData {
         return [{
           id: typeof variant.id === "string" && variant.id ? variant.id : `variant-${index + 2}`,
           name: typeof variant.name === "string" && variant.name.trim() ? variant.name : `Вариант ${index + 2}`,
-          questions: variant.questions.map((question) => normalizeQuizQuestion(question, config.defaultTime)).filter((question): question is QuizQuestion => question !== null),
+          questions: variant.questions.map((question, questionIndex) => normalizeQuizQuestion(question, config.defaultTime, `quiz-variant-${index + 2}-question-${questionIndex + 1}`)).filter((question): question is QuizQuestion => question !== null),
         }];
       })
     : undefined;
-  return { config, questions: questions.length ? questions : [makeQuestion("choice", 100, config.defaultTime)], variants: variants?.length ? variants : undefined };
+  return { config, questions: questions.length ? questions : [makeQuestion("choice", 100, config.defaultTime, "quiz-initial-question")], variants: variants?.length ? variants : undefined };
 }
 
-function makeQuestion(type: QuizQuestionType, points = 100, time = 30): QuizQuestion {
-  const base = { id: newId(), type, q: "", image: "", options: [], answer: "", points, time };
+function makeQuestion(type: QuizQuestionType, points = 100, time = 30, id = newId()): QuizQuestion {
+  const base = { id, type, q: "", image: "", options: [], answer: "", points, time };
   if (type === "choice") return { ...base, options: ["", "", "", ""], answer: "" };
   if (type === "bool") return { ...base, answer: "true" };
   if (type === "matching") return { ...base, answer: JSON.stringify([{ left: "", right: "" }]) };
@@ -193,7 +194,7 @@ function BuilderQuiz() {
   const { id: urlId } = Route.useSearch();
   const navigate = useNavigate();
   const [config, setConfig] = useState<QuizConfig>(DEFAULT_QUIZ_CONFIG);
-  const [primaryQuestions, setPrimaryQuestions] = useState<QuizQuestion[]>([makeQuestion("choice")]);
+  const [primaryQuestions, setPrimaryQuestions] = useState<QuizQuestion[]>([makeQuestion("choice", 100, DEFAULT_QUIZ_CONFIG.defaultTime, "quiz-initial-question")]);
   const [extraVariants, setExtraVariants] = useState<QuizVariant[]>([]);
   const [activeVariantId, setActiveVariantId] = useState(PRIMARY_VARIANT_ID);
   const [variantMenuOpen, setVariantMenuOpen] = useState(false);
@@ -478,6 +479,7 @@ function BuilderQuiz() {
       setExtraVariants((current) => current.filter((variant) => variant.id !== id));
       if (activeVariantId === id) setActiveVariantId(PRIMARY_VARIANT_ID);
     }
+    setVariantMenuOpen(false);
     setCompare(null);
     if (allVariants.length === 2) setManageVariants(false);
     showToast("Вариант удалён");
@@ -485,13 +487,17 @@ function BuilderQuiz() {
 
   const variantNavigator = allVariants.length >= 2 && (
     <div className="relative mb-3 flex items-center gap-1" role="group" aria-label="Переключение вариантов">
-      <button type="button" className="btn-ghost h-9 w-9 p-0" aria-label="Предыдущий вариант" disabled={activeVariantIndex === 0} onClick={() => switchVariant(allVariants[activeVariantIndex - 1].id)}><ChevronLeft className="h-4 w-4" /></button>
-      <button type="button" className="btn-ghost min-w-0 flex-1 justify-center px-2 text-xs" aria-expanded={variantMenuOpen} onClick={() => setVariantMenuOpen((open) => !open)}>
+      <button type="button" className="btn-ghost inline-flex h-10 w-10 shrink-0 items-center justify-center p-0 leading-none" aria-label="Предыдущий вариант" disabled={activeVariantIndex === 0} onClick={() => switchVariant(allVariants[activeVariantIndex - 1].id)}><ChevronLeft className="h-4 w-4 shrink-0" /></button>
+      <button type="button" className="btn-ghost inline-flex h-10 min-w-0 flex-1 items-center justify-center px-2 text-xs leading-none" aria-expanded={variantMenuOpen} onClick={() => setVariantMenuOpen((open) => !open)}>
         <span className="truncate">Вариант {activeVariantIndex + 1} из {allVariants.length}</span>
       </button>
-      <button type="button" className="btn-ghost h-9 w-9 p-0" aria-label="Следующий вариант" disabled={activeVariantIndex === allVariants.length - 1} onClick={() => switchVariant(allVariants[activeVariantIndex + 1].id)}><ChevronRight className="h-4 w-4" /></button>
+      <button type="button" className="btn-ghost inline-flex h-10 w-10 shrink-0 items-center justify-center p-0 leading-none" aria-label="Следующий вариант" disabled={activeVariantIndex === allVariants.length - 1} onClick={() => switchVariant(allVariants[activeVariantIndex + 1].id)}><ChevronRight className="h-4 w-4 shrink-0" /></button>
       {variantMenuOpen && <div className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-border bg-surface shadow-lift">
-        {allVariants.map((variant, index) => <button key={variant.id} type="button" className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-surface-muted ${variant.id === activeVariantId ? "bg-primary-soft text-primary" : ""}`} onClick={() => switchVariant(variant.id)}><span>{variant.name}</span><span>{variant.questions.length}</span></button>)}
+        {allVariants.map((variant) => <div key={variant.id} className={`flex items-center gap-2 px-3 py-1 ${variant.id === activeVariantId ? "bg-primary-soft text-primary" : ""}`}>
+          <button type="button" className="min-w-0 flex-1 py-2 text-left text-xs hover:underline" onClick={() => switchVariant(variant.id)}><span className="block truncate">{variant.name}</span></button>
+          <span className="shrink-0 text-xs text-muted-foreground">{variant.questions.length}</span>
+          <button type="button" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-danger hover:bg-danger-soft" aria-label={`Удалить ${variant.name}`} title={`Удалить ${variant.name}`} onClick={(event) => { event.stopPropagation(); removeVariant(variant.id); }}><Trash2 className="h-4 w-4 shrink-0" /></button>
+        </div>)}
         <div className="border-t border-border p-1">
           <button type="button" disabled={allVariants.length >= MAX_QUIZ_VARIANTS} className="w-full rounded-lg px-2 py-2 text-left text-xs font-semibold hover:bg-surface-muted disabled:opacity-50" onClick={() => { setVariantMenuOpen(false); setCreateVariantOpen(true); }}>+ Новый вариант</button>
           <button type="button" className="w-full rounded-lg px-2 py-2 text-left text-xs font-semibold hover:bg-surface-muted" onClick={() => { setVariantMenuOpen(false); setManageVariants(true); }}>Управление вариантами</button>
@@ -506,8 +512,10 @@ function BuilderQuiz() {
       <button type="button" className="mb-2 flex items-center gap-1 text-xs font-semibold text-primary" onClick={() => setManageVariants(false)}><ChevronLeft className="h-4 w-4" /> Вопросы</button>
       <p className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Варианты</p>
       {allVariants.map((variant) => <div key={variant.id} className={`rounded-xl border p-3 ${variant.id === activeVariantId ? "border-primary bg-primary-soft" : "border-border"}`}>
-        <button type="button" className="w-full text-left" aria-current={variant.id === activeVariantId ? "true" : undefined} onClick={() => { switchVariant(variant.id); setManageVariants(false); }}><span className="block text-sm font-bold">{variant.name}</span><span className="text-xs text-muted-foreground">{variant.questions.length} вопросов{variant.id === activeVariantId ? " · текущий" : ""}</span></button>
-        <button type="button" className="mt-2 text-xs font-semibold text-danger" onClick={() => removeVariant(variant.id)}>Удалить</button>
+        <div className="flex items-start gap-2">
+          <button type="button" className="min-w-0 flex-1 text-left" aria-current={variant.id === activeVariantId ? "true" : undefined} onClick={() => { switchVariant(variant.id); setManageVariants(false); }}><span className="block text-sm font-bold">{variant.name}</span><span className="text-xs text-muted-foreground">{variant.questions.length} вопросов{variant.id === activeVariantId ? " · текущий" : ""}</span></button>
+          <button type="button" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-danger hover:underline" aria-label={`Удалить ${variant.name}`} title={`Удалить ${variant.name}`} onClick={() => removeVariant(variant.id)}><Trash2 className="h-3.5 w-3.5 shrink-0" />Удалить</button>
+        </div>
       </div>)}
       <button type="button" className="btn-ghost w-full justify-center" disabled={allVariants.length >= MAX_QUIZ_VARIANTS} onClick={() => setCreateVariantOpen(true)}>+ Новый вариант</button>
       <button type="button" className="btn-ghost hidden w-full justify-center lg:flex" onClick={() => setCompare({ referenceId: allVariants[0].id, editableId: allVariants[1].id })}>Сравнить варианты</button>
@@ -847,8 +855,8 @@ function BuilderQuiz() {
       </>}
 
       {createVariantOpen && <div className="fixed inset-0 z-[70] grid place-items-center bg-foreground/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="create-variant-title">
-        <div className="w-full max-w-lg rounded-3xl bg-surface p-6 shadow-lift">
-          <div className="flex items-start justify-between gap-4"><div><h2 id="create-variant-title" className="font-display text-xl font-bold">Новый вариант</h2><p className="mt-1 text-sm text-muted-foreground">Создайте независимый набор вопросов.</p></div><button type="button" className="btn-ghost h-10 w-10 p-0" aria-label="Закрыть" disabled={creatingAI} onClick={() => setCreateVariantOpen(false)}>×</button></div>
+        <div className="relative w-full max-w-lg rounded-3xl bg-surface p-6 shadow-lift">
+          <div className="pr-12"><h2 id="create-variant-title" className="font-display text-xl font-bold">Новый вариант</h2><p className="mt-1 text-sm text-muted-foreground">Создайте независимый набор вопросов.</p></div><button type="button" className="btn-ghost absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center p-0 leading-none" aria-label="Закрыть" title="Закрыть" disabled={creatingAI} onClick={() => setCreateVariantOpen(false)}><X className="h-4 w-4 shrink-0" /></button>
           <div className="mt-5 grid gap-3">
             <button type="button" className="rounded-2xl border border-border p-4 text-left hover:border-primary hover:bg-primary-soft" onClick={addBlankVariant}><span className="block font-bold">Пустой вариант</span><span className="mt-1 block text-xs text-muted-foreground">Открыть обычный Builder и заполнить самостоятельно.</span></button>
             <button type="button" className="rounded-2xl border border-amber-300 p-4 text-left hover:bg-amber-50 disabled:opacity-60" disabled={creatingAI || !questions.length} onClick={() => void addAIVariant()}><span className="block font-bold">{creatingAI ? "AI создаёт вариант…" : "Похожий с AI ✦"}</span><span className="mt-1 block text-xs text-muted-foreground">Создать полный аналог текущей работы с новыми заданиями.</span></button>
@@ -898,18 +906,18 @@ function MobileQuestionNavigator({
             disabled={activeIndex === 0}
             onClick={() => onSelect(activeIndex - 1)}
             aria-label="Предыдущий вопрос"
-            className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-surface-muted disabled:opacity-30"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg p-0 leading-none text-muted-foreground hover:bg-surface-muted disabled:opacity-30"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4 shrink-0" />
           </button>
           <button
             type="button"
             disabled={activeIndex === questions.length - 1}
             onClick={() => onSelect(activeIndex + 1)}
             aria-label="Следующий вопрос"
-            className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-surface-muted disabled:opacity-30"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg p-0 leading-none text-muted-foreground hover:bg-surface-muted disabled:opacity-30"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 shrink-0" />
           </button>
         </div>
       </div>

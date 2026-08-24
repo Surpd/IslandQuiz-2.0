@@ -8,12 +8,14 @@ import {
   Scripts,
   useLocation,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "../hooks/use-auth";
 import { MobileBottomNav } from "../components/mobile-bottom-nav";
+
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 function NotFoundComponent() {
   return (
@@ -130,6 +132,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const [hydrated, setHydrated] = useState(false);
   const { pathname } = useLocation();
   const hideFooter = pathname === "/login" || pathname === "/register" || pathname.startsWith("/profile");
   const immersiveRuntime =
@@ -154,10 +157,15 @@ function RootComponent() {
     pathname === "/admin"
   );
 
+  useIsomorphicLayoutEffect(() => {
+    setHydrated(true);
+    document.documentElement.dataset.appHydrated = "true";
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <div className={showMobileNav ? "pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0" : undefined}>
+        <div data-app-hydrated={hydrated ? "true" : "false"} className={showMobileNav ? "pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0" : undefined}>
           <Outlet />
         </div>
         {!hideFooter && (

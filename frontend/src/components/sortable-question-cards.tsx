@@ -40,7 +40,7 @@ export function SortableQuestionCards({ items, onReorder, renderItem }: Sortable
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext id="quiz-question-cards-dnd" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((q) => q.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-4">
           {items.map((item, index) => (

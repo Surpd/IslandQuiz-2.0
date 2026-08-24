@@ -196,8 +196,9 @@ export function BuilderSettingsSection({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg p-0 leading-none text-muted-foreground hover:bg-surface-muted hover:text-foreground"
             aria-label="Закрыть настройки"
+            title="Закрыть настройки"
           >
             <X className="h-4 w-4" />
           </button>

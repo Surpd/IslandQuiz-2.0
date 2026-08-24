@@ -8,6 +8,11 @@ export default defineConfig({
   },
   vite: {
     plugins: [], // Оставляем массив пустым!
+    server: {
+      warmup: {
+        clientFiles: ["./src/routes/__root.tsx", "./src/routes/builder.quiz.tsx"],
+      },
+    },
     build: {
       rollupOptions: {
         output: {

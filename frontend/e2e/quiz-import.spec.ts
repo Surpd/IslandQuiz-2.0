@@ -23,6 +23,7 @@ type ImportResult = {
   ok: boolean;
   error?: string;
   questions?: ImportedQuestion[];
+  variants?: { id: string; name: string; questions: ImportedQuestion[] }[];
 };
 
 function makeXlsx(rows: unknown[][], options: { v2?: boolean; metadata?: boolean } = {}): Buffer {
@@ -60,10 +61,12 @@ async function importBuffer(page: Page, name: string, buffer: Buffer): Promise<I
       const { importQuizXlsx } = await import("/src/lib/exports.ts");
       try {
         const file = new File([new Uint8Array(bytes)], fileName);
-        const questions = await importQuizXlsx(file, 30);
+        const imported = await importQuizXlsx(file, 30);
+        const normalize = (questions: typeof imported.questions) => questions.map(({ id: _id, image: _image, ...question }) => question);
         return {
           ok: true,
-          questions: questions.map(({ id: _id, image: _image, ...question }) => question),
+          questions: normalize(imported.questions),
+          variants: imported.variants?.map((variant) => ({ ...variant, questions: normalize(variant.questions) })),
         };
       } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : String(error) };

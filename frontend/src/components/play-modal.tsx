@@ -22,6 +22,7 @@ export function PlayModal({
   const [quizData, setQuizData] = useState<QuizData | null>(null);
   const [variantId, setVariantId] = useState(PRIMARY_VARIANT_ID);
   const variants = quizData ? quizVariants(quizData) : [];
+  const selectedVariantId = variants.length >= 2 ? variantId : undefined;
 
   useEffect(() => {
     if (kind !== "quiz") return;
@@ -32,7 +33,7 @@ export function PlayModal({
     setError(null);
     setLoading(true);
     try {
-      const { code } = await createRoom(kind, gameId, theme, kind === "quiz" ? variantId : undefined);
+      const { code } = await createRoom(kind, gameId, theme, kind === "quiz" ? selectedVariantId : undefined);
       window.open(`/room/${code}`, "_blank", "noopener");
       onClose();
     } catch (err) {
@@ -44,7 +45,7 @@ export function PlayModal({
   };
 
   if (hostView) {
-    return <OfflineHostView gameId={gameId} kind={kind} theme={theme} variantId={kind === "quiz" ? variantId : undefined} onClose={onClose} />;
+    return <OfflineHostView gameId={gameId} kind={kind} theme={theme} variantId={kind === "quiz" ? selectedVariantId : undefined} onClose={onClose} />;
   }
 
   return (

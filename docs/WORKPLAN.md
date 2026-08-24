@@ -4,12 +4,12 @@
 
 ## Current position
 
-Основной demo-flow работает. Подтверждены Playwright **41/41**, TypeScript pass и backend **133/133**.
+Основной demo-flow работает. Подтверждены Playwright **58/58**, TypeScript/build pass и backend **159/159**.
 
 ## Ordered execution plan
 
 0. **P9 — расширенная AI-генерация Quiz — DONE:** full-generation `close/ordering` payload корректно применяется в Builder; advanced modal адаптирован для desktop two-column и mobile 2×3 layout; manual distribution получает один corrective retry после model mismatch.
-0. **P10 — варианты Quiz — IN_PROGRESS:** функциональная реализация для четырёх независимых наборов в backward-compatible `games.data` готова; до `DONE` остаётся стабилизировать и завершить обязательное E2E-покрытие удаления, save/reopen, copy/fork, XLSX round-trip, AI failure safety, player/PDF selection и compare mode.
+0. **P10 — варианты Quiz — DONE:** четыре независимых набора хранятся backward-compatible внутри `games.data`; targeted и полный Playwright regression gate, включая runtime selection, import/export и legacy single-variant flows, пройдены.
 1. **H6.1 — controlled rollback rehearsal:** проверить exact-SHA recovery procedure и health gates с owner approval; не делать реальный rollback только ради теста.
 2. **M9 — external monitoring:** выбрать реальный notification provider/credentials и настроить alerts поверх существующих request IDs, 5xx summary, health endpoint и deployment gates.
 3. **M6/M11 — DB integrity/RPC hardening:** провести targeted orphan/FK/cascade audit и согласовать additive-safe policy.

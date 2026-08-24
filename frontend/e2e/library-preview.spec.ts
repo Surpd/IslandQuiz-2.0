@@ -172,7 +172,7 @@ test("Library preview respects show_answers and renders all game kinds", async (
 
   await page.goto("/library");
   await expect(page.getByRole("heading", { name: "Preview Quiz" })).toBeVisible();
-  await expect(page.getByText("2 варианта", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Preview Quiz/ }).getByText("2 варианта", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Просмотреть Preview Quiz" }).click();
   const dialog = page.getByRole("dialog", { name: "Предпросмотр Preview Quiz" });
   await expect(dialog).toBeVisible();
