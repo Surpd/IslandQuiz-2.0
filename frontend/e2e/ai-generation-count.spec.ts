@@ -29,7 +29,12 @@ function generatedQuestions(count: number) {
   }));
 }
 
-async function installApi(context: BrowserContext, counts: number[], payloads: Record<string, unknown>[] = []) {
+async function installApi(
+  context: BrowserContext,
+  counts: number[],
+  payloads: Record<string, unknown>[] = [],
+  generatedResponse?: { title: string; questions: unknown[] },
+) {
   await context.route(`${apiOrigin}/**`, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -65,7 +70,7 @@ async function installApi(context: BrowserContext, counts: number[], payloads: R
       payloads.push(payload);
       return json(route, {
         title: "Generated quiz",
-        questions: generatedQuestions(payload.count ?? 0),
+        questions: generatedResponse?.questions ?? generatedQuestions(payload.count ?? 0),
       });
     }
 
@@ -199,6 +204,29 @@ test("advanced mode starts from automatic distribution and sends manual counts",
   });
 });
 
+test("full generation maps close answers and ordering options into Builder data", async ({ page }) => {
+  const response = {
+    title: "All types",
+    questions: [
+      { type: "choice", difficulty: "medium", question: "Choice?", options: ["A", "B", "C", "D"], correct: 0 },
+      { type: "bool", difficulty: "medium", question: "True?", correct: true },
+      { type: "text", difficulty: "medium", question: "Text?", correctAnswer: "Answer" },
+      { type: "matching", difficulty: "medium", question: "Match", pairs: [{ left: "A", right: "1" }, { left: "B", right: "2" }, { left: "C", right: "3" }] },
+      { type: "close", difficulty: "medium", question: "A ___ B ___", correctAnswer: "one|two" },
+      { type: "ordering", difficulty: "medium", question: "Order", options: ["First", "Second", "Third"] },
+    ],
+  };
+  await installApi(page.context(), [], [], response);
+  const { modal, count } = await openGenerator(page);
+  await count.fill("6");
+  await modal.getByRole("button", { name: "Сгенерировать", exact: true }).click();
+
+  await expect.poll(async () => page.locator("input").evaluateAll((inputs) => inputs.some((input) => (input as HTMLInputElement).value === "one"))).toBe(true);
+  await expect.poll(async () => page.locator("input").evaluateAll((inputs) => inputs.some((input) => (input as HTMLInputElement).value === "two"))).toBe(true);
+  await expect.poll(async () => page.locator("input").evaluateAll((inputs) => inputs.some((input) => (input as HTMLInputElement).value === "First"))).toBe(true);
+  await expect.poll(async () => page.locator("input").evaluateAll((inputs) => inputs.some((input) => (input as HTMLInputElement).value === "Third"))).toBe(true);
+});
+
 test("generator closes with Escape and reopens in quick mode", async ({ page }) => {
   await installApi(page.context(), []);
   const { modal } = await openGenerator(page);
@@ -224,6 +252,19 @@ test("advanced controls enforce total limits and restore automatic distribution"
   await expect(modal.getByLabel("Порядок: 0")).toBeVisible();
 });
 
+test("advanced desktop modal expands into a two-column composition", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await installApi(page.context(), []);
+  const { modal } = await openGenerator(page);
+  await modal.getByRole("button", { name: "Настроить типы" }).click();
+  const dialog = modal.getByRole("dialog");
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThanOrEqual(760);
+  await expect(dialog.getByText("Добавить материал").first()).toBeVisible();
+  await expect(dialog.getByText("Типы вопросов")).toBeVisible();
+});
+
 test("advanced mobile layout uses a compact picker without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await installApi(page.context(), []);
@@ -242,3 +283,19 @@ test("advanced mobile layout uses a compact picker without horizontal overflow",
   const overflow = await modal.evaluate((element) => element.scrollWidth - element.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+for (const width of [375, 390]) {
+  test(`advanced mobile layout stays usable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 760 });
+    await installApi(page.context(), []);
+    const { modal } = await openGenerator(page);
+    await modal.getByRole("button", { name: "Настроить типы" }).click();
+    const plus = modal.getByRole("button", { name: "Увеличить количество: Порядок" });
+    await expect(plus).toBeVisible();
+    const box = await plus.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(await modal.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0);
+  });
+}

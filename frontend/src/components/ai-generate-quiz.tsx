@@ -21,13 +21,13 @@ const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
 const MIN_QUESTION_COUNT = 5;
 const MAX_QUESTION_COUNT = 20;
 const QUESTION_COUNT_ERROR = "Количество вопросов должно быть от 5 до 20.";
-const QUESTION_TYPES: { type: GeneratedQuizQuestion["type"]; label: string }[] = [
-  { type: "choice", label: "Выбор ответа" },
-  { type: "bool", label: "Правда / Ложь" },
-  { type: "text", label: "Текстовый ответ" },
-  { type: "matching", label: "Соответствие" },
-  { type: "close", label: "Заполнить пропуск" },
-  { type: "ordering", label: "Порядок" },
+const QUESTION_TYPES: { type: GeneratedQuizQuestion["type"]; label: string; mobileLabel: string }[] = [
+  { type: "choice", label: "Выбор ответа", mobileLabel: "Выбор" },
+  { type: "bool", label: "Правда / Ложь", mobileLabel: "Да / Нет" },
+  { type: "text", label: "Текстовый ответ", mobileLabel: "Текст" },
+  { type: "matching", label: "Соответствие", mobileLabel: "Пары" },
+  { type: "close", label: "Заполнить пропуск", mobileLabel: "Пропуски" },
+  { type: "ordering", label: "Порядок", mobileLabel: "Порядок" },
 ];
 
 function parseQuestionCount(value: string): number | null {
@@ -305,7 +305,7 @@ export function AIGenerateQuizButton({
               role="dialog"
               aria-modal="true"
               aria-labelledby="ai-generate-quiz-title"
-              className="max-h-[calc(100dvh-1rem)] w-full max-w-md animate-fade-up overflow-y-auto rounded-t-3xl bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-lift md:max-h-[calc(100dvh-2rem)] md:rounded-3xl md:p-5"
+              className={`max-h-[calc(100dvh-1rem)] w-full animate-fade-up overflow-y-auto rounded-t-3xl bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-lift md:max-h-[calc(100dvh-2rem)] md:rounded-3xl md:p-5 ${mode === "advanced" ? "md:max-w-[50rem]" : "md:max-w-md"}`}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between">
@@ -349,12 +349,13 @@ export function AIGenerateQuizButton({
                 </button>
               </div>
 
+              <div className={mode === "advanced" ? "md:grid md:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)] md:gap-x-6 md:gap-y-1" : undefined}>
               {/* ============================
                   Файл
               ============================ */}
 
               <div
-                className={`hidden rounded-xl border-2 border-dashed p-5 text-center transition-colors md:block ${
+                className={`${mode === "advanced" ? "md:col-start-1 md:row-start-1 md:flex md:min-h-14 md:items-center md:border md:border-solid md:p-3 md:text-left" : "md:block md:p-5 md:text-center"} hidden rounded-xl border-2 border-dashed transition-colors ${
                   dragOver
                     ? "border-primary bg-primary-soft"
                     : "border-border-strong"
@@ -393,6 +394,23 @@ export function AIGenerateQuizButton({
                       ✕
                     </button>
                   </div>
+                ) : mode === "advanced" ? (
+                  <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                    <Upload className="h-5 w-5 shrink-0 text-primary" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold">Добавить материал</span>
+                      <span className="block text-[11px] text-muted-foreground">PDF, DOCX, TXT, MD · до 10 МБ</span>
+                    </span>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.txt,.md"
+                      className="hidden"
+                      onChange={(e) => {
+                        const selected = e.target.files?.[0];
+                        if (selected) handleFile(selected);
+                      }}
+                    />
+                  </label>
                 ) : (
                   <>
                     <Upload className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
@@ -464,7 +482,7 @@ export function AIGenerateQuizButton({
                   Разделитель
               ============================ */}
 
-              <div className="my-4 flex items-center gap-2">
+              <div className={mode === "advanced" ? "hidden" : "my-4 flex items-center gap-2"}>
                 <div className="flex-1 border-t border-border" />
 
                 <span className="text-xs text-muted-foreground">
@@ -478,7 +496,7 @@ export function AIGenerateQuizButton({
                   Тема
               ============================ */}
 
-              <label className="mb-3 block">
+              <label className={`mb-3 block ${mode === "advanced" ? "md:col-start-1 md:row-start-2" : ""}`}>
                 <span className="mb-1 block text-xs font-semibold text-muted-foreground">
                   Тема
                 </span>
@@ -533,7 +551,7 @@ export function AIGenerateQuizButton({
                   {countError ?? "От 5 до 20 вопросов."}
                 </span>
               </label> : (
-                <section className="mb-3" aria-labelledby="ai-type-distribution-title">
+                <section className={`mb-3 ${mode === "advanced" ? "md:col-start-2 md:row-start-1 md:row-span-4" : ""}`} aria-labelledby="ai-type-distribution-title">
                   <div className="mb-1 flex items-center justify-between gap-3">
                     <span id="ai-type-distribution-title" className="text-xs font-semibold text-muted-foreground">
                       Типы вопросов
@@ -547,11 +565,11 @@ export function AIGenerateQuizButton({
                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
                     </div>
                   ) : distribution ? (
-                    <div className="divide-y divide-border rounded-xl border border-border px-3">
-                      {QUESTION_TYPES.map(({ type, label }) => (
-                        <div key={type} className="flex min-h-12 items-center gap-2 py-1">
-                          <span className="min-w-0 flex-1 text-sm font-medium">{label}</span>
-                          <div className="flex shrink-0 items-center gap-1">
+                    <div className="grid grid-cols-2 gap-2 rounded-xl border border-border p-2 md:block md:divide-y md:px-3 md:py-0">
+                      {QUESTION_TYPES.map(({ type, label, mobileLabel }) => (
+                        <div key={type} className="flex min-h-[4.75rem] flex-col items-stretch justify-between gap-1 rounded-lg border border-border px-2 py-1.5 md:flex-row md:items-center md:gap-2 md:rounded-none md:border-0 md:py-1">
+                          <span className="min-w-0 text-xs font-semibold md:flex-1 md:text-sm"><span className="hidden md:inline">{label}</span><span className="md:hidden">{mobileLabel}</span></span>
+                          <div className="flex shrink-0 items-center justify-between gap-1 md:justify-end">
                             <button
                               type="button"
                               onClick={() => adjustType(type, -1)}
@@ -573,7 +591,7 @@ export function AIGenerateQuizButton({
                             >
                               <Plus className="h-4 w-4" />
                             </button>
-                          </div>
+                  </div>
                         </div>
                       ))}
                     </div>
@@ -594,7 +612,7 @@ export function AIGenerateQuizButton({
                   Сложность
               ============================ */}
 
-              <label className="mb-3 block">
+              <label className={`mb-3 block ${mode === "advanced" ? "md:col-start-1 md:row-start-3" : ""}`}>
                 <span className="mb-1 block text-xs font-semibold text-muted-foreground">
                   Сложность
                 </span>
@@ -621,7 +639,7 @@ export function AIGenerateQuizButton({
                   Пожелания
               ============================ */}
 
-              <label className="mb-3 block">
+              <label className={`mb-3 block ${mode === "advanced" ? "md:col-start-1 md:row-start-4" : ""}`}>
                 <span className="mb-1 block text-xs font-semibold text-muted-foreground">
                   Пожелания
                 </span>
@@ -633,6 +651,8 @@ export function AIGenerateQuizButton({
                   placeholder="для 7 класса, с юмором, без сложных терминов…"
                 />
               </label>
+
+              </div>
 
               {/* ============================
                   Ошибка

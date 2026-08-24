@@ -204,7 +204,7 @@ Historical telemetry неполна: старые `ai_usage` rows могут н�
 - `AIHelperButton` вызывает single/improve endpoints и показывает варианты.
 - `AIGenerateQuizButton` вызывает full quiz endpoint или напрямую загружает файл в `/api/ai/generate-from-file`.
 - `AIJeopardyCategoryButton` связывает builder с category/question endpoints.
-- Builder преобразует AI shape (`question`, `correct`, `correctAnswer`, `pairs`) в локальный `QuizQuestion` shape (`q`, `answer`, `options`).
+- Builder преобразует AI shape (`question`, `correct`, `correctAnswer`, `pairs`, `options`) в локальный `QuizQuestion` shape (`q`, `answer`, `options`). Для `close` pipe-delimited `correctAnswer` сериализуется в JSON-массив ответов, для `ordering` canonical `options` сериализуются в JSON-массив правильного порядка. Это единое преобразование используется full-generation и Improve.
 
 ## Расхождения со старой документацией
 

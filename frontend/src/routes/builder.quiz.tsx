@@ -29,6 +29,7 @@ import { LIMITS } from "@/lib/limits";
 import { ImageDrop } from "@/lib/image-drop";
 import { newId } from "@/lib/storage";  // генерация id
 import { loadGame, saveGame, deleteGame } from "@/lib/api";    // загрузка игры с бэкенда
+import type { GeneratedQuizQuestion } from "@/lib/api";
 import { useAutoDraft, useDraftPrompt, clearDraft } from "@/hooks/use-draft";
 import { DraftBanner } from "@/components/draft-banner";
 import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSection, GamePermissionSettings } from "@/components/builder-actions";
@@ -140,6 +141,11 @@ function makeQuestion(type: QuizQuestionType, points = 100, time = 30): QuizQues
   if (type === "close") return { ...base, answer: JSON.stringify([""]) };
   if (type === "ordering") return { ...base, answer: JSON.stringify(["", "", ""]) };
   return base;
+}
+
+function serializeCloseAnswer(answer: string | undefined): string {
+  const values = answer?.split("|").map((value) => value.trim()).filter(Boolean) ?? [];
+  return JSON.stringify(values.length ? values : [""]);
 }
 
 function BuilderQuiz() {
@@ -375,7 +381,7 @@ function BuilderQuiz() {
   );
 
 
-  const applyGeneratedQuiz = (result: { title: string; questions: import("@/lib/api").GeneratedQuizQuestion[] }) => {
+  const applyGeneratedQuiz = (result: { title: string; questions: GeneratedQuizQuestion[] }) => {
     const generatedQuestions = Array.isArray(result.questions) ? result.questions : [];
     if (!generatedQuestions.length) {
       showToast("AI не вернул вопросы квиза");
@@ -439,7 +445,7 @@ function BuilderQuiz() {
           q: g.question,
           image: "",
           options: [],
-          answer: g.correctAnswer ?? "[]",
+          answer: serializeCloseAnswer(g.correctAnswer),
           points: 100,
           time: config.defaultTime,
         };
@@ -451,7 +457,7 @@ function BuilderQuiz() {
           q: g.question,
           image: "",
           options: [],
-          answer: g.correctAnswer ?? "[]",
+          answer: JSON.stringify(g.options ?? []),
           points: 100,
           time: config.defaultTime,
         };
@@ -940,8 +946,7 @@ function QuestionCard({
                 patch.answer = JSON.stringify(v.pairs);
               }
               if (question.type === "close" && v.correctAnswer) {
-                const arr = v.correctAnswer.split("|").map((s) => s.trim()).filter(Boolean);
-                patch.answer = JSON.stringify(arr.length ? arr : [v.correctAnswer]);
+                patch.answer = serializeCloseAnswer(v.correctAnswer);
               }
               if (question.type === "ordering" && v.options) {
                 patch.answer = JSON.stringify(v.options);
