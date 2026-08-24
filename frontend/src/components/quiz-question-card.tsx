@@ -65,17 +65,20 @@ export function QuizQuestionCard({
             const selected = value === opt;
             const isCorrect = reveal && opt === question.answer;
             const isWrong = reveal && selected && opt !== question.answer;
+            const answerState = isCorrect ? "correct" : isWrong ? "incorrect" : selected ? "selected" : "default";
             return (
               <button
                 key={i}
                 type="button"
                 disabled={disabled}
+                aria-pressed={selected}
+                data-answer-state={answerState}
                 onClick={() => {
                   if (disabled) return;
                   onClickSound?.();
                   onChange(opt);
                 }}
-                className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left transition-all ${
+                className={`player-answer player-answer--${answerState} flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left transition-all ${
                   isCorrect
                     ? "border-success bg-success/20"
                     : isWrong
@@ -85,7 +88,7 @@ export function QuizQuestionCard({
                         : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] hover:border-[color:var(--pt-accent)]"
                 } ${disabled && !projector ? "cursor-not-allowed" : ""}`}
               >
-                <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-[color:var(--pt-accent)] text-sm font-bold text-black">
+                <span className="player-answer__badge grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-[color:var(--pt-accent)] text-sm font-bold text-black">
                   {String.fromCharCode(65 + i)}
                 </span>
                 <span className={`min-w-0 break-words ${fitOptionSize(opt)}`}><LaTeX>{opt}</LaTeX></span>
@@ -101,16 +104,19 @@ export function QuizQuestionCard({
             const selected = value === v;
             const isCorrect = reveal && v === question.answer;
             const isWrong = reveal && selected && v !== question.answer;
+            const answerState = isCorrect ? "correct" : isWrong ? "incorrect" : selected ? "selected" : "default";
             return (
               <button
                 key={v}
                 disabled={disabled}
+                aria-pressed={selected}
+                data-answer-state={answerState}
                 onClick={() => {
                   if (disabled) return;
                   onClickSound?.();
                   onChange(v);
                 }}
-                className={`rounded-xl border-2 px-4 py-6 text-lg font-bold transition-all ${
+                className={`player-answer player-answer--${answerState} rounded-xl border-2 px-4 py-6 text-lg font-bold transition-all ${
                   isCorrect
                     ? "border-success bg-success/20 text-success"
                     : isWrong

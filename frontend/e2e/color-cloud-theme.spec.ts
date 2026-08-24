@@ -63,6 +63,7 @@ test("Classic uses the Color Cloud visual and stays readable and contained", asy
   await page.goto("/play/quiz/color-cloud-e2e?theme=classic");
   await expect(page.locator('[data-scope="player"].pt-classic')).toBeVisible();
   await expect(page.locator(".theme-layer")).toHaveCount(9);
+  await expect(page.getByRole("heading", { name: "Color Cloud E2E" })).toBeVisible();
 
   const initialMetrics = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
@@ -70,7 +71,13 @@ test("Classic uses the Color Cloud visual and stays readable and contained", asy
   }));
   expect(initialMetrics.scrollWidth).toBeLessThanOrEqual(initialMetrics.clientWidth);
 
+  const snapshotResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/api/games/color-cloud-e2e/play-snapshot"),
+  );
   await page.getByRole("button", { name: /Начать/ }).click();
+  await expect((await snapshotResponse).status()).toBe(200);
   await expect(page.getByText("Which answer is correct?")).toBeVisible();
   await expect(page.locator("button.border-2")).toHaveCount(4);
 

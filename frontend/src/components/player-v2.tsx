@@ -295,12 +295,13 @@ function QuestionCard({ question, value, onChange, feedback, config }: {
             const selected = value === opt;
             const isCorrect = config.showResult === "each" && feedback && opt === question.answer;
             const isWrong = config.showResult === "each" && feedback === "wrong" && selected && opt !== question.answer;
+            const answerState = isCorrect ? "correct" : isWrong ? "incorrect" : selected ? "selected" : "default";
             return (
-              <button key={i} type="button" disabled={feedback !== null} onClick={() => onChange(opt)}
-                className={`flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left transition-all ${
+              <button key={i} type="button" disabled={feedback !== null} aria-pressed={selected} data-answer-state={answerState} onClick={() => onChange(opt)}
+                className={`player-answer player-answer--${answerState} flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left transition-all ${
                   isCorrect ? "border-success bg-success/20" : isWrong ? "border-danger bg-danger/20" :
                   selected ? "border-[color:var(--pt-accent)] bg-white/10" : "border-white/15 bg-white/5 hover:border-[color:var(--pt-accent)]"}`}>
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-[color:var(--pt-accent)] text-sm font-bold text-black">{String.fromCharCode(65 + i)}</span>
+                <span className="player-answer__badge grid h-9 w-9 place-items-center rounded-full bg-[color:var(--pt-accent)] text-sm font-bold text-black">{String.fromCharCode(65 + i)}</span>
                 <span className={`min-w-0 break-words ${fitOptionSize(opt)}`}><LaTeX>{opt}</LaTeX></span>
               </button>
             );
@@ -310,14 +311,18 @@ function QuestionCard({ question, value, onChange, feedback, config }: {
 
       {question.type === "bool" && (
         <div className="grid grid-cols-2 gap-3">
-          {(["true", "false"] as const).map(v => (
-            <button key={v} disabled={feedback !== null} onClick={() => onChange(v)}
-              className={`rounded-xl border-2 px-4 py-6 text-lg font-bold ${
+          {(["true", "false"] as const).map(v => {
+            const selected = value === v;
+            const answerState = selected ? "selected" : "default";
+            return (
+            <button key={v} disabled={feedback !== null} aria-pressed={selected} data-answer-state={answerState} onClick={() => onChange(v)}
+              className={`player-answer player-answer--${answerState} rounded-xl border-2 px-4 py-6 text-lg font-bold ${
                 value === v ? v === "true" ? "border-success bg-success/20 text-success" : "border-danger bg-danger/20 text-danger" :
                 "border-white/15 bg-white/5"}`}>
               {v === "true" ? "✓ Правда" : "✕ Ложь"}
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
 

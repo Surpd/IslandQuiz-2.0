@@ -118,6 +118,12 @@
   --pt-accent: #ff9d00;
   --pt-accent-2: #e8c547;
   --pt-glow: 0 0 60px -10px rgba(255, 157, 0, 0.5);
+  --pt-answer-selected-bg: color-mix(in srgb, var(--pt-accent) 22%, var(--pt-surface-strong));
+  --pt-answer-selected-border: var(--pt-accent);
+  --pt-answer-selected-badge: var(--pt-accent);
+  --pt-answer-selected-badge-text: #111827;
+  --pt-answer-selected-text: var(--pt-text);
+  --pt-answer-selected-shadow: 0 0 0 2px color-mix(in srgb, var(--pt-accent) 18%, transparent), 0 10px 24px -18px color-mix(in srgb, var(--pt-accent) 72%, transparent);
 }
 
 /* ============================================================
@@ -144,6 +150,12 @@
   --pt-accent: #a78bfa;
   --pt-accent-2: #7c9cff;
   --pt-glow: 0 0 60px -10px rgba(167, 139, 250, 0.55);
+  --pt-answer-selected-bg: rgba(129, 140, 248, 0.26);
+  --pt-answer-selected-border: #c4b5fd;
+  --pt-answer-selected-badge: #c4b5fd;
+  --pt-answer-selected-badge-text: #16112d;
+  --pt-answer-selected-text: #f3f0ff;
+  --pt-answer-selected-shadow: 0 0 0 2px rgba(196, 181, 253, 0.2), 0 0 22px -10px rgba(129, 140, 248, 0.8);
 }
 .pt-classic {
   --pt-bg: #fbf7f0;
@@ -155,6 +167,12 @@
   --pt-accent: #bd6d58;
   --pt-accent-2: #9289bd;
   --pt-glow: 0 18px 46px -32px rgba(119, 79, 60, 0.42);
+  --pt-answer-selected-bg: rgba(223, 142, 119, 0.22);
+  --pt-answer-selected-border: #a95745;
+  --pt-answer-selected-badge: #a95745;
+  --pt-answer-selected-badge-text: #fffaf5;
+  --pt-answer-selected-text: #2f2930;
+  --pt-answer-selected-shadow: 0 0 0 2px rgba(189, 109, 88, 0.16), 0 10px 24px -18px rgba(119, 79, 60, 0.72);
 }
 .pt-ocean {
   --pt-bg: radial-gradient(ellipse at center, #0d3b52 0%, #051f2e 70%, #030f18 100%);
@@ -1033,6 +1051,57 @@ html.formula-keyboard-open {
 .theme-scene[data-reduced-motion="true"] .theme-event,
 .theme-scene[data-reduced-motion="true"] .theme-star {
   animation: none !important;
+}
+
+[data-scope="player"] .player-answer {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+[data-scope="player"] button[data-answer-state="selected"] {
+  background-color: color-mix(in srgb, var(--pt-accent) 22%, var(--pt-surface-strong)) !important;
+  border-color: var(--pt-accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pt-accent) 18%, transparent), 0 10px 24px -18px color-mix(in srgb, var(--pt-accent) 72%, transparent) !important;
+  color: var(--pt-text) !important;
+  transform: scale(1.005);
+}
+
+[data-scope="player"].pt-classic button[data-answer-state="selected"] {
+  background-color: rgba(223, 142, 119, 0.22) !important;
+  border-color: #a95745 !important;
+  box-shadow: 0 0 0 2px rgba(189, 109, 88, 0.16), 0 10px 24px -18px rgba(119, 79, 60, 0.72) !important;
+  color: #2f2930 !important;
+}
+
+[data-scope="player"].pt-midnight button[data-answer-state="selected"] {
+  background-color: rgba(129, 140, 248, 0.26) !important;
+  border-color: #c4b5fd !important;
+  box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.2), 0 0 22px -10px rgba(129, 140, 248, 0.8) !important;
+  color: #f3f0ff !important;
+}
+
+[data-scope="player"] button[data-answer-state="selected"] .player-answer__badge {
+  background-color: var(--pt-answer-selected-badge);
+  color: var(--pt-answer-selected-badge-text);
+}
+
+[data-scope="player"] .player-answer.player-answer--selected:focus-visible {
+  outline: 2px solid var(--pt-answer-selected-border);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-scope="player"] .player-answer {
+    transition-duration: 0ms;
+  }
+
+  [data-scope="player"] button[data-answer-state="selected"] {
+    transform: none !important;
+  }
 }
 
 /* ============================================================
