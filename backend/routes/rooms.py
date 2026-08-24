@@ -28,6 +28,8 @@ ROOM_THEMES = frozenset({"classic", "amber", "ocean", "forest", "midnight"})
 
 
 def _room_theme(value: object) -> str:
+    if value == "color-cloud":
+        return "classic"
     return value if isinstance(value, str) and value in ROOM_THEMES else "classic"
 
 HOST_ACTIONS = {

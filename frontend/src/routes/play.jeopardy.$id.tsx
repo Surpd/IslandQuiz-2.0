@@ -5,11 +5,11 @@ import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { LaTeX } from "@/lib/latex";
 import { createPlaySnapshot, submitJeopardyResult } from "@/lib/api";
 import { fitQuestionSize } from "@/lib/fit-text";
-import { isPlayerTheme, type JeopardyData } from "@/lib/types";
+import { normalizePlayerTheme, type JeopardyData } from "@/lib/types";
 
 export const Route = createFileRoute("/play/jeopardy/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
-    theme: isPlayerTheme(search.theme) ? search.theme : undefined,
+    theme: normalizePlayerTheme(search.theme),
   }),
   component: PlayJeopardy,
 });

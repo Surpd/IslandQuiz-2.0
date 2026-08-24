@@ -151,6 +151,7 @@ test("login, save, reopen, and play a quiz", async ({ page }) => {
 
   await page.getByRole("button", { name: "Играть" }).click();
   await expect(page.getByRole("heading", { name: "Мир" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Мир: Color Cloud" })).toHaveCount(0);
   await page.getByRole("button", { name: "Мир: Classic" }).click();
   await page.getByRole("button", { name: "Офлайн" }).click();
   const popupPromise = page.waitForEvent("popup");

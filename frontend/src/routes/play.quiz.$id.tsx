@@ -15,11 +15,11 @@ import { formatQuizAnswer, formatGivenAnswer, checkQuizAnswerCore } from "@/lib/
 import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
-import { isPlayerTheme, type QuizData, type QuizQuestion } from "@/lib/types";
+import { normalizePlayerTheme, type QuizData, type QuizQuestion } from "@/lib/types";
 
 export const Route = createFileRoute("/play/quiz/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
-    theme: isPlayerTheme(search.theme) ? search.theme : undefined,
+    theme: normalizePlayerTheme(search.theme),
   }),
   component: PlayQuiz,
 });

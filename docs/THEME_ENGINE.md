@@ -9,7 +9,7 @@ Theme Engine is the runtime renderer for player themes. The current `main` flow 
 - `frontend/src/theme-engine/scene-renderer.tsx` renders the selected theme's layers and event manager.
 - `frontend/src/theme-engine/event-manager.tsx` schedules theme events without backend requests.
 - `frontend/src/theme-engine/themes/night-sky/theme.ts` defines Night Sky (`midnight`).
-- `frontend/src/theme-engine/themes/color-cloud/theme.ts` defines the light Color Cloud variant (`color-cloud`).
+- `frontend/src/theme-engine/themes/color-cloud/theme.ts` defines the light Classic variant backed by the Color Cloud assets (`classic`).
 - `frontend/src/components/animated-bg.tsx` delegates registered themes to Theme Engine and preserves the existing fallback renderers for other themes.
 
 ## Night Sky
@@ -18,9 +18,9 @@ Night Sky uses the selected Atmosphere Pack v3 assets for background, nebula, au
 
 Nebula, aurora, fog, and air-haze use the final slow CSS animation definitions from the feature branch. Fog/Air uses integer stacking order. Cosmic Dust and the ambient Moon Glow layer are intentionally absent from the render stack. The existing `moon-glow-boost` event definition remains an explicit event contract and is not a persistent layer.
 
-## Color Cloud
+## Classic / Color Cloud
 
-Color Cloud uses a warm ivory background, three low-opacity diffuse glow layers, and five independently positioned pastel cloud assets. Regular clouds use 43–61 second CSS drift cycles; glows use 89–121 second cycles. All layers are fixed, pointer-events-none, clipped to the viewport, and stop animating under `prefers-reduced-motion: reduce`.
+Classic uses the Color Cloud visual: a warm ivory background, three low-opacity diffuse glow layers, and five independently positioned pastel cloud assets. `classic` is the only user-facing identifier; legacy `color-cloud` launch values normalize to `classic` at the frontend route/WebSocket boundary and on room creation/state restore. Regular clouds use independent 23–34 second CSS drift cycles; glows use 61–77 second cycles. All layers are fixed, pointer-events-none, clipped to the viewport, and stop animating under `prefers-reduced-motion: reduce`.
 
 ## Scope of this integration
 

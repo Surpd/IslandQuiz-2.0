@@ -2,9 +2,9 @@ import { expect, test } from "@playwright/test";
 
 const apiOrigin = "https://api.islandquiz.online";
 
-test.use({ viewport: { width: 1440, height: 900 } });
+test.use({ viewport: { width: 1920, height: 1080 } });
 
-test("Color Cloud keeps the desktop quiz player readable and contained", async ({ page }) => {
+test("Classic uses the Color Cloud visual and stays readable and contained", async ({ page }) => {
   const game = {
     id: "color-cloud-e2e",
     kind: "quiz",
@@ -60,8 +60,8 @@ test("Color Cloud keeps the desktop quiz player readable and contained", async (
     });
   });
 
-  await page.goto("/play/quiz/color-cloud-e2e?theme=color-cloud");
-  await expect(page.locator('[data-scope="player"].pt-color-cloud')).toBeVisible();
+  await page.goto("/play/quiz/color-cloud-e2e?theme=classic");
+  await expect(page.locator('[data-scope="player"].pt-classic')).toBeVisible();
   await expect(page.locator(".theme-layer")).toHaveCount(9);
 
   const initialMetrics = await page.evaluate(() => ({
@@ -74,9 +74,34 @@ test("Color Cloud keeps the desktop quiz player readable and contained", async (
   await expect(page.getByText("Which answer is correct?")).toBeVisible();
   await expect(page.locator("button.border-2")).toHaveCount(4);
 
+  const motion = await page.locator(".theme-layer--cloud-peach").evaluate(async (layer) => {
+    const before = getComputedStyle(layer).transform;
+    await new Promise((resolve) => window.setTimeout(resolve, 1200));
+    const style = getComputedStyle(layer);
+    return {
+      before,
+      after: style.transform,
+      animationName: style.animationName,
+      duration: style.animationDuration,
+      x: style.getPropertyValue("--theme-animation-x").trim(),
+      y: style.getPropertyValue("--theme-animation-y").trim(),
+      scale: style.getPropertyValue("--theme-animation-scale").trim(),
+    };
+  });
+  expect(motion.animationName).toBe("theme-cloud-drift");
+  expect(motion.before).not.toBe(motion.after);
+  expect(motion.duration).toBe("26s");
+  expect(motion.x).toBe("30px");
+  expect(motion.y).toBe("-18px");
+  expect(motion.scale).toBe("1.03");
+
   await page.emulateMedia({ reducedMotion: "reduce" });
   const animationNames = await page
     .locator(".theme-layer")
     .evaluateAll((layers) => layers.map((layer) => getComputedStyle(layer).animationName));
   expect(new Set(animationNames)).toEqual(new Set(["none"]));
+
+  await page.goto("/play/quiz/color-cloud-e2e?theme=color-cloud");
+  await expect(page.locator('[data-scope="player"].pt-classic')).toBeVisible();
+  await expect(page.locator('[data-scope="player"].pt-color-cloud')).toHaveCount(0);
 });

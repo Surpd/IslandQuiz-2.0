@@ -7,11 +7,11 @@ import { LaTeX } from "@/lib/latex";
 import { createPlaySnapshot, loadGame, submitMillionaireResult, type MillionaireAnswerDetail } from "@/lib/api";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
-import { isPlayerTheme, type MilestoneMode, type MillionaireData, type MillionaireQuestion } from "@/lib/types";
+import { normalizePlayerTheme, type MilestoneMode, type MillionaireData, type MillionaireQuestion } from "@/lib/types";
 
 export const Route = createFileRoute("/play/millionaire/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
-    theme: isPlayerTheme(search.theme) ? search.theme : undefined,
+    theme: normalizePlayerTheme(search.theme),
   }),
   component: PlayMillionaire,
 });

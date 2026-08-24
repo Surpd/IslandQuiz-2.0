@@ -206,6 +206,9 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(theme=theme):
                 self.assertEqual(rooms_route._room_theme(theme), theme)
 
+    async def test_legacy_color_cloud_theme_normalizes_to_classic(self):
+        self.assertEqual(rooms_route._room_theme("color-cloud"), "classic")
+
     async def test_large_snapshot_create_and_join_keep_both_sockets_connected(self):
         large_data = {
             "config": {"defaultTime": 30},

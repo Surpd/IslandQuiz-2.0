@@ -1,11 +1,10 @@
 // Shared game data models. Kept close to the Python pydantic shapes from
 // user-uploads/models.py so a future backend swap is painless.
 
-export type PlayerTheme = "amber" | "midnight" | "classic" | "color-cloud" | "ocean" | "forest";
+export type PlayerTheme = "amber" | "midnight" | "classic" | "ocean" | "forest";
 
 export const PLAYER_THEMES: { id: PlayerTheme; name: string; hint: string }[] = [
-  { id: "classic", name: "Classic", hint: "Строгая классика" },
-  { id: "color-cloud", name: "Color Cloud", hint: "Мягкое светлое" },
+  { id: "classic", name: "Classic", hint: "Мягкая светлая классика" },
   { id: "amber", name: "Amber", hint: "Тёплое, уютное" },
   { id: "ocean", name: "Ocean", hint: "Глубокое морское" },
   { id: "forest", name: "Forest", hint: "Природное зелёное" },
@@ -14,6 +13,11 @@ export const PLAYER_THEMES: { id: PlayerTheme; name: string; hint: string }[] = 
 
 export function isPlayerTheme(value: unknown): value is PlayerTheme {
   return PLAYER_THEMES.some((theme) => theme.id === value);
+}
+
+export function normalizePlayerTheme(value: unknown): PlayerTheme | undefined {
+  if (value === "color-cloud") return "classic";
+  return isPlayerTheme(value) ? value : undefined;
 }
 
 // ---------- Quiz ----------

@@ -19,6 +19,7 @@ import type {
   QuizQuestion,
   StoredGame,
 } from "./types";
+import { normalizePlayerTheme } from "./types";
 import type { User } from "./auth";
 import { formatQuizAnswer, formatGivenAnswer } from "./format-answer";
 import { clearAuthToken, getAuthToken, setAuthToken } from "./auth";
@@ -677,9 +678,10 @@ function ensureRoomConn(code: string): RoomConn {
       const msg = JSON.parse(ev.data as string) as RoomMessage;
       if (msg.type === "room_identity") storeRoomCredential(code, msg);
       if (msg.type === "room_state" && msg.state) {
+        const state = { ...msg.state, theme: normalizePlayerTheme(msg.state.theme) ?? "classic" };
         conn.available = true;
-        conn.state = msg.state;
-        handlers.forEach((h) => h(msg.state!));
+        conn.state = state;
+        handlers.forEach((h) => h(state));
       }
       if (msg.type === "room_available") conn.available = true;
       onceWaiters.forEach((w) => w(msg));
