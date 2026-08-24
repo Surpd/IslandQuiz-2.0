@@ -17,6 +17,7 @@ import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
 import { useAuth } from "@/hooks/use-auth";
 import { normalizePlayerTheme, type QuizData, type QuizQuestion } from "@/lib/types";
 import { selectQuizVariant, withSelectedQuizVariant } from "@/lib/quiz-variants";
+import { loadGame as loadLocalGame } from "@/lib/storage";
 
 export const Route = createFileRoute("/play/quiz/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -76,6 +77,12 @@ function PlayQuiz() {
   useEffect(() => {
     let cancel = false;
     (async () => {
+      const local = loadLocalGame<QuizData>("quiz", id);
+      if (local) {
+        setStored(withSelectedQuizVariant(local.data, launchVariant));
+        setLoading(false);
+        return;
+      }
       const g = await loadGame<QuizData>("quiz", id);
       if (cancel) return;
       if (g) setStored(withSelectedQuizVariant(g.data, launchVariant));
@@ -126,13 +133,17 @@ function PlayQuiz() {
 
   const start = async () => {
     if (!config) return;
-    try {
-      const snapshot = await createPlaySnapshot<QuizData>("quiz", id, launchVariant);
-      setSnapshotToken(snapshot.snapshotToken);
-      setStored(snapshot.data);
-    } catch (error) {
-      console.error("Не удалось зафиксировать snapshot игры", error);
-      return;
+    if (loadLocalGame<QuizData>("quiz", id)) {
+      setSnapshotToken(null);
+    } else {
+      try {
+        const snapshot = await createPlaySnapshot<QuizData>("quiz", id, launchVariant);
+        setSnapshotToken(snapshot.snapshotToken);
+        setStored(snapshot.data);
+      } catch (error) {
+        console.error("Не удалось зафиксировать snapshot игры", error);
+        return;
+      }
     }
     const base = questions.map((_, i) => i);
     const ord = config.shuffleQuestions ? shuffle(base) : base;

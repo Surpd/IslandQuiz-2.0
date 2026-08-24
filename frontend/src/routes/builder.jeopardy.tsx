@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Grid3x3,
   Plus,
@@ -69,6 +70,7 @@ interface ModalTarget {
 function BuilderJeopardy() {
   const { id: urlId } = Route.useSearch();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [config, setConfig] = useState<JeopardyConfig>({
     timeBase: 30,
     timeStep: 15,
@@ -390,6 +392,7 @@ function BuilderJeopardy() {
         showAnswers={showAnswers}
         allowPreview={config.allowPreview}
         allowCopy={config.allowCopy}
+        showOwnerPermissions={!!user}
         onShowAnswersChange={setShowAnswers}
         onAllowPreviewChange={(allowPreview) => setConfig({ ...config, allowPreview })}
         onAllowCopyChange={(allowCopy) => setConfig({ ...config, allowCopy })}

@@ -3,33 +3,49 @@ import { useEffect, useState } from "react";
 import { Copy, Monitor, Radio, X } from "lucide-react";
 import { createRoom, loadGame } from "@/lib/api";
 import { ThemeSelect } from "@/components/theme-select";
+import { AIAuthPrompt } from "@/components/ai-auth-prompt";
+import { useAuth } from "@/hooks/use-auth";
+import { saveGame as saveLocalGame } from "@/lib/storage";
+import type { AnyGameData } from "@/lib/api";
 import type { GameKind, PlayerTheme, QuizData } from "@/lib/types";
 import { PRIMARY_VARIANT_ID, quizVariants } from "@/lib/quiz-variants";
 
 export function PlayModal({
   gameId,
   kind,
+  localData,
   onClose,
 }: {
   gameId: string;
   kind: GameKind;
+  localData?: AnyGameData;
   onClose: () => void;
 }) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hostView, setHostView] = useState(false);
   const [theme, setTheme] = useState<PlayerTheme>("classic");
   const [quizData, setQuizData] = useState<QuizData | null>(null);
   const [variantId, setVariantId] = useState(PRIMARY_VARIANT_ID);
-  const variants = quizData ? quizVariants(quizData) : [];
+  const [authPrompt, setAuthPrompt] = useState(false);
+  const variants = quizData && user ? quizVariants(quizData) : [];
   const selectedVariantId = variants.length >= 2 ? variantId : undefined;
 
   useEffect(() => {
     if (kind !== "quiz") return;
+    if (localData) {
+      setQuizData(localData as QuizData);
+      return;
+    }
     void loadGame<QuizData>("quiz", gameId).then((game) => setQuizData(game?.data ?? null));
-  }, [gameId, kind]);
+  }, [gameId, kind, localData]);
 
   const startOnline = async () => {
+    if (!user) {
+      setAuthPrompt(true);
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -45,7 +61,7 @@ export function PlayModal({
   };
 
   if (hostView) {
-    return <OfflineHostView gameId={gameId} kind={kind} theme={theme} variantId={kind === "quiz" ? selectedVariantId : undefined} onClose={onClose} />;
+    return <OfflineHostView gameId={gameId} kind={kind} theme={theme} variantId={kind === "quiz" ? selectedVariantId : undefined} localData={localData} onClose={onClose} />;
   }
 
   return (
@@ -102,6 +118,7 @@ export function PlayModal({
           <p className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>
         )}
       </div>
+      {authPrompt && <AIAuthPrompt feature="проведения онлайн-игры" onClose={() => setAuthPrompt(false)} />}
     </div>
   );
 }
@@ -111,14 +128,19 @@ function OfflineHostView({
   kind,
   theme,
   variantId,
+  localData,
   onClose,
 }: {
   gameId: string;
   kind: GameKind;
   theme: PlayerTheme;
   variantId?: string;
+  localData?: AnyGameData;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    if (localData) saveLocalGame(kind, gameId, localData);
+  }, [gameId, kind, localData]);
   const playUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/play/${kind}/${gameId}?theme=${theme}${variantId ? `&variant=${encodeURIComponent(variantId)}` : ""}`

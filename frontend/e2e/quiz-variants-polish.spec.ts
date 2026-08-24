@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const apiOrigin = "https://api.islandquiz.online";
+const registeredUser = { id: "registered", email: "registered@example.test", name: "Registered" };
 
 const question = (id: string, text: string) => ({
   id,
@@ -13,6 +14,10 @@ const question = (id: string, text: string) => ({
 });
 
 async function waitForBuilder(page: Page) {
+  await page.addInitScript(() => localStorage.setItem("islandquiz.token", "registered-variants-token"));
+  await page.route(`${apiOrigin}/api/users/me`, async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(registeredUser) });
+  });
   await page.goto("/builder/quiz", { waitUntil: "commit" });
   await expect(page.locator('html[data-app-hydrated="true"]')).toHaveAttribute("data-app-hydrated", "true", { timeout: 120_000 });
 }

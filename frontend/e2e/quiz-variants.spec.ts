@@ -1,11 +1,17 @@
 import { expect, test } from "@playwright/test";
 
+const apiOrigin = "https://api.islandquiz.online";
+
 test.setTimeout(180_000);
 
 test("Quiz Builder creates, switches, independently edits and limits variants", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     localStorage.clear();
+    localStorage.setItem("islandquiz.token", "registered-variants-token");
+  });
+  await page.route(`${apiOrigin}/api/users/me`, async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ id: "registered", email: "registered@example.test", name: "Registered" }) });
   });
   await page.goto("/builder/quiz", { waitUntil: "commit" });
   await expect(page.locator('html[data-app-hydrated="true"]')).toHaveAttribute("data-app-hydrated", "true", { timeout: 120_000 });

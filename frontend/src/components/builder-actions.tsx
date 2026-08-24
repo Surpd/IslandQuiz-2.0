@@ -23,6 +23,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { findGame, setGameVisibility as apiSetGameVisibility } from "@/lib/api";
+import { AIAuthPrompt } from "@/components/ai-auth-prompt";
+import type { AnyGameData } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { PlayModal } from "@/components/play-modal";
 import { HelpButton } from "@/components/help-modal";
@@ -280,6 +282,7 @@ export function GamePermissionSettings({
   showAnswers,
   allowPreview,
   allowCopy,
+  showOwnerPermissions = true,
   onShowAnswersChange,
   onAllowPreviewChange,
   onAllowCopyChange,
@@ -287,6 +290,7 @@ export function GamePermissionSettings({
   showAnswers: boolean;
   allowPreview?: boolean;
   allowCopy?: boolean;
+  showOwnerPermissions?: boolean;
   onShowAnswersChange: (value: boolean) => void;
   onAllowPreviewChange: (value: boolean) => void;
   onAllowCopyChange: (value: boolean) => void;
@@ -298,14 +302,16 @@ export function GamePermissionSettings({
         <input type="checkbox" checked={showAnswers} onChange={(e) => onShowAnswersChange(e.target.checked)} />
         <span>Показывать правильные ответы после прохождения</span>
       </label>
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" checked={allowPreview !== false} onChange={(e) => onAllowPreviewChange(e.target.checked)} />
-        <span>Разрешить просмотр вопросов до игры</span>
-      </label>
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" checked={allowCopy !== false} onChange={(e) => onAllowCopyChange(e.target.checked)} />
-        <span>Разрешить копирование игры</span>
-      </label>
+      {showOwnerPermissions && <>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={allowPreview !== false} onChange={(e) => onAllowPreviewChange(e.target.checked)} />
+          <span>Разрешить просмотр вопросов до игры</span>
+        </label>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={allowCopy !== false} onChange={(e) => onAllowCopyChange(e.target.checked)} />
+          <span>Разрешить копирование игры</span>
+        </label>
+      </>}
     </div>
   );
 }
@@ -410,6 +416,7 @@ function ImportModal({
 interface FabsProps {
   kind: GameKind;
   savedId: string | null;
+  localData?: AnyGameData;
   title: string;
   visibility: GameVisibility;
   saveState?: BuilderSaveState;
@@ -439,6 +446,7 @@ export type BuilderSaveState = "saved" | "dirty" | "saving" | "error";
 export function BuilderFabs({
   kind,
   savedId,
+  localData,
   title,
   visibility,
   saveState = "dirty",
@@ -468,6 +476,7 @@ export function BuilderFabs({
   const [visOpen, setVisOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [mobileImportOpen, setMobileImportOpen] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState(false);
   const [actionState, setActionState] = useState<BuilderSaveState>(saveState);
   const saveRef = useRef<HTMLDivElement>(null);
   const visRef = useRef<HTMLDivElement>(null);
@@ -504,6 +513,10 @@ export function BuilderFabs({
   };
 
   const performSave = async (save: typeof onSave = onSave) => {
+    if (!user) {
+      setAuthPrompt(true);
+      return null;
+    }
     setActionState("saving");
     try {
       const id = await save();
@@ -516,6 +529,10 @@ export function BuilderFabs({
   };
 
   const handlePlay = async () => {
+    if (!user && localData) {
+      setOpenPlay(true);
+      return;
+    }
     const id = await performSave();
     if (id) setOpenPlay(true);
   };
@@ -566,7 +583,7 @@ export function BuilderFabs({
               <StatusIcon className="h-3 w-3" /> {status.label}
             </span>
           </div>
-          <div className="flex shrink-0 rounded-lg border border-border bg-background p-0.5" role="group" aria-label="Видимость игры">
+          {user && <div className="flex shrink-0 rounded-lg border border-border bg-background p-0.5" role="group" aria-label="Видимость игры">
             <button
               type="button"
               onClick={() => void changeVisibility("private")}
@@ -586,7 +603,7 @@ export function BuilderFabs({
             >
               <Globe className="h-3.5 w-3.5" />
             </button>
-          </div>
+          </div>}
         </div>
         <div className="mx-auto mt-1 grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-2">
           <div className="flex min-w-0 items-center justify-start gap-1">
@@ -594,7 +611,7 @@ export function BuilderFabs({
             <button type="button" onClick={() => void performSave()} aria-label="Сохранить" title={status.label} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-foreground text-white hover:opacity-90">
               <StatusIcon className={`h-4 w-4 ${status.className}`} />
             </button>
-            {onResults && savedId && (
+            {user && onResults && savedId && (
               <button type="button" onClick={onResults} aria-label="Результаты" title="Результаты" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">
                 <BarChart3 className="h-4 w-4" />
               </button>
@@ -641,7 +658,7 @@ export function BuilderFabs({
                 <MoreHorizontal className="h-4 w-4 text-primary" /> Вид: {viewLabel}
               </button>
             )}
-            <button
+            {user && <button
               type="button"
               onClick={() => {
                 setMobileMoreOpen(false);
@@ -650,13 +667,13 @@ export function BuilderFabs({
               className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted"
             >
               <Copy className="h-4 w-4 text-primary" /> Создать копию
-            </button>
+            </button>}
             {helpContent && (
               <HelpButton inline title={helpTitle}>
                 {helpContent}
               </HelpButton>
             )}
-            {onDelete && savedId && (
+            {user && onDelete && savedId && (
               <button type="button" onClick={() => { setMobileMoreOpen(false); onDelete(); }} className="flex min-h-11 w-full items-center gap-2 border-t border-border px-3 text-left text-sm text-danger hover:bg-danger-soft">
                 <AlertTriangle className="h-4 w-4" /> Удалить игру
               </button>
@@ -666,7 +683,7 @@ export function BuilderFabs({
       </div>}
       <div className="fixed bottom-20 right-4 left-4 z-40 hidden items-center justify-end gap-1.5 sm:bottom-6 sm:right-6 sm:left-auto sm:gap-2 md:flex">
         {/* Visibility */}
-        <div ref={visRef} className="relative" data-visibility={visibility}>
+        {user && <div ref={visRef} className="relative" data-visibility={visibility}>
           <button
             type="button"
             onClick={() => setVisOpen((v) => !v)}
@@ -696,7 +713,7 @@ export function BuilderFabs({
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Split Save */}
         <div ref={saveRef} className="relative flex items-stretch rounded-full shadow-lift">
@@ -711,7 +728,7 @@ export function BuilderFabs({
             <StatusIcon className={`h-4 w-4 ${status.className}`} />
             <span className="hidden xs:inline sm:inline">{status.label}</span>
           </button>
-          <button
+          {user && <button
             type="button"
             onClick={() => setOpenSaveMenu((v) => !v)}
             aria-label="Ещё"
@@ -719,10 +736,10 @@ export function BuilderFabs({
             style={{ background: "var(--foreground)" }}
           >
             <ChevronDown className="h-4 w-4" />
-          </button>
+          </button>}
           {openSaveMenu && (
             <div className="absolute bottom-full right-0 mb-2 w-56 overflow-hidden rounded-xl border border-border bg-surface shadow-lift">
-              <button
+              {user && <button
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted"
                 onClick={() => {
                   setOpenSaveMenu(false);
@@ -730,7 +747,7 @@ export function BuilderFabs({
                 }}
               >
                 <Copy className="h-4 w-4 text-primary" /> Сохранить как копию
-              </button>
+              </button>}
             </div>
           )}
         </div>
@@ -762,9 +779,10 @@ export function BuilderFabs({
           onDownloadTemplate={onDownloadTemplate ?? (() => undefined)}
         />
       )}
-      {openPlay && savedId && (
-        <PlayModal gameId={savedId} kind={kind} onClose={() => setOpenPlay(false)} />
+      {openPlay && (savedId || localData) && (
+        <PlayModal gameId={savedId ?? `local-${kind}-draft`} kind={kind} localData={localData} onClose={() => setOpenPlay(false)} />
       )}
+      {authPrompt && <AIAuthPrompt feature="сохранения игры в Library" onClose={() => setAuthPrompt(false)} />}
     </>
   );
 }

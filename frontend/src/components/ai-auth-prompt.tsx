@@ -1,20 +1,26 @@
 import { Link } from "@tanstack/react-router";
 import { LogIn, UserPlus, X } from "lucide-react";
 
-export function AIAuthPrompt({ onClose }: { onClose: () => void }) {
+export function AIAuthPrompt({
+  onClose,
+  feature = "AI-генерации",
+}: {
+  onClose: () => void;
+  feature?: string;
+}) {
   return (
     <div
       className="fixed inset-0 z-[100] grid place-items-center bg-foreground/40 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Вход для AI"
+      aria-label={`Вход для ${feature}`}
     >
       <div className="w-full max-w-sm rounded-3xl bg-surface p-5 shadow-lift">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-bold">Нужен аккаунт</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Для AI-генерации войдите или создайте аккаунт.
+              Для {feature} войдите или создайте аккаунт.
             </p>
           </div>
           <button

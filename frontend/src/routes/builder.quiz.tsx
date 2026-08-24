@@ -50,6 +50,7 @@ import type {
 import { MAX_QUIZ_VARIANTS, PRIMARY_VARIANT_ID, quizVariants } from "@/lib/quiz-variants";
 import { normalizeQuizQuestionDisplay, withQuizQuestionDisplay } from "@/lib/format-answer";
 import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
+import { useAuth } from "@/hooks/use-auth";
 
 import type { GameVisibility } from "@/lib/types";
 
@@ -193,6 +194,7 @@ function quizQuestionToGenerated(question: QuizQuestion): GeneratedQuizQuestion 
 function BuilderQuiz() {
   const { id: urlId } = Route.useSearch();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [config, setConfig] = useState<QuizConfig>(DEFAULT_QUIZ_CONFIG);
   const [primaryQuestions, setPrimaryQuestions] = useState<QuizQuestion[]>([makeQuestion("choice", 100, DEFAULT_QUIZ_CONFIG.defaultTime, "quiz-initial-question")]);
   const [extraVariants, setExtraVariants] = useState<QuizVariant[]>([]);
@@ -485,7 +487,7 @@ function BuilderQuiz() {
     showToast("Вариант удалён");
   };
 
-  const variantNavigator = allVariants.length >= 2 && (
+  const variantNavigator = user && allVariants.length >= 2 && (
     <div className="relative mb-3 flex items-center gap-1" role="group" aria-label="Переключение вариантов">
       <button type="button" className="btn-ghost inline-flex h-10 w-10 shrink-0 items-center justify-center p-0 leading-none" aria-label="Предыдущий вариант" disabled={activeVariantIndex === 0} onClick={() => switchVariant(allVariants[activeVariantIndex - 1].id)}><ChevronLeft className="h-4 w-4 shrink-0" /></button>
       <button type="button" className="btn-ghost inline-flex h-10 min-w-0 flex-1 items-center justify-center px-2 text-xs leading-none" aria-expanded={variantMenuOpen} onClick={() => setVariantMenuOpen((open) => !open)}>
@@ -600,15 +602,16 @@ function BuilderQuiz() {
         showAnswers={showAnswers}
         allowPreview={config.allowPreview}
         allowCopy={config.allowCopy}
+        showOwnerPermissions={!!user}
         onShowAnswersChange={setShowAnswers}
         onAllowPreviewChange={(allowPreview) => setConfig({ ...config, allowPreview })}
         onAllowCopyChange={(allowCopy) => setConfig({ ...config, allowCopy })}
       />
-      <section className="rounded-2xl border border-border bg-surface-muted p-4">
+      {user && <section className="rounded-2xl border border-border bg-surface-muted p-4">
         <h3 className="font-display text-sm font-bold">Варианты квиза</h3>
         <p className="mt-1 text-xs text-muted-foreground">Создайте до 4 наборов вопросов в одной игре. Название и настройки останутся общими.</p>
         {allVariants.length < MAX_QUIZ_VARIANTS ? <button type="button" className="btn-ghost mt-3 w-full justify-center" onClick={() => setCreateVariantOpen(true)}>{allVariants.length === 1 ? "Создать второй вариант" : "Создать новый вариант"}</button> : <p className="mt-3 text-xs font-semibold text-muted-foreground">Максимум — 4 варианта</p>}
-      </section>
+      </section>}
     </div>
   );
 
@@ -649,7 +652,7 @@ function BuilderQuiz() {
     </div>
   );
 
-  const resultsButton = (
+  const resultsButton = user && (
     <button
       className="btn-ghost"
       onClick={openResults}
@@ -716,6 +719,7 @@ function BuilderQuiz() {
           <BuilderFabs
             kind="quiz"
             savedId={savedId}
+            localData={!user ? { config, questions: primaryQuestions, variants: extraVariants.length ? extraVariants : undefined } : undefined}
             title={config.title || "Квиз"}
             visibility={visibility}
             saveState={saveState}
@@ -762,7 +766,7 @@ function BuilderQuiz() {
           onClose={() => setShowSettings(false)}
         />
       )}
-      {allVariants.length >= 2 && !compare && <div className="md:hidden">{variantNavigator}</div>}
+      {user && allVariants.length >= 2 && !compare && <div className="md:hidden">{variantNavigator}</div>}
       <MobileQuestionNavigator
         questions={questions}
         activeQuestionId={activeQuestionId}
@@ -864,7 +868,7 @@ function BuilderQuiz() {
       </div>
       </>}
 
-      {createVariantOpen && <div className="fixed inset-0 z-[70] grid place-items-center bg-foreground/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="create-variant-title">
+      {user && createVariantOpen && <div className="fixed inset-0 z-[70] grid place-items-center bg-foreground/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="create-variant-title">
         <div className="relative w-full max-w-lg rounded-3xl bg-surface p-6 shadow-lift">
           <div className="pr-12"><h2 id="create-variant-title" className="font-display text-xl font-bold">Новый вариант</h2><p className="mt-1 text-sm text-muted-foreground">Создайте независимый набор вопросов.</p></div><button type="button" className="btn-ghost absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center p-0 leading-none" aria-label="Закрыть" title="Закрыть" disabled={creatingAI} onClick={() => setCreateVariantOpen(false)}><X className="h-4 w-4 shrink-0" /></button>
           <div className="mt-5 grid gap-3">

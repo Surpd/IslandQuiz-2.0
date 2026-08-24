@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import { Coins, Plus, Trash2, GripVertical } from "lucide-react";
 import { BuilderShell } from "@/components/builder-shell";
 import { ImageDrop } from "@/lib/image-drop";
@@ -68,6 +69,7 @@ function makeQuestion(money: number): MillionaireQuestion {
 function BuilderMillionaire() {
   const { id: urlId } = Route.useSearch();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [config, setConfig] = useState<MillionaireConfig>({
     timePerQuestion: 30,
     moneyScale: "normal",
@@ -319,6 +321,7 @@ function BuilderMillionaire() {
         showAnswers={showAnswers}
         allowPreview={config.allowPreview}
         allowCopy={config.allowCopy}
+        showOwnerPermissions={!!user}
         onShowAnswersChange={setShowAnswers}
         onAllowPreviewChange={(allowPreview) => setConfig({ ...config, allowPreview })}
         onAllowCopyChange={(allowCopy) => setConfig({ ...config, allowCopy })}
