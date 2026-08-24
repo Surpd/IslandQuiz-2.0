@@ -272,6 +272,7 @@ export function AIGenerateQuizButton({
     <>
       <button
         type="button"
+        data-builder-tour="full-ai"
         onClick={() => {
           if (!user) {
             setAuthPrompt(true);

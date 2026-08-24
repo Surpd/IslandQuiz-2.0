@@ -51,6 +51,7 @@ import { MAX_QUIZ_VARIANTS, PRIMARY_VARIANT_ID, quizVariants } from "@/lib/quiz-
 import { normalizeQuizQuestionDisplay, withQuizQuestionDisplay } from "@/lib/format-answer";
 import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 import { useAuth } from "@/hooks/use-auth";
+import { BuilderTour } from "@/components/builder-tour";
 
 import type { GameVisibility } from "@/lib/types";
 
@@ -214,6 +215,8 @@ function BuilderQuiz() {
   const [showAnswers, setShowAnswers] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourStep, setTourStep] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const questions = useMemo(() => activeVariantId === PRIMARY_VARIANT_ID
@@ -523,7 +526,7 @@ function BuilderQuiz() {
       <button type="button" className="btn-ghost hidden w-full justify-center lg:flex" onClick={() => setCompare({ referenceId: allVariants[0].id, editableId: allVariants[1].id })}>Сравнить варианты</button>
     </div>
   ) : (
-    <div className="space-y-1">
+    <div className="space-y-1" data-builder-tour="question-navigation">
       {variantNavigator}
       <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Вопросы
@@ -737,15 +740,9 @@ function BuilderQuiz() {
             printAnswers={printAnswers}
             onResults={openResults}
             onDelete={handleDelete}
-            helpTitle="Как пользоваться конструктором квиза"
-            helpContent={
-              <>
-                <p><b>Типы вопросов:</b> ABCD — 4 варианта. Да/Нет — бинарный вопрос. Текст — несколько вариантов через запятую. Пары — сопоставление. Пропуски и Порядок — специальные типы.</p>
-                <p><b>Картинка:</b> перетащите файл в зону или вставьте URL.</p>
-                <p><b>Играть:</b> для квиза доступен выбор онлайн-комнаты или офлайн-режима.</p>
-              </>
-            }
+            onHelp={() => setTourOpen(true)}
           />
+          <BuilderTour open={tourOpen} authenticated={!!user} onOpenChange={setTourOpen} onStepChange={setTourStep} />
         </>
       }
     >
@@ -772,6 +769,7 @@ function BuilderQuiz() {
         activeQuestionId={activeQuestionId}
         onSelect={scrollToQuestion}
         onAddQuestion={addQuestion}
+        tourQuestionTypesOpen={tourStep === 3}
       />
       {compare && (() => {
         const reference = allVariants.find((variant) => variant.id === compare.referenceId) ?? allVariants[0];
@@ -854,7 +852,7 @@ function BuilderQuiz() {
         />
       </div>
 
-      <div className="flex flex-wrap justify-center gap-2 py-4">
+      <div className="flex flex-wrap justify-center gap-2 py-4" data-builder-tour="question-types">
         {(Object.keys(TYPE_META) as QuizQuestionType[]).map((t) => {
           const Icon = TYPE_META[t].icon;
           return (
@@ -892,19 +890,24 @@ function MobileQuestionNavigator({
   activeQuestionId,
   onSelect,
   onAddQuestion,
+  tourQuestionTypesOpen = false,
 }: {
   questions: QuizQuestion[];
   activeQuestionId: string | null;
   onSelect: (index: number) => void;
   onAddQuestion: (type: QuizQuestionType) => void;
+  tourQuestionTypesOpen?: boolean;
 }) {
   const [addOpen, setAddOpen] = useState(false);
+  useEffect(() => {
+    setAddOpen(tourQuestionTypesOpen);
+  }, [tourQuestionTypesOpen]);
   if (!questions.length) return null;
   const activeIndex = Math.max(0, questions.findIndex((question) => question.id === activeQuestionId));
   const activeQuestion = questions[activeIndex];
 
   return (
-    <div className="builder-mobile-question-nav sticky z-30 -mx-1 mb-3 rounded-2xl border border-border bg-surface/95 p-2.5 shadow-soft backdrop-blur-md md:hidden">
+    <div className="builder-mobile-question-nav sticky z-30 -mx-1 mb-3 rounded-2xl border border-border bg-surface/95 p-2.5 shadow-soft backdrop-blur-md md:hidden" data-builder-tour="question-navigation">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-bold text-foreground">
@@ -975,7 +978,7 @@ function MobileQuestionNavigator({
         </div>
       </div>
       {addOpen && (
-        <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border pt-2">
+        <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border pt-2" data-builder-tour="question-types">
           {(Object.keys(TYPE_META) as QuizQuestionType[]).map((type) => {
             const Icon = TYPE_META[type].icon;
             return (
@@ -1048,7 +1051,7 @@ function QuestionCard({
         </button>
       </div>
 
-      <div className="relative">
+      <div className="relative" data-builder-tour="question-editor">
         <textarea
           ref={qRef}
           rows={2}

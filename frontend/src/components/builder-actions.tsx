@@ -28,6 +28,7 @@ import type { AnyGameData } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { PlayModal } from "@/components/play-modal";
 import { HelpButton } from "@/components/help-modal";
+import { BuilderTourHelpButton } from "@/components/builder-tour";
 import { cn } from "@/lib/utils";
 import type { GameKind, GameVisibility } from "@/lib/types";
 
@@ -132,6 +133,7 @@ export function BuilderToolbar({
       <button
         className="btn-ghost flex flex-1 items-center justify-center gap-2 md:justify-start"
         onClick={onToggleSettings}
+        data-builder-tour="settings"
         aria-label="Настройки"
         title="Настройки"
         aria-expanded={!!settingsOpen}
@@ -326,7 +328,7 @@ export function BuilderGameInfoSection({
   const [open, setOpen] = useState(true);
 
   return (
-    <section className="surface-card overflow-visible">
+    <section className="surface-card overflow-visible" data-builder-tour="game-info">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3 sm:px-6">
         <button
           type="button"
@@ -438,6 +440,7 @@ interface FabsProps {
   onDelete?: () => void;
   helpTitle?: string;
   helpContent?: ReactNode;
+  onHelp?: () => void;
   themeAccent?: string;
 }
 
@@ -468,6 +471,7 @@ export function BuilderFabs({
   onDelete,
   helpTitle,
   helpContent,
+  onHelp,
   themeAccent,
 }: FabsProps) {
   const { user } = useAuth();
@@ -476,6 +480,7 @@ export function BuilderFabs({
   const [visOpen, setVisOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [mobileImportOpen, setMobileImportOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [authPrompt, setAuthPrompt] = useState(false);
   const [actionState, setActionState] = useState<BuilderSaveState>(saveState);
   const saveRef = useRef<HTMLDivElement>(null);
@@ -617,13 +622,14 @@ export function BuilderFabs({
               </button>
             )}
           </div>
-          <button type="button" onClick={() => void handlePlay()} aria-label="Играть" title="Играть" className="grid h-10 min-w-20 shrink-0 place-items-center gap-1 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground shadow-lift hover:opacity-90">
+          <button type="button" onClick={() => void handlePlay()} aria-label="Играть" title="Играть" data-builder-tour="play" className={`grid ${onHelp ? "min-w-16 px-2" : "min-w-20 px-3"} h-10 shrink-0 place-items-center gap-1 rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-lift hover:opacity-90`}>
             <span className="flex items-center gap-1"><Play className="h-4 w-4" /> Играть</span>
           </button>
           <div className="flex min-w-0 items-center justify-end gap-1">
-            <button type="button" onClick={onSettings} aria-label="Настройки" title="Настройки" aria-expanded={!!settingsOpen} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">
+            <button type="button" onClick={onSettings} aria-label="Настройки" title="Настройки" data-builder-tour="settings" aria-expanded={!!settingsOpen} className={`grid ${onHelp ? "h-8 w-8" : "h-9 w-9"} shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted`}>
               <Settings2 className="h-4 w-4" />
             </button>
+            {onHelp && <BuilderTourHelpButton onClick={() => setHelpOpen(true)} mobile />}
             <button type="button" onClick={() => setMobileMoreOpen((v) => !v)} aria-label="Дополнительные действия" aria-expanded={mobileMoreOpen} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">
               <MoreHorizontal className="h-4 w-4" />
             </button>
@@ -668,7 +674,7 @@ export function BuilderFabs({
             >
               <Copy className="h-4 w-4 text-primary" /> Создать копию
             </button>}
-            {helpContent && (
+            {helpContent && !onHelp && (
               <HelpButton inline title={helpTitle}>
                 {helpContent}
               </HelpButton>
@@ -756,6 +762,7 @@ export function BuilderFabs({
         <button
           type="button"
           onClick={() => void handlePlay()}
+          data-builder-tour="play"
           className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold shadow-lift transition-transform hover:scale-[1.03] active:scale-95 sm:px-6 sm:py-3"
           style={{ background: themeAccent ?? "var(--primary)", color: themeAccent ? "#000" : "#fff" }}
         >
@@ -764,9 +771,24 @@ export function BuilderFabs({
       </div>
 
 
-      {helpContent && (
+      {onHelp ? (
+        <div className="hidden md:block">
+          <BuilderTourHelpButton onClick={() => setHelpOpen(true)} />
+        </div>
+      ) : helpContent && (
         <div className="hidden md:block">
           <HelpButton title={helpTitle}>{helpContent}</HelpButton>
+        </div>
+      )}
+      {onHelp && helpOpen && (
+        <div className="fixed inset-0 z-[85] grid place-items-center bg-foreground/20 p-4" role="dialog" aria-modal="true" aria-labelledby="builder-help-title">
+          <div className="relative w-full max-w-xs rounded-2xl border border-border bg-surface p-4 shadow-lift">
+            <button type="button" onClick={() => setHelpOpen(false)} className="absolute right-3 top-3 rounded-lg p-1.5 text-muted-foreground hover:bg-surface-muted" aria-label="Закрыть помощь">
+              <X className="h-4 w-4" />
+            </button>
+            <h2 id="builder-help-title" className="pr-7 font-display text-base font-bold">Помощь</h2>
+            <button type="button" onClick={() => { setHelpOpen(false); onHelp(); }} className="btn-primary mt-3 w-full justify-center">Быстрое обучение</button>
+          </div>
         </div>
       )}
       {mobileImportOpen && onImportFile && (
