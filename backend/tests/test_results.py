@@ -10,7 +10,7 @@ fake_database = types.ModuleType("database")
 fake_database.supabase = object()
 sys.modules.setdefault("database", fake_database)
 
-from routes.results import _db_rows, _select_quiz_variant
+from routes.results import _db_rows, _result_variant_identity, _select_quiz_variant
 
 
 class FakeQuery:
@@ -38,6 +38,12 @@ class ResultsDatabaseResponseTests(unittest.TestCase):
     def test_empty_or_malformed_result_envelopes_are_empty(self):
         self.assertEqual(_db_rows(FakeQuery(type("Response", (), {"data": None})())), [])
         self.assertEqual(_db_rows(FakeQuery(type("Response", (), {"data": {"id": "result-1"}})())), [])
+
+    def test_result_variant_identity_reads_snapshot_and_keeps_legacy_empty(self):
+        payload = {"snapshot": {"data": {"selectedVariantId": "variant-2", "selectedVariantName": "Вариант 2"}}}
+        self.assertEqual(_result_variant_identity(payload), ("variant-2", "Вариант 2"))
+        self.assertEqual(_result_variant_identity({"items": []}), (None, None))
+        self.assertEqual(_result_variant_identity(None), (None, None))
 
     def test_transport_errors_are_controlled(self):
         for query in (FakeQuery(), FakeQuery(error=RuntimeError("database unavailable"))):

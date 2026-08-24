@@ -23,6 +23,8 @@ export interface QuizResult {
   finishedAt: number;
   userId?: string;
   avatar?: string;
+  variantId?: string;
+  variantName?: string;
   answers?: QuizAnswerDetail[];
 }
 
@@ -99,6 +101,8 @@ export interface OnlineQuizResult {
   gameId: string;
   playedAt: number;
   durationSec: number;
+  variantId?: string;
+  variantName?: string;
   players: OnlineQuizPlayerResult[];
 }
 
@@ -196,4 +200,3 @@ export function loadMillionaireResults(gameId: string): MillionaireResult[] {
     return [];
   }
 }
-

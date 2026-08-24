@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import type { QuizData } from "@/lib/types";
 import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
+import { PRIMARY_VARIANT_ID, quizVariants } from "@/lib/quiz-variants";
 
 export const Route = createFileRoute("/quiz/$gameId/results")({
   head: () => ({
@@ -33,6 +34,8 @@ type UnifiedRow =
       correctCount: number;
       totalQuestions: number;
       timeSec: number;
+      variantId?: string;
+      variantName?: string;
       raw: QuizResult;
     }
   | {
@@ -45,6 +48,8 @@ type UnifiedRow =
       correctCount: number;
       totalQuestions: number;
       timeSec: number;
+      variantId?: string;
+      variantName?: string;
       raw: OnlineQuizResult;
     };
 
@@ -77,6 +82,10 @@ function ResultsPage() {
   }, [gameId, tick]);
 
   const rows: UnifiedRow[] = useMemo(() => {
+    const gameHasVariants = !!game && quizVariants(game).length >= 2;
+    const variantForResult = (variantId?: string, variantName?: string) => gameHasVariants
+      ? { variantId: variantId ?? PRIMARY_VARIANT_ID, variantName: variantName ?? "Вариант 1" }
+      : { variantId, variantName };
     const off: UnifiedRow[] = offline.map((r) => ({
       kind: "offline",
       id: r.id,
@@ -87,6 +96,7 @@ function ResultsPage() {
       correctCount: r.correctCount,
       totalQuestions: r.totalQuestions,
       timeSec: r.timeSec,
+      ...variantForResult(r.variantId, r.variantName),
       raw: r,
     }));
     const on: UnifiedRow[] = online.map((r) => {
@@ -106,23 +116,37 @@ function ResultsPage() {
         correctCount: winner?.correctCount ?? 0,
         totalQuestions: winner?.totalQuestions ?? 0,
         timeSec: r.durationSec,
+        ...variantForResult(r.variantId, r.variantName),
         raw: r,
       };
     });
     return [...off, ...on].sort((a, b) => b.finishedAt - a.finishedAt);
-  }, [offline, online]);
+  }, [offline, online, game]);
+
+  const gameHasVariants = !!game && quizVariants(game).length >= 2;
+  const variantChoices = useMemo(() => {
+    const labels = new Map<string, string>();
+    rows.forEach((row) => {
+      if (row.variantId) labels.set(row.variantId, row.variantName ?? row.variantId);
+    });
+    return [...labels.entries()];
+  }, [rows]);
+  const showVariantFilter = variantChoices.length > 1;
+  const [variantFilter, setVariantFilter] = useState("all");
+  const visibleRows = showVariantFilter && variantFilter !== "all"
+    ? rows.filter((row) => row.variantId === variantFilter)
+    : rows;
 
   const stats = useMemo(() => {
     // Aggregate individual attempts (offline + each online player)
     const attempts: { score: number; correct: number; total: number }[] = [];
-    offline.forEach((r) =>
-      attempts.push({ score: r.score, correct: r.correctCount, total: r.totalQuestions }),
-    );
-    online.forEach((r) =>
-      r.players.forEach((p) =>
-        attempts.push({ score: p.score, correct: p.correctCount, total: p.totalQuestions }),
-      ),
-    );
+    visibleRows.forEach((row) => {
+      if (row.kind === "offline") {
+        attempts.push({ score: row.score, correct: row.correctCount, total: row.totalQuestions });
+      } else {
+        row.raw.players.forEach((p) => attempts.push({ score: p.score, correct: p.correctCount, total: p.totalQuestions }));
+      }
+    });
     const n = attempts.length;
     if (n === 0) return { count: 0, avgScore: 0, bestScore: 0, avgPct: 0 };
     return {
@@ -133,7 +157,7 @@ function ResultsPage() {
         attempts.reduce((s, a) => s + (a.total ? (a.correct / a.total) * 100 : 0), 0) / n,
       ),
     };
-  }, [offline, online]);
+  }, [visibleRows]);
 
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
@@ -160,12 +184,23 @@ function ResultsPage() {
             </h1>
             {game && <p className="mt-2 text-sm text-muted-foreground">{game.config.title}</p>}
           </div>
-          <button className="btn-ghost" onClick={() => setTick((t) => t + 1)}>
-            <RefreshCw className="h-4 w-4" /> Обновить
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {showVariantFilter && (
+              <label className="text-xs font-semibold text-muted-foreground">
+                Вариант
+                <select className="input-base mt-1 min-w-40" value={variantFilter} onChange={(event) => setVariantFilter(event.target.value)}>
+                  <option value="all">Все варианты</option>
+                  {variantChoices.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+              </label>
+            )}
+            <button className="btn-ghost" onClick={() => setTick((t) => t + 1)}>
+              <RefreshCw className="h-4 w-4" /> Обновить
+            </button>
+          </div>
         </div>
 
-        {rows.length > 0 ? (
+        {visibleRows.length > 0 ? (
           <>
             <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
               <StatCard label="Прошли" value={String(stats.count)} />
@@ -181,6 +216,7 @@ function ResultsPage() {
                     <tr className="bg-primary-soft text-left text-xs font-bold uppercase tracking-wider text-primary">
                       <th className="px-4 py-3">Тип</th>
                       <th className="px-4 py-3">Игрок</th>
+                      {gameHasVariants && <th className="px-4 py-3">Вариант</th>}
                       <th className="px-4 py-3">Баллы</th>
                       <th className="px-4 py-3">% верно</th>
                       <th className="px-4 py-3">Время</th>
@@ -189,12 +225,13 @@ function ResultsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r) => {
+                    {visibleRows.map((r) => {
                       const pct = r.totalQuestions
                         ? Math.round((r.correctCount / r.totalQuestions) * 100)
                         : 0;
                       const tone = pct >= 80 ? "success" : pct >= 50 ? "amber" : "danger";
                       const isOffline = r.kind === "offline";
+                      const colSpan = gameHasVariants ? 8 : 7;
                       const expanded = isOffline ? expandedOffline === r.id : expandedRoom === r.id;
                       const toggle = () => {
                         if (isOffline) {
@@ -229,6 +266,7 @@ function ResultsPage() {
                                 userId={isOffline ? r.raw.userId : undefined}
                               />
                             </td>
+                            {gameHasVariants && <td className="px-4 py-3 text-sm text-muted-foreground">{r.variantName ?? "Вариант 1"}</td>}
                             <td className="px-4 py-3 font-mono">
                               {r.score}
                               {isOffline && (
@@ -264,14 +302,14 @@ function ResultsPage() {
                           </tr>
                           {expanded && isOffline && r.raw.answers && (
                             <tr className="bg-surface-muted/40">
-                              <td colSpan={7} className="px-4 py-4">
+                              <td colSpan={colSpan} className="px-4 py-4">
                                 <OfflineAnswers result={r.raw} questions={game?.questions ?? []} />
                               </td>
                             </tr>
                           )}
                           {expanded && !isOffline && (
                             <tr className="bg-surface-muted/40">
-                              <td colSpan={7} className="px-4 py-4">
+                              <td colSpan={colSpan} className="px-4 py-4">
                                 <OnlineRoomPlayers
                                   room={r.raw}
                                   questions={game?.questions ?? []}
@@ -291,7 +329,7 @@ function ResultsPage() {
               </div>
             </div>
             <div className="grid gap-2 md:hidden">
-              {rows.map((r) => {
+              {visibleRows.map((r) => {
                 const pct = r.totalQuestions
                   ? Math.round((r.correctCount / r.totalQuestions) * 100)
                   : 0;
@@ -329,6 +367,7 @@ function ResultsPage() {
                           {pct}%
                         </span>
                       </div>
+                      {gameHasVariants && <p className="mt-1 text-xs font-semibold text-primary">{r.variantName ?? "Вариант 1"}</p>}
                       <p className="mt-1 text-[11px] text-muted-foreground">{new Date(r.finishedAt).toLocaleString("ru-RU")} · {fmtTime(r.timeSec)}</p>
                     </button>
                     {expanded && isOffline && r.raw.answers && (

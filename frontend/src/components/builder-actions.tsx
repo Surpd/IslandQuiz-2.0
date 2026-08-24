@@ -5,7 +5,6 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
-  Save,
   Play,
   ChevronDown,
   Upload,
@@ -593,7 +592,7 @@ export function BuilderFabs({
           <div className="flex min-w-0 items-center justify-start gap-1">
             {mobilePrimaryAction}
             <button type="button" onClick={() => void performSave()} aria-label="Сохранить" title={status.label} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-foreground text-white hover:opacity-90">
-              <Save className="h-4 w-4" />
+              <StatusIcon className={`h-4 w-4 ${status.className}`} />
             </button>
             {onResults && savedId && (
               <button type="button" onClick={onResults} aria-label="Результаты" title="Результаты" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface-muted">
@@ -704,11 +703,13 @@ export function BuilderFabs({
           <button
             type="button"
             onClick={() => void performSave()}
+            aria-label={status.label}
+            title={status.label}
             className="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-white transition-transform hover:scale-[1.02] active:scale-95 sm:px-5 sm:py-3"
             style={{ background: "var(--foreground)" }}
           >
-            <Save className="h-4 w-4" />
-            <span className="hidden xs:inline sm:inline">Сохранить</span>
+            <StatusIcon className={`h-4 w-4 ${status.className}`} />
+            <span className="hidden xs:inline sm:inline">{status.label}</span>
           </button>
           <button
             type="button"

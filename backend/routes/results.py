@@ -86,6 +86,8 @@ class QuizResultOut(BaseModel):
     totalQuestions: int
     timeSec: int
     finishedAt: str
+    variantId: Optional[str] = None
+    variantName: Optional[str] = None
     answers: Optional[List[dict]] = None
 
     class Config:
@@ -189,6 +191,8 @@ class OnlineQuizResultOut(BaseModel):
     roomCode: str
     playedAt: str
     durationSec: int
+    variantId: Optional[str] = None
+    variantName: Optional[str] = None
     players: List[dict]
 
     class Config:
@@ -245,6 +249,21 @@ def _result_fields(payload, allowed):
     return [{key: item[key] for key in allowed if key in item} for item in _result_items(payload)]
 
 
+def _result_variant_identity(payload) -> tuple[Optional[str], Optional[str]]:
+    if not isinstance(payload, dict):
+        return None, None
+    snapshot = payload.get("snapshot")
+    data = snapshot.get("data") if isinstance(snapshot, dict) else None
+    if not isinstance(data, dict):
+        return None, None
+    variant_id = data.get("selectedVariantId")
+    variant_name = data.get("selectedVariantName")
+    return (
+        variant_id if isinstance(variant_id, str) and variant_id else None,
+        variant_name if isinstance(variant_name, str) and variant_name else None,
+    )
+
+
 def _online_result_players(payload):
     allowed = ("id", "nickname", "avatar", "score", "maxScore", "correctCount", "totalQuestions", "answers")
     answer_allowed = ("questionIdx", "correct", "delta", "timeMs", "given")
@@ -295,6 +314,7 @@ def get_quiz_results(gameId: str, user=Depends(get_current_user)):
             avatar=r.get("avatar"), score=r.get("score") or 0, maxScore=r.get("max_score") or 0,
             correctCount=r.get("correct_count") or 0, totalQuestions=r.get("total_questions") or 0,
             timeSec=r.get("time_sec") or 0, finishedAt=r.get("finished_at") or "", answers=_result_fields(r.get("answers"), ("qId", "question", "given", "correctAnswer", "isCorrect", "earned", "points")),
+            variantId=_result_variant_identity(r.get("answers"))[0], variantName=_result_variant_identity(r.get("answers"))[1],
         )
         for r in rows
     ]
@@ -418,7 +438,9 @@ def get_online_results(gameId: str, user=Depends(get_current_user)):
     rows = _db_rows(supabase.table("online_quiz_results").select("*").eq("game_id", gameId).order("played_at", desc=True))
     return [
         OnlineQuizResultOut(id=r.get("id") or "", gameId=r.get("game_id") or "", roomCode=r.get("room_code") or "",
-                            playedAt=r.get("played_at") or "", durationSec=r.get("duration_sec") or 0, players=_online_result_players(r.get("players")))
+                            playedAt=r.get("played_at") or "", durationSec=r.get("duration_sec") or 0,
+                            variantId=_result_variant_identity(r.get("players"))[0], variantName=_result_variant_identity(r.get("players"))[1],
+                            players=_online_result_players(r.get("players")))
         for r in rows
     ]
 

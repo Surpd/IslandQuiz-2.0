@@ -157,6 +157,8 @@ function mapQuizResult(r: any): QuizResult {
     totalQuestions: r.totalQuestions ?? r.total_questions,
     timeSec: r.timeSec ?? r.time_sec,
     finishedAt: toMs(r.finishedAt ?? r.finished_at),
+    variantId: r.variantId ?? r.variant_id ?? undefined,
+    variantName: r.variantName ?? r.variant_name ?? undefined,
     answers: r.answers ?? undefined,
   };
 }
@@ -199,6 +201,8 @@ function mapOnlineResult(r: any): OnlineQuizResult {
     roomCode: r.roomCode ?? r.room_code,
     playedAt: toMs(r.playedAt ?? r.played_at),
     durationSec: r.durationSec ?? r.duration_sec,
+    variantId: r.variantId ?? r.variant_id ?? undefined,
+    variantName: r.variantName ?? r.variant_name ?? undefined,
     players: r.players ?? [],
   };
 }

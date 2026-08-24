@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileText,
   Plus,
@@ -772,15 +772,25 @@ function BuilderQuiz() {
       {compare && (() => {
         const reference = allVariants.find((variant) => variant.id === compare.referenceId) ?? allVariants[0];
         const editable = allVariants.find((variant) => variant.id === compare.editableId) ?? allVariants[1];
+        const comparePairCount = Math.max(reference.questions.length, editable.questions.length);
         return <section className="hidden space-y-4 lg:block">
           <div className="surface-card flex flex-wrap items-end gap-3 p-4">
             <button type="button" className="btn-ghost" onClick={() => { switchVariant(editable.id); setCompare(null); }}>← К редактированию</button>
             <label className="text-xs font-semibold">Слева — образец<select className="input-base mt-1" value={reference.id} onChange={(event) => setCompare({ ...compare, referenceId: event.target.value })}>{allVariants.filter((variant) => variant.id !== editable.id).map((variant) => <option key={variant.id} value={variant.id}>{variant.name}</option>)}</select></label>
             <label className="text-xs font-semibold">Справа — редактирование<select className="input-base mt-1" value={editable.id} onChange={(event) => { switchVariant(event.target.value); setCompare({ ...compare, editableId: event.target.value }); }}>{allVariants.filter((variant) => variant.id !== reference.id).map((variant) => <option key={variant.id} value={variant.id}>{variant.name}</option>)}</select></label>
           </div>
-          <div className="grid grid-cols-2 items-start gap-4">
-            <div className="space-y-3"><p className="text-xs font-bold uppercase text-muted-foreground">Только просмотр · {reference.questions.length} вопросов</p>{reference.questions.map((question, index) => <article key={question.id} className="surface-card p-4"><p className="text-xs font-bold text-muted-foreground">Вопрос {index + 1} · {TYPE_META[question.type].label} · {question.points} баллов · {question.time} сек</p>{question.image && <img src={question.image} alt="" className="mt-3 max-h-44 rounded-xl object-contain" />}<p className="mt-2 whitespace-pre-wrap font-semibold">{question.q}</p>{question.type === "choice" && <ol className="mt-3 grid gap-1 text-sm text-muted-foreground">{question.options.map((option, optionIndex) => <li key={optionIndex}>{String.fromCharCode(65 + optionIndex)}. {option}</li>)}</ol>}<div className="mt-3 rounded-xl bg-success-soft p-3 text-sm text-success"><span className="font-bold">Ответ: </span><QuizAnswerDisplay question={question} /></div></article>)}</div>
-            <div className="space-y-4"><p className="text-xs font-bold uppercase text-primary">Редактирование · {editable.questions.length} вопросов</p>{questions.map((question, index) => <QuestionCard key={question.id} index={index} question={question} topic={config.title} onPatch={(patch) => patchQuestion(question.id, patch)} onRemove={() => removeQuestion(question.id)} />)}<div className="flex flex-wrap gap-2">{(Object.keys(TYPE_META) as QuizQuestionType[]).map((type) => <button key={type} type="button" className="btn-ghost" onClick={() => addQuestion(type)}>+ {TYPE_META[type].label}</button>)}</div></div>
+          <div className="grid grid-cols-2 items-stretch gap-x-4 gap-y-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Только просмотр · {reference.questions.length} вопросов</p>
+            <p className="text-xs font-bold uppercase text-primary">Редактирование · {editable.questions.length} вопросов</p>
+            {Array.from({ length: comparePairCount }, (_, index) => {
+              const referenceQuestion = reference.questions[index];
+              const editableQuestion = editable.questions[index];
+              return <Fragment key={index}>
+                {referenceQuestion ? <article className="surface-card h-full p-4"><p className="text-xs font-bold text-muted-foreground">Вопрос {index + 1} · {TYPE_META[referenceQuestion.type].label} · {referenceQuestion.points} баллов · {referenceQuestion.time} сек</p>{referenceQuestion.image && <img src={referenceQuestion.image} alt="" className="mt-3 max-h-44 rounded-xl object-contain" />}<p className="mt-2 whitespace-pre-wrap font-semibold">{referenceQuestion.q}</p>{referenceQuestion.type === "choice" && <ol className="mt-3 grid gap-1 text-sm text-muted-foreground">{referenceQuestion.options.map((option, optionIndex) => <li key={optionIndex}>{String.fromCharCode(65 + optionIndex)}. {option}</li>)}</ol>}<div className="mt-3 rounded-xl bg-success-soft p-3 text-sm text-success"><span className="font-bold">Ответ: </span><QuizAnswerDisplay question={referenceQuestion} /></div></article> : <div className="flex h-full min-h-24 items-center justify-center rounded-2xl border border-dashed border-border bg-surface-muted/30 p-4 text-center text-xs text-muted-foreground" aria-label={`Нет вопроса ${index + 1}`}>Нет вопроса {index + 1}</div>}
+                {editableQuestion ? <div className="h-full [&>div]:h-full"><QuestionCard index={index} question={editableQuestion} topic={config.title} onPatch={(patch) => patchQuestion(editableQuestion.id, patch)} onRemove={() => removeQuestion(editableQuestion.id)} /></div> : <div className="flex h-full min-h-24 items-center justify-center rounded-2xl border border-dashed border-border bg-surface-muted/30 p-4 text-center text-xs text-muted-foreground" aria-label={`Нет вопроса ${index + 1}`}>Нет вопроса {index + 1}</div>}
+              </Fragment>;
+            })}
+            <div className="col-span-2 flex flex-wrap gap-2">{(Object.keys(TYPE_META) as QuizQuestionType[]).map((type) => <button key={type} type="button" className="btn-ghost" onClick={() => addQuestion(type)}>+ {TYPE_META[type].label}</button>)}</div>
           </div>
         </section>;
       })()}
