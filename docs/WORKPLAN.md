@@ -8,7 +8,7 @@
 
 ## Ordered execution plan
 
-0. **P9 — расширенная AI-генерация Quiz — DONE:** full-generation `close/ordering` payload корректно применяется в Builder; advanced modal адаптирован для desktop two-column и mobile 2×3 layout.
+0. **P9 — расширенная AI-генерация Quiz — DONE:** full-generation `close/ordering` payload корректно применяется в Builder; advanced modal адаптирован для desktop two-column и mobile 2×3 layout; manual distribution получает один corrective retry после model mismatch.
 1. **H6.1 — controlled rollback rehearsal:** проверить exact-SHA recovery procedure и health gates с owner approval; не делать реальный rollback только ради теста.
 2. **M9 — external monitoring:** выбрать реальный notification provider/credentials и настроить alerts поверх существующих request IDs, 5xx summary, health endpoint и deployment gates.
 3. **M6/M11 — DB integrity/RPC hardening:** провести targeted orphan/FK/cascade audit и согласовать additive-safe policy.

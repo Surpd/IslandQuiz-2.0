@@ -205,6 +205,7 @@ Historical telemetry неполна: старые `ai_usage` rows могут н�
 - `AIGenerateQuizButton` вызывает full quiz endpoint или напрямую загружает файл в `/api/ai/generate-from-file`.
 - `AIJeopardyCategoryButton` связывает builder с category/question endpoints.
 - Builder преобразует AI shape (`question`, `correct`, `correctAnswer`, `pairs`, `options`) в локальный `QuizQuestion` shape (`q`, `answer`, `options`). Для `close` pipe-delimited `correctAnswer` сериализуется в JSON-массив ответов, для `ordering` canonical `options` сериализуются в JSON-массив правильного порядка. Это единое преобразование используется full-generation и Improve.
+- При manual `type_distribution` backend строго валидирует фактическое распределение; если модель вернула корректный JSON, но нарушила exact counts, выполняется один повторный запрос с corrective-инструкцией и сниженной температурой.
 
 ## Расхождения со старой документацией
 

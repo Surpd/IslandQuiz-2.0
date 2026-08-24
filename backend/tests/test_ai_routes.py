@@ -118,6 +118,31 @@ class AIRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 502)
         self.assertEqual(json.loads(response.body)["code"], "invalid_ai_response")
 
+    async def test_generate_quiz_retries_manual_distribution_after_model_mismatch(self):
+        distribution = {"choice": 3, "bool": 2, "text": 0, "matching": 0, "close": 0, "ordering": 0}
+        correct_payload = {
+            "title": "Manual",
+            "questions": [choice_question(1), choice_question(2), choice_question(3), bool_question(4), bool_question(5)],
+        }
+        with (
+            patch.object(ai_route, "check_ai_limit", return_value=None),
+            patch.object(
+                ai_route,
+                "call_openai",
+                new=AsyncMock(side_effect=[json.dumps(five_question_auto_quiz()), json.dumps(correct_payload)]),
+            ) as call_openai,
+        ):
+            response = await ai_route.generate_quiz.__wrapped__(
+                self.request,
+                ai_route.GenerateQuizInput(count=5, type_distribution=distribution),
+                None,
+            )
+
+        self.assertEqual(response, correct_payload)
+        self.assertEqual(call_openai.await_count, 2)
+        self.assertEqual(call_openai.await_args_list[1].kwargs["temperature"], 0.2)
+        self.assertEqual(call_openai.await_args_list[1].kwargs["request_type"], "generate_quiz_retry")
+
     def test_automatic_distribution_covers_limits(self):
         self.assertEqual(sum(ai_route.get_quiz_type_distribution(5).values()), 5)
         self.assertEqual(ai_route.get_quiz_type_distribution(10)["choice"], 6)
