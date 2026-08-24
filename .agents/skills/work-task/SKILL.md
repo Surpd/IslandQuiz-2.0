@@ -20,15 +20,18 @@ several competing hypotheses.
 Implement the smallest coherent change in the existing architecture. Avoid unrelated
 refactoring. Run the narrowest useful checks first, then verify the real affected path:
 targeted tests, API/integration checks, typecheck/build, and browser/E2E or direct API
-exercise when applicable. A build, lint, typecheck, or unit suite alone does not prove a
+exercise when applicable. Follow `docs/VERIFICATION.md` and use the smallest credible
+check first. A build, lint, typecheck, or unit suite alone does not prove a
 user-facing runtime task. Reproduce runtime bugs when feasible and add a focused
 regression check when practical; do not add tests that merely mirror implementation.
 
-For frontend changes that can affect the covered browser path, run `cd frontend; npm
-run test:e2e`. This smoke test uses mocked auth/games/results APIs and covers only login,
-Quiz Builder, save, Library reopen, offline player, and answer/finish; it is not evidence
-for real persistence, Telegram, AI, online rooms, permissions, or production results.
-Use more targeted regression or integration checks when the task reaches those areas.
+For frontend changes, run the relevant targeted Playwright test first. The full smoke
+suite uses mocked auth/games/results APIs and covers only login, Quiz Builder, save,
+Library reopen, offline player, and answer/finish; it is not evidence for real
+persistence, Telegram, AI, online rooms, permissions, or production results. Run
+`cd frontend; npm run test:e2e` only when the change is broad/high-risk or acceptance
+criteria require it. Use more targeted regression or integration checks when the task
+reaches those areas.
 
 Use the custom `reviewer` only for auth, authorization, permissions, WebSockets, scoring,
 security, database consistency, AI contracts, major state changes, broad changes,

@@ -38,6 +38,8 @@ Product tasks P3–P6 идут отдельно и не смешиваются �
 
 ## Baseline checks
 
+Этот список описывает известный baseline проекта, а не обязательный полный suite для каждой задачи. Пропорциональная стратегия выбора проверки зафиксирована в [docs/VERIFICATION.md](VERIFICATION.md); итоговый отчёт должен опираться на фактически выполненные команды.
+
 - `git diff --check`;
 - `python -m unittest discover -s backend/tests -p 'test*.py'`;
 - `cd frontend; npx tsc --noEmit`;

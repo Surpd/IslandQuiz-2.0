@@ -134,6 +134,7 @@ Backend ожидает переменные окружения. Код не за
 Не проводить полный аудит проекта перед каждой задачей. Повторно изучать только затронутые компоненты, связанные документы и конкретные зависимости текущей backlog-задачи.
 - `docs/CODEX_MODEL_GUIDE.md` — рекомендации по Codex model и reasoning effort для backlog-задач.
 - `docs/ROADMAP.md` — краткая карта текущего состояния и ближайшего маршрута.
+- `docs/VERIFICATION.md` — canonical policy пропорциональных static/unit/integration/E2E проверок.
 
 ### Design-agent workflow
 
@@ -172,6 +173,8 @@ Backend ожидает переменные окружения. Код не за
 - Не отключать ESLint, Prettier, TypeScript или тесты для сокрытия ошибок; различать наличие quality tool и обязанность исправить весь исторический baseline.
 
 ## Обязательная проверка результата
+
+Стратегия выбора и объём verification определяются `docs/VERIFICATION.md`: для небольшой задачи начинать с static/unit/integration checks и targeted regression; full E2E запускать только по риску или acceptance criteria.
 
 После реализации обязательно:
 

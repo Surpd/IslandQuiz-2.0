@@ -12,6 +12,8 @@
 
 ## Baseline проверок
 
+Объём проверки конкретной задачи выбирается по [канонической verification policy](VERIFICATION.md); сохранённые числа ниже являются ориентиром, а фактическим evidence считается output реально выполненной команды.
+
 - Backend: `python -m unittest discover -s backend/tests -p 'test*.py'` — **133/133**.
 - Frontend TypeScript: `cd frontend; npx tsc --noEmit` — проходит.
 - Browser suite: `cd frontend; npm run test:e2e` — текущий подтверждённый baseline **41/41**.

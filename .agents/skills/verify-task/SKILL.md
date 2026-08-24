@@ -12,17 +12,21 @@ acceptance criteria, inspect `git diff` and relevant surrounding code, identify 
 user-visible or runtime proof, and inspect the relevant tests.
 
 Run focused automated checks first, then exercise the affected flow when feasible.
+Choose the smallest credible verification path using `docs/VERIFICATION.md`; do not
+turn every task into a full Playwright regression run.
 Check browser/runtime errors for frontend work and frontend/backend/API contracts when
 applicable. Look specifically for static checks passing while runtime behavior remains
 broken, nullable values, incorrect error paths, persistence gaps, authorization errors,
 and tests asserting the wrong thing. A build, typecheck, lint, or unit suite alone is
 never sufficient evidence for a user-facing runtime bug.
 
-When a frontend change can affect the existing smoke path, run `cd frontend; npm run
-test:e2e`. Treat its result as evidence only for the mocked login → Quiz Builder → save
-→ Library reopen → offline player → answer/finish flow. It does not verify real
+For frontend changes, run the relevant targeted Playwright test first. The existing smoke
+suite uses mocked auth/games/results APIs and covers only login → Quiz Builder → save →
+Library reopen → offline player → answer/finish. It is not evidence for real
 backend/Supabase persistence, Telegram, AI, online rooms, permissions, or production
-results; add targeted regression/integration checks for those subsystems.
+results. Run `cd frontend; npm run test:e2e` only for broad/high-risk changes or when
+acceptance criteria require it; otherwise use targeted regression/integration checks for
+the affected subsystem.
 
 Use the read-only `reviewer` for sufficiently risky work or when independent review is
 requested. Do not change application code unless the user explicitly asks for fixes.
