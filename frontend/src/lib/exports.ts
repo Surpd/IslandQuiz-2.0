@@ -1,4 +1,4 @@
-// Export helpers — Excel (xlsx) is primary; browser print for PDF.
+// Export helpers — Excel (xlsx) and client-side PDF generation.
 
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -484,9 +484,7 @@ export interface PrintOptions {
   variantLabel?: string;
 }
 
-export function printQuiz(data: QuizData, opts: PrintOptions = {}) {
-  const win = window.open("", "_blank");
-  if (!win) return;
+function buildQuizPrintHtml(data: QuizData, opts: PrintOptions = {}) {
   const withAnswers = opts.withAnswers !== false;
   
   const rows = data.questions
@@ -614,15 +612,10 @@ export function printQuiz(data: QuizData, opts: PrintOptions = {}) {
     .join("");
 
   const title = `${data.config.title || "Квиз"}${opts.variantLabel ? ` — ${opts.variantLabel}` : ""}`;
-  win.document.write(printShell(title, rows, withAnswers));
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 400);
+  return printShell(title, rows, withAnswers);
 }
 
-export function printJeopardy(data: JeopardyData, opts: PrintOptions = {}) {
-  const win = window.open("", "_blank");
-  if (!win) return;
+function buildJeopardyPrintHtml(data: JeopardyData, opts: PrintOptions = {}) {
   const withAnswers = opts.withAnswers !== false;
   const body = data.rounds
     .map(
@@ -643,15 +636,10 @@ export function printJeopardy(data: JeopardyData, opts: PrintOptions = {}) {
     )
     .join("");
   const finalBlock = `<h2>Финал</h2><p><strong>${escape(data.final.category)}:</strong> ${escape(data.final.q)}</p>${withAnswers ? `<p><em>Ответ: ${escape(data.final.a)}</em></p>` : ""}`;
-  win.document.write(printShell("Своя Игра", body + finalBlock, withAnswers));
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 300);
+  return printShell("Своя Игра", body + finalBlock, withAnswers);
 }
 
-export function printMillionaire(data: MillionaireData, opts: PrintOptions = {}) {
-  const win = window.open("", "_blank");
-  if (!win) return;
+function buildMillionairePrintHtml(data: MillionaireData, opts: PrintOptions = {}) {
   const withAnswers = opts.withAnswers !== false;
   const rows = data.questions
     .map(
@@ -664,10 +652,113 @@ export function printMillionaire(data: MillionaireData, opts: PrintOptions = {})
     </div>`,
     )
     .join("");
-  win.document.write(printShell("Миллионер", rows, withAnswers));
+  return printShell("Миллионер", rows, withAnswers);
+}
+
+export function printQuiz(data: QuizData, opts: PrintOptions = {}) {
+  openPrintWindow(buildQuizPrintHtml(data, opts), 400);
+}
+
+export function printJeopardy(data: JeopardyData, opts: PrintOptions = {}) {
+  openPrintWindow(buildJeopardyPrintHtml(data, opts), 300);
+}
+
+export function printMillionaire(data: MillionaireData, opts: PrintOptions = {}) {
+  openPrintWindow(buildMillionairePrintHtml(data, opts), 300);
+}
+
+export function downloadQuizPdf(data: QuizData, opts: PrintOptions = {}) {
+  return downloadPdfDocument(
+    buildQuizPrintHtml(data, opts),
+    `${safeFilename(data.config.title || "quiz")}.pdf`,
+  );
+}
+
+export function downloadJeopardyPdf(data: JeopardyData, opts: PrintOptions = {}) {
+  return downloadPdfDocument(buildJeopardyPrintHtml(data, opts), "своя-игра.pdf");
+}
+
+export function downloadMillionairePdf(data: MillionaireData, opts: PrintOptions = {}) {
+  return downloadPdfDocument(buildMillionairePrintHtml(data, opts), "миллионер.pdf");
+}
+
+function openPrintWindow(html: string, delay: number) {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(html);
   win.document.close();
   win.focus();
-  setTimeout(() => win.print(), 300);
+  setTimeout(() => win.print(), delay);
+}
+
+async function downloadPdfDocument(html: string, filename: string) {
+  const [{ default: renderToCanvas }, { jsPDF: JsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = "210mm";
+  iframe.style.height = "297mm";
+  iframe.style.border = "0";
+  iframe.style.pointerEvents = "none";
+  document.body.appendChild(iframe);
+
+  try {
+    const doc = iframe.contentDocument;
+    if (!doc) throw new Error("Не удалось подготовить PDF.");
+    doc.open();
+    doc.write(html);
+    doc.close();
+    await Promise.all(
+      Array.from(doc.images).map(
+        (image) =>
+          image.complete
+            ? Promise.resolve()
+            : new Promise<void>((resolve) => {
+                image.addEventListener("load", () => resolve(), { once: true });
+                image.addEventListener("error", () => resolve(), { once: true });
+              }),
+      ),
+    );
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    doc.querySelectorAll<HTMLElement>(".no-print").forEach((element) => {
+      element.style.display = "none";
+    });
+
+    const canvas = await renderToCanvas(doc.body, {
+      backgroundColor: "#ffffff",
+      logging: false,
+      scale: Math.min(2, window.devicePixelRatio || 1),
+      useCORS: true,
+      windowWidth: doc.documentElement.clientWidth,
+    });
+    const pageWidth = 190;
+    const pageHeight = 277;
+    const pixelsPerMillimeter = canvas.width / pageWidth;
+    const sliceHeight = Math.max(1, Math.floor(pageHeight * pixelsPerMillimeter));
+    const pdf = new JsPDF("p", "mm", "a4");
+
+    for (let y = 0, page = 0; y < canvas.height; y += sliceHeight, page += 1) {
+      const height = Math.min(sliceHeight, canvas.height - y);
+      const slice = document.createElement("canvas");
+      slice.width = canvas.width;
+      slice.height = height;
+      slice.getContext("2d")?.drawImage(canvas, 0, y, canvas.width, height, 0, 0, canvas.width, height);
+      if (page > 0) pdf.addPage();
+      pdf.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", 10, 10, pageWidth, height / pixelsPerMillimeter);
+    }
+    pdf.save(filename);
+  } finally {
+    iframe.remove();
+  }
+}
+
+function safeFilename(value: string) {
+  return value.trim().replace(/[\\/:*?"<>|]+/g, "-").slice(0, 80) || "islandquiz";
 }
 
 function escape(s: string) {
@@ -778,7 +869,7 @@ function printShell(title: string, body: string, withAnswers: boolean) {
     }
   </style></head><body>
   <div class="no-print">
-    <button class="btn-print" onclick="window.print()">🖨 Печатать / Сохранить PDF</button>
+    <button class="btn-print" onclick="window.print()">🖨 Печатать</button>
   </div>
   <div class="header">
     <h1>${escape(title)}</h1>

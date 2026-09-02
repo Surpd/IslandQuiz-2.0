@@ -37,6 +37,7 @@ import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSec
 import {
   downloadExcelTemplate,
   exportQuizExcel,
+  downloadQuizPdf,
   importQuizXlsx,
   printQuiz,
 } from "@/lib/exports";
@@ -675,6 +676,7 @@ function BuilderQuiz() {
           onImportFile={handleImport}
           onDownloadTemplate={() => downloadExcelTemplate("quiz")}
           onExportExcel={() => exportQuizExcel({ config, questions: primaryQuestions, variants: extraVariants.length ? extraVariants : undefined })}
+          onDownloadPdf={() => void downloadQuizPdf({ config, questions }, { withAnswers: printAnswers, variantLabel: allVariants.length >= 2 ? allVariants[activeVariantIndex].name : undefined })}
           onPrint={(withAnswers) => printQuiz({ config, questions }, { withAnswers, variantLabel: allVariants.length >= 2 ? allVariants[activeVariantIndex].name : undefined })}
           printAnswers={printAnswers}
           onToggleSettings={() => setShowSettings((s) => !s)}
@@ -736,6 +738,7 @@ function BuilderQuiz() {
             onImportFile={handleImport}
             onDownloadTemplate={() => downloadExcelTemplate("quiz")}
             onExportExcel={() => exportQuizExcel({ config, questions: primaryQuestions, variants: extraVariants.length ? extraVariants : undefined })}
+            onDownloadPdf={() => void downloadQuizPdf({ config, questions }, { withAnswers: printAnswers, variantLabel: allVariants.length >= 2 ? allVariants[activeVariantIndex].name : undefined })}
             onPrint={(withAnswers) => printQuiz({ config, questions }, { withAnswers, variantLabel: allVariants.length >= 2 ? allVariants[activeVariantIndex].name : undefined })}
             printAnswers={printAnswers}
             onResults={openResults}

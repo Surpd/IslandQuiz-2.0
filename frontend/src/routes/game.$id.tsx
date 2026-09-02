@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Play,
   Printer,
+  FileText,
   FileSpreadsheet,
   Pencil,
   Trophy,
@@ -29,6 +30,9 @@ import {
   exportQuizExcel,
   exportJeopardyExcel,
   exportMillionaireExcel,
+  downloadQuizPdf,
+  downloadJeopardyPdf,
+  downloadMillionairePdf,
   printQuiz,
   printJeopardy,
   printMillionaire,
@@ -114,6 +118,19 @@ function GameDashboard() {
       else printMillionaire(game.data as MillionaireData, { withAnswers: true });
     } catch {
       showToast("Ошибка печати");
+    }
+  };
+
+  const doDownloadPdf = async () => {
+    if (!game) return;
+    try {
+      if (game.kind === "quiz")
+        await downloadQuizPdf(withSelectedQuizVariant(game.data as QuizData, variantId), { withAnswers: true, variantLabel: quizVariants(game.data as QuizData).length >= 2 ? quizVariants(game.data as QuizData).find((variant) => variant.id === variantId)?.name : undefined });
+      else if (game.kind === "jeopardy")
+        await downloadJeopardyPdf(game.data as JeopardyData, { withAnswers: true });
+      else await downloadMillionairePdf(game.data as MillionaireData, { withAnswers: true });
+    } catch {
+      showToast("Ошибка экспорта PDF");
     }
   };
 
@@ -438,6 +455,9 @@ function GameDashboard() {
             <button onClick={doExport} className="btn-ghost hidden md:inline-flex">
               <FileSpreadsheet className="h-4 w-4" /> Экспорт
             </button>
+            <button onClick={() => void doDownloadPdf()} className="btn-ghost hidden md:inline-flex">
+              <FileText className="h-4 w-4" /> Скачать PDF
+            </button>
             <button onClick={doPrint} className="btn-ghost hidden md:inline-flex">
               <Printer className="h-4 w-4" /> Печать
             </button>
@@ -472,6 +492,16 @@ function GameDashboard() {
                   type="button"
                   onClick={() => {
                     setExportOpen(false);
+                    void doDownloadPdf();
+                  }}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl bg-primary-soft px-3 text-left text-sm font-semibold text-primary hover:bg-primary/15"
+                >
+                  <FileText className="h-4 w-4" /> Скачать PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportOpen(false);
                     doExport();
                   }}
                   className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold hover:bg-surface-muted"
@@ -486,7 +516,7 @@ function GameDashboard() {
                   }}
                   className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold hover:bg-surface-muted"
                 >
-                  <Printer className="h-4 w-4 text-primary" /> Печать / PDF с ответами
+                  <Printer className="h-4 w-4 text-primary" /> Печать с ответами
                 </button>
               </>
             )}

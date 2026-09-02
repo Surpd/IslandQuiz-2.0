@@ -40,6 +40,17 @@ export function TagInput({ value, onChange, placeholder = "Добавьте те
     return () => controller.abort();
   }, [focused, text]);
 
+  useEffect(() => {
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (boxRef.current && !boxRef.current.contains(event.target as Node)) {
+        setFocused(false);
+        setActiveIndex(-1);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, []);
+
   const visibleSuggestions = useMemo(
     () => suggestions.filter((suggestion) => !value.some((tag) => sameTag(tag, suggestion.name))),
     [suggestions, value],
@@ -86,7 +97,16 @@ export function TagInput({ value, onChange, placeholder = "Добавьте те
   const remove = (tag: string) => onChange(value.filter((item) => item !== tag));
 
   return (
-    <div ref={boxRef} className="relative min-w-0">
+    <div
+      ref={boxRef}
+      className="relative min-w-0"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setFocused(false);
+          setActiveIndex(-1);
+        }
+      }}
+    >
       <div className="input-base flex min-w-0 flex-wrap items-center gap-1.5 py-2">
         <TagIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         {value.map((tag) => (

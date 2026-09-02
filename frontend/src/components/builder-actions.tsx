@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactElement, ReactNode } from "react";
 import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   ArrowLeft,
@@ -39,6 +40,7 @@ interface ToolbarProps {
   onImportFile: (file: File) => void;
   onDownloadTemplate: () => void;
   onExportExcel: () => void;
+  onDownloadPdf: () => void;
   onPrint: (withAnswers: boolean) => void;
   printAnswers: boolean;
   onToggleSettings: () => void;
@@ -56,6 +58,7 @@ export function BuilderToolbar({
   onImportFile,
   onDownloadTemplate,
   onExportExcel,
+  onDownloadPdf,
   onPrint,
   printAnswers,
   onToggleSettings,
@@ -71,16 +74,54 @@ export function BuilderToolbar({
   const [openImport, setOpenImport] = useState(false);
   const [openExport, setOpenExport] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const exportTriggerRef = useRef<HTMLButtonElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [exportPosition, setExportPosition] = useState<{ left: number; top: number } | null>(null);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        exportRef.current &&
+        !exportRef.current.contains(target) &&
+        !exportMenuRef.current?.contains(target)
+      ) {
         setOpenExport(false);
       }
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
+  useEffect(() => {
+    if (!openExport) return;
+    const updateExportPosition = () => {
+      const trigger = exportTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const viewportPadding = 8;
+      const menuWidth = Math.min(224, window.innerWidth - viewportPadding * 2);
+      const menuHeight = exportMenuRef.current?.offsetHeight ?? 104;
+      const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+      const spaceAbove = rect.top - viewportPadding;
+      const opensBelow = spaceBelow >= menuHeight || spaceBelow >= spaceAbove;
+      const top = opensBelow
+        ? Math.min(rect.bottom + 8, window.innerHeight - viewportPadding - menuHeight)
+        : Math.max(viewportPadding, rect.top - 8 - menuHeight);
+      const left = Math.max(
+        viewportPadding,
+        Math.min(rect.right - menuWidth, window.innerWidth - viewportPadding - menuWidth),
+      );
+      setExportPosition({ left, top });
+    };
+    updateExportPosition();
+    window.addEventListener("resize", updateExportPosition);
+    window.addEventListener("scroll", updateExportPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateExportPosition);
+      window.removeEventListener("scroll", updateExportPosition, true);
+    };
+  }, [openExport]);
 
   return (
     <div className={cn("relative hidden w-full flex-nowrap items-stretch gap-1 md:flex", className)}>
@@ -96,38 +137,66 @@ export function BuilderToolbar({
 
       <div ref={exportRef} className="relative flex flex-1">
         <button
+          ref={exportTriggerRef}
           className="btn-ghost flex w-full items-center justify-center gap-2 md:justify-start"
-          onClick={() => setOpenExport((v) => !v)}
+          onClick={() => {
+            setExportPosition(null);
+            setOpenExport((v) => !v);
+          }}
           aria-label="Экспорт"
           title="Экспорт"
+          aria-expanded={openExport}
         >
           <FileSpreadsheet className="h-4 w-4 shrink-0" />
           <span className="hidden md:inline">Экспорт</span>
           <ChevronDown className="hidden h-3.5 w-3.5 md:inline" />
         </button>
-        {openExport && (
-          <div className="absolute right-0 top-full z-[90] mt-2 w-56 overflow-hidden rounded-xl border border-border bg-surface shadow-lift">
-            <button
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted"
-              onClick={() => {
-                setOpenExport(false);
-                onExportExcel();
+        {openExport &&
+          createPortal(
+            <div
+              ref={exportMenuRef}
+              role="menu"
+              className="fixed z-[55] max-h-[calc(100dvh-1rem)] w-56 max-w-[calc(100vw-1rem)] overflow-auto rounded-xl border border-border bg-surface p-1 shadow-lift"
+              style={{
+                left: exportPosition?.left ?? 8,
+                top: exportPosition?.top ?? 8,
+                visibility: exportPosition ? "visible" : "hidden",
               }}
             >
-              <FileSpreadsheet className="h-4 w-4 text-primary" /> Скачать Excel (.xlsx)
-            </button>
-            <button
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted"
-              onClick={() => {
-                setOpenExport(false);
-                onPrint(printAnswers);
-              }}
-            >
-              <Printer className="h-4 w-4 text-primary" /> Печать / PDF (
-              {printAnswers ? "с ответами" : "без ответов"})
-            </button>
-          </div>
-        )}
+              <button
+                role="menuitem"
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg bg-primary-soft px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-primary/15"
+                onClick={() => {
+                  setOpenExport(false);
+                  onDownloadPdf();
+                }}
+              >
+                <FileText className="h-4 w-4 shrink-0" /> Скачать PDF
+              </button>
+              <button
+                role="menuitem"
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-muted"
+                onClick={() => {
+                  setOpenExport(false);
+                  onExportExcel();
+                }}
+              >
+                <FileSpreadsheet className="h-4 w-4 text-primary" /> Скачать Excel (.xlsx)
+              </button>
+              <button
+                role="menuitem"
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-muted"
+                onClick={() => {
+                  setOpenExport(false);
+                  onPrint(printAnswers);
+                }}
+              >
+                <Printer className="h-4 w-4 text-primary" /> Печать (
+                {printAnswers ? "с ответами" : "без ответов"})
+              </button>
+            </div>,
+            document.body,
+          )}
       </div>
 
       <button
@@ -432,6 +501,7 @@ interface FabsProps {
   onImportFile?: (file: File) => void;
   onDownloadTemplate?: () => void;
   onExportExcel?: () => void;
+  onDownloadPdf?: () => void;
   onPrint?: (withAnswers: boolean) => void;
   printAnswers?: boolean;
   onResults?: () => void;
@@ -463,6 +533,7 @@ export function BuilderFabs({
   onImportFile,
   onDownloadTemplate,
   onExportExcel,
+  onDownloadPdf,
   onPrint,
   printAnswers = true,
   onResults,
@@ -654,9 +725,14 @@ export function BuilderFabs({
                 <FileSpreadsheet className="h-4 w-4 text-primary" /> Экспорт в Excel
               </button>
             )}
+            {onDownloadPdf && (
+              <button type="button" onClick={() => { setMobileMoreOpen(false); onDownloadPdf(); }} className="flex min-h-11 w-full items-center gap-2 rounded-lg bg-primary-soft px-3 text-left text-sm font-semibold text-primary hover:bg-primary/15">
+                <FileText className="h-4 w-4" /> Скачать PDF
+              </button>
+            )}
             {onPrint && (
               <button type="button" onClick={() => { setMobileMoreOpen(false); onPrint(printAnswers); }} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-surface-muted">
-                <Printer className="h-4 w-4 text-primary" /> Печать / PDF
+                <Printer className="h-4 w-4 text-primary" /> Печать
               </button>
             )}
             {onViewToggle && viewLabel && (

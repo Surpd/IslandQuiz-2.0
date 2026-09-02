@@ -26,6 +26,7 @@ import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSec
 import {
   downloadExcelTemplate,
   exportJeopardyExcel,
+  downloadJeopardyPdf,
   importJeopardyXlsx,
   printJeopardy,
 } from "@/lib/exports";
@@ -451,6 +452,7 @@ function BuilderJeopardy() {
         onImportFile={handleImport}
         onDownloadTemplate={() => downloadExcelTemplate("jeopardy")}
         onExportExcel={() => exportJeopardyExcel({ config, rounds, final })}
+        onDownloadPdf={() => void downloadJeopardyPdf({ config, rounds, final }, { withAnswers: printAnswers })}
         onPrint={(withAnswers) => printJeopardy({ config, rounds, final }, { withAnswers })}
         printAnswers={printAnswers}
         onToggleSettings={() => setShowSettings((s) => !s)}
@@ -501,6 +503,7 @@ function BuilderJeopardy() {
             onImportFile={handleImport}
             onDownloadTemplate={() => downloadExcelTemplate("jeopardy")}
             onExportExcel={() => exportJeopardyExcel({ config, rounds, final })}
+            onDownloadPdf={() => void downloadJeopardyPdf({ config, rounds, final }, { withAnswers: printAnswers })}
             onPrint={(withAnswers) => printJeopardy({ config, rounds, final }, { withAnswers })}
             printAnswers={printAnswers}
             onResults={openResults}

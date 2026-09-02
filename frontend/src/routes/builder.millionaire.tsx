@@ -20,6 +20,7 @@ import { BuilderToolbar, BuilderFabs, BuilderGameInfoSection, BuilderSettingsSec
 import {
   downloadExcelTemplate,
   exportMillionaireExcel,
+  downloadMillionairePdf,
   importMillionaireXlsx,
   printMillionaire,
 } from "@/lib/exports";
@@ -393,6 +394,7 @@ function BuilderMillionaire() {
         onImportFile={handleImport}
         onDownloadTemplate={() => downloadExcelTemplate("millionaire")}
         onExportExcel={() => exportMillionaireExcel({ config, questions })}
+        onDownloadPdf={() => void downloadMillionairePdf({ config, questions }, { withAnswers: printAnswers })}
         onPrint={(withAnswers) => printMillionaire({ config, questions }, { withAnswers })}
         printAnswers={printAnswers}
         onToggleSettings={() => setShowSettings((s) => !s)}
@@ -442,6 +444,7 @@ function BuilderMillionaire() {
             onImportFile={handleImport}
             onDownloadTemplate={() => downloadExcelTemplate("millionaire")}
             onExportExcel={() => exportMillionaireExcel({ config, questions })}
+            onDownloadPdf={() => void downloadMillionairePdf({ config, questions }, { withAnswers: printAnswers })}
             onPrint={(withAnswers) => printMillionaire({ config, questions }, { withAnswers })}
             printAnswers={printAnswers}
             onResults={openResults}
