@@ -137,7 +137,7 @@ Endpoint: `/ws/room/{code}`.
 
 Frontend поддерживает reconnect/cache и отправляет actions из `frontend/src/lib/api.ts`. Backend хранит live `rooms` и `connections` в process memory, а resumable room snapshot/state — в Supabase `online_rooms`.
 
-Для Quiz доступны lobby, join, start, `answer_draft`, answer, reveal, leaderboard, next question, finish, restart, kick и score adjustment. Для Jeopardy добавлены board/question/buzz/turn/final phases.
+Для Quiz доступны lobby, join, start, `answer_draft`, answer, `timeout`, reveal, leaderboard, next question, finish, restart, kick и score adjustment. Для Jeopardy добавлены board/question/buzz/turn/final phases.
 
 Комнаты:
 
@@ -146,7 +146,7 @@ Frontend поддерживает reconnect/cache и отправляет action
 - live WebSocket connections остаются process-local, Redis/pub-sub и multi-worker coordination не добавлялись;
 - используют server-issued host/player credentials, role checks и server-side player identity; в БД credentials представлены только HMAC-digests;
 - обычный disconnect сохраняет текущий 60-second reconnect grace, затем abandoned room очищается вместе с persistence row; frontend сохраняет player credential и identity в browser storage, чтобы закрытую вкладку можно было открыть снова в пределах grace;
-- host получает полный selected runtime snapshot, read-only answers credential открывает отдельный экран ответов, а player получает Jeopardy snapshot без `a`; ответ появляется в player state только после host reveal.
+- host получает полный selected runtime snapshot, read-only answers credential открывает отдельный экран ответов, а player получает role-scoped snapshot без Quiz answers и Jeopardy `a`; собственный draft/submission доступен player только через scoped state, а correctness/ответ появляется только после host reveal.
 - В Quiz текущее валидное состояние всех шести типов (`choice`, `bool`, `text`, `matching`, `close`, `ordering`) сохраняется отдельным server-side draft без broadcast другим участникам. При submit или server-side reveal draft, полученный до deadline, один раз превращается в final answer; пустое состояние остаётся unanswered, поздний новый ответ отклоняется, а duplicate final answer не начисляет очки повторно.
 
 ## Основные пользовательские сценарии

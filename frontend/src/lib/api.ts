@@ -554,7 +554,7 @@ export interface RoomPlayer {
   jWrong?: number;
 }
 
-export type RoomStatus = "waiting" | "active" | "reveal" | "leaderboard" | "finished";
+export type RoomStatus = "waiting" | "active" | "timeout" | "reveal" | "leaderboard" | "finished";
 
 export type JeopardyPhase =
   | "lobby"
@@ -605,6 +605,8 @@ export interface RoomState {
   questionIdx: number;
   questionStartAt: number | null;
   players: RoomPlayer[];
+  playerAnswerSubmitted?: boolean;
+  playerAnswerDraft?: string | null;
   fastestPlayerId?: string;
   createdAt: number;
   jeopardy?: JeopardyRoomState;
@@ -986,6 +988,10 @@ export async function startRoom(code: string) {
 
 export async function revealAnswer(code: string) {
   return sendAndWaitState(code, { action: "reveal" });
+}
+
+export async function timeoutRoom(code: string) {
+  return sendAndWaitState(code, { action: "timeout" });
 }
 
 export async function showLeaderboard(code: string) {

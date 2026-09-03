@@ -1,5 +1,5 @@
 // Student-side online player. Themed via PlayerShell, uses QuizQuestionCard
-// so all four question types (choice/bool/text/matching) work identically to
+// so all six question types work identically to
 // the offline experience. Sends the computed correctness up to the shared
 // room state so the teacher's projector can drive the flow.
 
@@ -81,9 +81,9 @@ function StudentPlay() {
   // Reset per-question state
   useEffect(() => {
     if (state?.status === "active") {
-      setValue("");
-      setSubmitted(false);
-      setDraftStatus("idle");
+      setValue(state.playerAnswerDraft ?? "");
+      setSubmitted(state.playerAnswerSubmitted === true);
+      setDraftStatus(state.playerAnswerDraft ? "saved" : "idle");
       submitStartedRef.current = false;
       draftSequenceRef.current += 1;
       setLastEarned(0);
@@ -120,6 +120,10 @@ function StudentPlay() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft, submitted, state?.status]);
+
+  useEffect(() => {
+    if (state?.status === "timeout") setTimeLeft(0);
+  }, [state?.status, state?.questionIdx]);
 
   // Sound cues on reveal
   useEffect(() => {
@@ -357,11 +361,13 @@ function StudentPlay() {
   if (!question) return <FullScreen theme={theme} msg="Ждём вопрос..." />;
 
   const isReveal = state.status === "reveal";
+  const isTimeout = state.status === "timeout" || (state.status === "active" && timeLeft === 0);
   const totalMs = (question.time || 30) * 1000;
   const timeSec = Math.ceil(timeLeft / 1000);
   const urgent = state.status === "active" && timeSec <= 5;
   const myAnswer =
     myPlayer?.lastAnswer?.questionIdx === state.questionIdx ? myPlayer.lastAnswer : undefined;
+  const answerWasAccepted = state.playerAnswerSubmitted === true || !!myAnswer;
 
   return (
     <PlayerShell theme={theme}>
@@ -383,7 +389,7 @@ function StudentPlay() {
           <span>Вопрос {state.questionIdx + 1}</span>
           <span className="inline-flex items-center gap-1">
             <Timer className="h-3.5 w-3.5" />
-            {state.status === "active" ? `${timeSec}с` : "—"}
+            {state.status === "active" ? `${timeSec}с` : state.status === "timeout" ? "Время вышло" : "—"}
           </span>
         </div>
         <TimerBar
@@ -398,11 +404,11 @@ function StudentPlay() {
             onChange={handleValueChange}
             onClickSound={sfx.click}
             reveal={isReveal}
-            locked={submitted || isReveal}
+            locked={submitted || isTimeout || isReveal || state.status !== "active"}
           />
         </div>
 
-        {state.status === "active" && !submitted && (
+        {state.status === "active" && !submitted && !isTimeout && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <span role="status" className="text-xs text-[color:var(--pt-text-muted)]">
               {draftStatus === "saving" ? "Сохраняем текущее состояние…" : draftStatus === "saved" ? "Текущее состояние сохранено · его можно изменить" : "Ответьте на вопрос"}
@@ -420,10 +426,22 @@ function StudentPlay() {
           </div>
         )}
 
-        {submitted && !isReveal && (
+        {submitted && !isReveal && !isTimeout && (
           <div className="mt-4 flex items-center gap-2 rounded-2xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-4 backdrop-blur-md">
             <Hourglass className="h-4 w-4 text-[color:var(--pt-accent)]" />
             <span>Ответ отправлен ⌛ ждём остальных...</span>
+          </div>
+        )}
+
+        {isTimeout && (
+          <div role="status" className="mt-4 rounded-2xl border border-danger/40 bg-danger/10 p-4 text-center">
+            <p className="font-bold text-danger">Время вышло</p>
+            <p className="mt-1 text-sm text-[color:var(--pt-text-muted)]">
+              {answerWasAccepted
+                ? "Ответ принят"
+                : "Ответ не был отправлен"}
+            </p>
+            <p className="mt-2 text-xs text-[color:var(--pt-text-muted)]">Ждём, пока ведущий покажет результаты.</p>
           </div>
         )}
 

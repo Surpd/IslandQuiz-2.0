@@ -22,15 +22,16 @@ function installRoomMock(
   page: Page,
   options: {
     role: "player" | "host";
-    status: "active" | "leaderboard" | "finished";
+    status: "active" | "reveal" | "leaderboard" | "finished";
     question: Record<string, unknown>;
     players?: Record<string, unknown>[];
     expireOnDraft?: boolean;
     expireWhenGiven?: string;
+    startOffsetMs?: number;
   },
 ) {
   return page.addInitScript(
-    ({ role, status, question, players, expireOnDraft, expireWhenGiven }) => {
+    ({ role, status, question, players, expireOnDraft, expireWhenGiven, startOffsetMs }) => {
       if (role === "player") {
         localStorage.setItem("islandquiz.room.player.1234", "player-credential");
         localStorage.setItem(
@@ -56,7 +57,7 @@ function installRoomMock(
         hostId: "host-1",
         status,
         questionIdx: 0,
-        questionStartAt: status === "active" ? Date.now() + 15_000 : Date.now(),
+        questionStartAt: status === "active" ? Date.now() + (startOffsetMs ?? 15_000) : Date.now(),
         players: players ?? [player],
         createdAt: Date.now(),
       };
@@ -137,6 +138,11 @@ function installRoomMock(
               ),
             };
             emit(this);
+            return;
+          }
+          if (message.action === "timeout") {
+            currentState = { ...currentState, status: "timeout" };
+            emit(this);
           }
         }
         close() {
@@ -163,6 +169,46 @@ async function expectAutoFinalized(page: Page, expectedGiven?: string) {
 }
 
 test.describe("online room gameplay regression", () => {
+  test("host shows a synchronized countdown and explicit timeout state", async ({ page }) => {
+    await installRoomMock(page, {
+      role: "host",
+      status: "active",
+      startOffsetMs: -29_000,
+      question: {
+        id: "q1",
+        type: "choice",
+        q: "Вопрос с таймером",
+        options: ["A", "B"],
+        answer: "A",
+        points: 100,
+        time: 30,
+      },
+    });
+    await page.goto("/room/1234/");
+    await expect(page.getByRole("timer")).toBeVisible();
+    await expect(page.getByText("Время вышло — новые ответы закрыты.", { exact: true })).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("host distinguishes answered from correctness until reveal", async ({ page }) => {
+    await installRoomMock(page, {
+      role: "host",
+      status: "active",
+      question: {
+        id: "q1",
+        type: "choice",
+        q: "Ответьте",
+        options: ["A", "B"],
+        answer: "A",
+        points: 100,
+        time: 30,
+      },
+      players: [{ id: "player-1", nickname: "Ученик", avatar: "", score: 0, streak: 0, connected: true, lastAnswer: { questionIdx: 0, correct: true, delta: 1000, timeMs: 100, given: "A" } }],
+    });
+    await page.goto("/room/1234/");
+    await expect(page.getByText("Ответил", { exact: true })).toBeVisible();
+    await expect(page.getByText("Верно", { exact: true })).toHaveCount(0);
+  });
+
   test("choice selected before timeout is finalized without pressing submit", async ({ page }) => {
     test.setTimeout(45_000);
     await installRoomMock(page, {

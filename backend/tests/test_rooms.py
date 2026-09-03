@@ -121,6 +121,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         rooms_route.rooms.clear()
         rooms_route.connections.clear()
+        rooms_route.connection_identities.clear()
         for task in rooms_route.room_cleanup_tasks.values():
             task.cancel()
         rooms_route.room_cleanup_tasks.clear()
@@ -128,6 +129,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         rooms_route.rooms.clear()
         rooms_route.connections.clear()
+        rooms_route.connection_identities.clear()
         for task in rooms_route.room_cleanup_tasks.values():
             task.cancel()
         rooms_route.room_cleanup_tasks.clear()
@@ -186,6 +188,65 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         guest_snapshot = next(message for message in guest.sent if message["type"] == "room_snapshot")["snapshot"]
         self.assertEqual(guest_snapshot["data"]["selectedVariantId"], "variant-4")
         self.assertNotIn("variants", guest_snapshot["data"])
+
+    async def test_player_snapshot_hides_quiz_answers_but_keeps_safe_question_shapes(self):
+        data = {
+            "config": {"defaultTime": 30},
+            "questions": [
+                {"id": "choice", "type": "choice", "q": "Q1", "options": ["A", "B"], "answer": "A", "points": 100, "time": 30},
+                {"id": "matching", "type": "matching", "q": "Q2", "options": [], "answer": json.dumps([{"left": "L1", "right": "R1"}, {"left": "L2", "right": "R2"}]), "points": 100, "time": 30},
+                {"id": "ordering", "type": "ordering", "q": "Q3", "options": [], "answer": json.dumps(["one", "two", "three"]), "points": 100, "time": 30},
+            ],
+        }
+        room = room_fixture()
+        room["_snapshot"] = issue_snapshot_token("game-1", "quiz", data)[0]
+        room["status"] = "active"
+        room["questionIdx"] = 0
+
+        snapshot = rooms_route.public_room_snapshot(room, {"role": "player", "playerId": "player-1"})
+        questions = snapshot["data"]["questions"]
+        self.assertEqual([question["answer"] for question in questions], ["", "", ""])
+        self.assertEqual(questions[1]["display"]["matching"], {"left": ["L1", "L2"], "right": ["R1", "R2"]})
+        self.assertEqual(questions[2]["display"]["ordering"], ["two", "three", "one"])
+        self.assertNotIn('"answer": "A"', json.dumps(snapshot, ensure_ascii=False))
+
+    async def test_player_state_scopes_draft_and_premature_correctness(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["players"][0]["currentAnswer"] = {"questionIdx": 0, "given": "Paris", "receivedAt": 1}
+        room["players"][1]["lastAnswer"] = {"questionIdx": 0, "correct": True, "delta": 1200, "timeMs": 100, "given": "Paris"}
+
+        state = rooms_route.public_room_state(room, {"role": "player", "playerId": "player-1"})
+        self.assertTrue(state["playerAnswerDraft"] == "Paris")
+        self.assertFalse(state["playerAnswerSubmitted"])
+        self.assertNotIn("lastAnswer", state["players"][0])
+        self.assertNotIn("lastAnswer", state["players"][1])
+
+    async def test_host_timeout_moves_room_to_timeout_and_finalizes_saved_draft(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000) - 31_000
+        room["players"][0]["currentAnswer"] = {"questionIdx": 0, "given": "Paris", "receivedAt": room["questionStartAt"] + 1000}
+        rooms_route.rooms["ROOM1"] = room
+
+        timeout = FakeWebSocket([json.dumps({"action": "timeout"})], credential="host-token")
+        await rooms_route.room_websocket(timeout, "ROOM1")
+
+        self.assertEqual(room["status"], "timeout")
+        self.assertEqual(room["players"][0]["lastAnswer"]["given"], "Paris")
+        self.assertEqual(len(room["players"][0]["answerHistory"]), 1)
+
+    async def test_player_timeout_without_draft_locks_room_without_false_answer(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000) - 31_000
+        rooms_route.rooms["ROOM1"] = room
+
+        timeout = FakeWebSocket([json.dumps({"action": "answer", "given": "", "timedOut": True})], credential="player-1-token")
+        await rooms_route.room_websocket(timeout, "ROOM1")
+
+        self.assertEqual(room["status"], "timeout")
+        self.assertNotIn("lastAnswer", room["players"][0])
 
     async def test_player_jeopardy_snapshot_hides_answers_but_teacher_token_keeps_them(self):
         room = jeopardy_room_fixture()

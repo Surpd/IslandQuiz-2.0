@@ -27,9 +27,9 @@ import {
   Check,
   BarChart3,
 } from "lucide-react";
-import { PlayerShell, TimerBar } from "@/components/player-shell";
+import { PlayerShell } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
-import { QuizQuestionCard } from "@/components/quiz-question-card";
+import { QuizQuestionCard, QuizRevealRenderer } from "@/components/quiz-question-card";
 
 import { JeopardyRoomTeacher } from "@/components/jeopardy-room-teacher";
 import {
@@ -41,6 +41,7 @@ import {
   kickPlayer,
   adjustPlayerScore,
   restartRoom,
+  timeoutRoom,
   type RoomState,
   type RoomPlayer,
 } from "@/lib/api";
@@ -66,7 +67,9 @@ function TeacherRoom() {
   const [muted, setMutedState] = useState<boolean>(true);
   const [manageOpen, setManageOpen] = useState(false);
   const [showPreviousQuestion, setShowPreviousQuestion] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const prevStatus = useRef<RoomState["status"] | null>(null);
+  const timeoutSentRef = useRef<number | null>(null);
 
   useEffect(() => setMutedState(isMuted()), []);
 
@@ -135,6 +138,26 @@ function TeacherRoom() {
     setShowPreviousQuestion(false);
   }, [state?.questionIdx]);
 
+  const question = quiz?.questions[state?.questionIdx ?? -1];
+  const totalMs = (question?.time || 30) * 1000;
+  const deadline = state?.questionStartAt ? state.questionStartAt + totalMs : null;
+  const timeLeft = deadline && state?.status === "active" ? Math.max(0, deadline - now) : 0;
+
+  useEffect(() => {
+    if (!state || state.status !== "active" || !state.questionStartAt || !question) return;
+    const tick = () => setNow(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 200);
+    return () => window.clearInterval(timer);
+  }, [state?.status, state?.questionStartAt, state?.questionIdx, question]);
+
+  useEffect(() => {
+    if (!state || state.status !== "active" || !question || !state.questionStartAt || timeLeft > 0) return;
+    if (timeoutSentRef.current === state.questionIdx) return;
+    timeoutSentRef.current = state.questionIdx;
+    void timeoutRoom(code);
+  }, [code, question, state, timeLeft]);
+
   const theme = state?.theme ?? "classic";
 
   if (!state) {
@@ -175,7 +198,6 @@ function TeacherRoom() {
 
   const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join` : "/join";
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(joinUrl)}`;
-  const question: QuizQuestion | undefined = quiz?.questions[state.questionIdx];
   const total = quiz?.questions.length ?? 0;
   const answered = state.players.filter(
     (p) => p.lastAnswer?.questionIdx === state.questionIdx,
@@ -198,7 +220,12 @@ function TeacherRoom() {
   };
 
   const goNext = async () => {
-    if (state.status === "active") {
+    if (state.status === "active" || state.status === "timeout") {
+      if (state.status === "timeout") {
+        const { revealAnswer } = await import("@/lib/api");
+        await revealAnswer(code);
+        return;
+      }
       // Skip: reveal briefly, then advance
       const { revealAnswer } = await import("@/lib/api");
       await revealAnswer(code);
@@ -241,26 +268,27 @@ function TeacherRoom() {
           />
         )}
 
-        {(state.status === "active" || state.status === "reveal") && question && (
+        {(state.status === "active" || state.status === "timeout" || state.status === "reveal") && question && (
           <div className="mt-6 grid gap-6 lg:grid-cols-[2fr_1fr]">
             <div className="animate-fade-up">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
                 <span className="font-semibold text-[color:var(--pt-text-muted)]">
                   Вопрос {state.questionIdx + 1} / {total}
                 </span>
-                <span className="rounded-full bg-[color:var(--pt-surface-strong)] px-3 py-1 text-xs font-bold text-[color:var(--pt-accent)]">
-                  Ответили: {answered} / {state.players.length}
-                </span>
+                <span className="rounded-full bg-[color:var(--pt-surface-strong)] px-3 py-1 text-xs font-bold text-[color:var(--pt-accent)]">Ответили: {answered} / {state.players.length}</span>
               </div>
-              <TimerBar pct={(answered / Math.max(1, state.players.length)) * 100} />
+              {state.status === "reveal" ? (
+                <div className="rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm font-semibold text-success">Ответы открыты — проверьте результат каждого игрока.</div>
+              ) : state.status === "timeout" ? (
+                <div role="status" className="rounded-2xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm font-bold text-danger">Время вышло — новые ответы закрыты.</div>
+              ) : (
+                <div className="flex items-center gap-4 rounded-2xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3">
+                  <HostCountdown remainingMs={timeLeft} totalMs={totalMs} />
+                  <span className="text-sm text-[color:var(--pt-text-muted)]">Ответы принимаются до нуля.</span>
+                </div>
+              )}
               <div className="mt-4">
-                <QuizQuestionCard
-                  question={question}
-                  value=""
-                  onChange={() => {}}
-                  reveal={state.status === "reveal"}
-                  projector
-                />
+                {state.status === "reveal" ? <QuizRevealRenderer question={question} /> : <QuizQuestionCard question={question} value="" onChange={() => {}} projector />}
               </div>
               <div className="mt-4 flex flex-wrap justify-end gap-2">
                 <button
@@ -274,7 +302,7 @@ function TeacherRoom() {
                   className="inline-flex items-center gap-2 rounded-xl bg-[color:var(--pt-accent)] px-6 py-3 font-bold text-black hover:scale-[1.02]"
                 >
                   <ChevronRight className="h-4 w-4" />
-                  {state.status === "active" ? "Далее (показать ответ)" : "К таблице"}
+                  {state.status === "active" || state.status === "timeout" ? "Показать ответ" : "К таблице"}
                 </button>
                 <button
                   onClick={finishEarly}
@@ -301,6 +329,7 @@ function TeacherRoom() {
           <div className="mt-6 grid gap-6 lg:grid-cols-[3fr_2fr]">
             <div className="space-y-4">
               <AnimatedLeaderboard state={state} />
+              <LiveLeaderboard state={state} />
               {question && (
                 <section className="rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-5 backdrop-blur-md">
                   <button
@@ -314,7 +343,7 @@ function TeacherRoom() {
                   </button>
                   {showPreviousQuestion && (
                     <div className="mt-4">
-                      <QuizQuestionCard question={question} value="" onChange={() => {}} reveal projector />
+                      <QuizRevealRenderer question={question} />
                     </div>
                   )}
                 </section>
@@ -369,6 +398,22 @@ function TeacherRoom() {
         )}
       </div>
     </PlayerShell>
+  );
+}
+
+function HostCountdown({ remainingMs, totalMs }: { remainingMs: number; totalMs: number }) {
+  const seconds = Math.ceil(remainingMs / 1000);
+  const progress = Math.max(0, Math.min(1, remainingMs / Math.max(1, totalMs)));
+  const urgent = seconds <= 5;
+  const circumference = 2 * Math.PI * 20;
+  return (
+    <div role="timer" aria-label={`${seconds} секунд осталось`} className={`relative grid h-14 w-14 flex-shrink-0 place-items-center rounded-full ${urgent ? "text-danger" : "text-[color:var(--pt-accent)]"}`}>
+      <svg aria-hidden="true" className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeOpacity=".16" strokeWidth="4" />
+        <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - progress)} />
+      </svg>
+      <span className="relative font-mono text-lg font-black tabular-nums">{seconds}</span>
+    </div>
   );
 }
 
@@ -524,14 +569,24 @@ function LiveLeaderboard({ state }: { state: RoomState }) {
                     <Target className="h-3 w-3" />
                   </span>
                 )}
-                {answeredHere && state.status === "active" && (
-                  <span className="grid h-4 w-4 place-items-center rounded-full bg-success/20 text-success">
-                    <Check className="h-3 w-3" />
+                {(state.status === "active" || state.status === "timeout") && (
+                  <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold text-[color:var(--pt-text-muted)]">
+                    {answeredHere ? "Ответил" : "Не ответил"}
                   </span>
                 )}
-
+                {(state.status === "reveal" || state.status === "leaderboard") && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    answeredHere && p.lastAnswer?.correct ? "bg-success/15 text-success" : answeredHere ? "bg-danger/15 text-danger" : "bg-slate-500/15 text-[color:var(--pt-text-muted)]"
+                  }`}>
+                    {answeredHere && p.lastAnswer?.correct ? <Check className="h-3 w-3" /> : answeredHere ? <X className="h-3 w-3" /> : null}
+                    {answeredHere ? (p.lastAnswer?.correct ? "Верно" : "Неверно") : "Не ответил"}
+                  </span>
+                )}
               </div>
-              <span className="font-mono text-sm font-bold">{p.score.toLocaleString("ru-RU")}</span>
+              <div className="flex items-center gap-2">
+                {(state.status === "reveal" || state.status === "leaderboard") && <span className="text-xs font-bold text-[color:var(--pt-text-muted)]">+{answeredHere ? p.lastAnswer?.delta ?? 0 : 0}</span>}
+                <span className="font-mono text-sm font-bold">{p.score.toLocaleString("ru-RU")}</span>
+              </div>
             </div>
           );
         })}

@@ -17,7 +17,7 @@ import {
 import { LaTeX } from "@/lib/latex";
 import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 import { fitOptionSize, fitQuestionSize } from "@/lib/fit-text";
-import { checkQuizAnswerCore } from "@/lib/format-answer";
+import { checkQuizAnswerCore, quizQuestionDisplay } from "@/lib/format-answer";
 import type { QuizQuestion } from "@/lib/types";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -30,6 +30,64 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export const checkQuizAnswer = checkQuizAnswerCore;
+
+export function QuizRevealRenderer({ question }: { question: QuizQuestion }) {
+  const matching = question.type === "matching" ? parseMatchingPairs(question.answer) : [];
+  const ordering = question.type === "ordering" ? parseStringList(question.answer) : [];
+  const close = question.type === "close" ? parseStringList(question.answer) : [];
+
+  return (
+    <div className="rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-6 backdrop-blur-md md:p-8">
+      {question.image && <img src={question.image} alt="" className="mx-auto mb-4 max-h-56 rounded-xl border border-[color:var(--pt-border)] object-contain" />}
+      <div className={`mb-6 text-center font-semibold leading-snug ${fitQuestionSize(question.q)}`}><LaTeX>{question.q}</LaTeX></div>
+      {question.type === "choice" && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {question.options.map((option, index) => {
+            const correct = option === question.answer;
+            return <div key={index} data-answer-state={correct ? "correct" : "default"} className={`flex min-w-0 items-center gap-3 rounded-xl border-2 px-4 py-4 ${correct ? "border-success bg-success/20 text-success" : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]"}`}>
+              <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-[color:var(--pt-accent)] text-sm font-bold text-black">{String.fromCharCode(65 + index)}</span>
+              <span className={`min-w-0 break-words ${fitOptionSize(option)}`}><LaTeX>{option}</LaTeX></span>
+              {correct && <span className="ml-auto flex-shrink-0 text-xs font-bold">Верно</span>}
+            </div>;
+          })}
+        </div>
+      )}
+      {question.type === "bool" && <div className="grid grid-cols-2 gap-3">
+        {(["true", "false"] as const).map((value) => <div key={value} className={`rounded-xl border-2 px-4 py-6 text-center text-lg font-bold ${value === question.answer ? "border-success bg-success/20 text-success" : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]"}`}>
+          {value === "true" ? "✓ Правда" : "✕ Ложь"}{value === question.answer && <span className="mt-1 block text-xs">Верно</span>}
+        </div>)}
+      </div>}
+      {question.type === "text" && <p className="rounded-xl border border-success/40 bg-success/10 p-4 text-center font-semibold text-success"><span className="mr-2 text-xs uppercase tracking-wide">Правильный ответ</span><QuizAnswerDisplay question={question} /></p>}
+      {question.type === "matching" && <div className="space-y-2">
+        {matching.map((pair, index) => <div key={`${pair.left}-${index}`} className="grid min-w-0 gap-2 rounded-xl border border-success/40 bg-success/10 p-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+          <span className="min-w-0 break-words text-sm font-semibold">{pair.left}</span><span className="text-center text-[color:var(--pt-text-muted)]">→</span><span className="min-w-0 break-words rounded-lg bg-[color:var(--pt-accent)] px-3 py-2 text-sm font-bold text-black">{pair.right}</span>
+        </div>)}
+      </div>}
+      {question.type === "close" && <p className="rounded-xl border border-success/40 bg-success/10 p-4 text-center font-semibold text-success"><span className="mr-2 text-xs uppercase tracking-wide">Правильный ответ</span><QuizAnswerDisplay question={question} /></p>}
+      {question.type === "ordering" && <ol className="space-y-2">
+        {ordering.map((item, index) => <li key={`${item}-${index}`} className="flex min-w-0 items-start gap-3 rounded-xl border border-success/40 bg-success/10 p-3"><span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[color:var(--pt-accent)] font-bold text-black">{index + 1}</span><span className="min-w-0 break-words text-sm font-semibold"><LaTeX>{item}</LaTeX></span></li>)}
+      </ol>}
+    </div>
+  );
+}
+
+function parseStringList(raw: string): string[] {
+  try {
+    const value = JSON.parse(raw || "[]");
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseMatchingPairs(raw: string): { left: string; right: string }[] {
+  try {
+    const value = JSON.parse(raw || "[]");
+    return Array.isArray(value) ? value.filter((item): item is { left: string; right: string } => Boolean(item) && typeof item.left === "string" && typeof item.right === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 export function QuizQuestionCard({
   question,
@@ -188,7 +246,7 @@ function MatchingBoard({
   disabled: boolean;
   reveal: boolean;
 }) {
-  const pairs = useMemo(() => {
+  const correctPairs = useMemo(() => {
     try {
       return JSON.parse(question.answer) as { left: string; right: string }[];
     } catch {
@@ -196,7 +254,10 @@ function MatchingBoard({
     }
   }, [question.answer]);
 
-  const shuffledRights = useMemo(() => shuffle(pairs.map((p) => p.right)), [pairs]);
+  const safeDisplay = useMemo(() => quizQuestionDisplay(question).matching, [question]);
+  const leftItems = useMemo(() => correctPairs.length ? correctPairs.map((pair) => pair.left) : safeDisplay?.left ?? [], [correctPairs, safeDisplay]);
+  const rightItems = useMemo(() => correctPairs.length ? correctPairs.map((pair) => pair.right) : safeDisplay?.right ?? [], [correctPairs, safeDisplay]);
+  const shuffledRights = useMemo(() => shuffle(rightItems), [rightItems]);
 
   const assigned: Record<string, string> = useMemo(() => {
     try {
@@ -266,7 +327,7 @@ function MatchingBoard({
   if (reveal) {
     return (
       <div className="space-y-2">
-        {pairs.map((p) => {
+        {correctPairs.map((p) => {
           const given = assigned[p.left];
           const ok = given === p.right;
           return (
@@ -293,21 +354,20 @@ function MatchingBoard({
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Пары · выбрано {Object.keys(assigned).length}/{pairs.length}</p>
-          {pairs.map((p) => (
+          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Пары · выбрано {Object.keys(assigned).length}/{leftItems.length}</p>
+          {leftItems.map((left) => (
             <DropZone
-              key={p.left}
-              left={p.left}
-              value={assigned[p.left]}
-              selected={selectedLeft === p.left}
-              onSelect={() => selectLeft(p.left)}
-              onClear={() => clear(p.left)}
+              key={left}
+              left={left}
+              value={assigned[left]}
+              selected={selectedLeft === left}
+              onSelect={() => selectLeft(left)}
+              onClear={() => clear(left)}
             />
           ))}
         </div>
         <div className="space-y-2">
           <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Варианты справа</p>
-          <p className="text-xs text-[color:var(--pt-text-muted)]">Коснитесь строки слева, затем варианта справа. Выбор можно менять или очистить до отправки.</p>
           {shuffledRights.map((r) => (
             <Draggable key={r} value={r} disabled={disabled} selected={selectedRight === r} assigned={usedRights.has(r)} onClick={() => selectRight(r)} />
           ))}
@@ -332,16 +392,16 @@ function DropZone({ left, value, selected, onSelect, onClear }: { left: string; 
           onSelect();
         }
       }}
-      className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border-2 border-dashed p-3 transition-all sm:flex sm:gap-3 ${
+      className={`flex min-w-0 min-h-14 flex-wrap items-center gap-2 rounded-xl border-2 border-dashed p-3 transition-all ${
         isOver
           ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-surface-strong)]"
           : "border-[color:var(--pt-border)]"
       } ${selected ? "cursor-pointer ring-2 ring-[color:var(--pt-accent)]/50" : ""}`}
     >
-      <span className="min-w-0 break-words text-sm font-semibold sm:flex-1">{left}</span>
+      <span className="min-w-0 basis-full break-words text-sm font-semibold sm:flex-1">{left}</span>
       <span className="text-[color:var(--pt-text-muted)]">→</span>
       <span
-        className={`min-w-0 break-words rounded-lg px-3 py-2 text-left text-sm sm:min-w-[40%] ${
+        className={`min-w-0 flex-1 break-words rounded-lg px-3 py-2 text-left text-sm sm:min-w-[40%] ${
           value
             ? "bg-[color:var(--pt-accent)] font-bold text-black"
             : "bg-[color:var(--pt-surface-strong)] text-[color:var(--pt-text-muted)]"
@@ -349,7 +409,7 @@ function DropZone({ left, value, selected, onSelect, onClear }: { left: string; 
       >
         {value || "…"}
       </span>
-      {value && <button type="button" onClick={(event) => { event.stopPropagation(); onClear(); }} className="min-h-10 rounded-lg px-2 text-xs font-semibold text-danger hover:bg-danger/10">Очистить</button>}
+      {value && <button type="button" aria-label="Очистить" onClick={(event) => { event.stopPropagation(); onClear(); }} className="min-h-10 rounded-lg px-2 text-xs font-semibold text-danger hover:bg-danger/10">×</button>}
     </div>
   );
 }
@@ -485,16 +545,17 @@ function OrderingBoard({
       return [];
     }
   }, [question.answer]);
-  const initial = useMemo(() => shuffleArr(correct), [correct]);
+  const displayItems = quizQuestionDisplay(question).ordering ?? [];
+  const initial = useMemo(() => shuffleArr(correct.length ? correct : displayItems), [correct, displayItems]);
   const items: string[] = useMemo(() => {
     try {
       const a = JSON.parse(value || "null");
-      if (Array.isArray(a) && a.length === correct.length) return a as string[];
+      if (Array.isArray(a) && a.length === (correct.length || displayItems.length)) return a as string[];
     } catch {
       // ignore
     }
     return initial;
-  }, [value, initial, correct.length]);
+  }, [value, initial, correct.length, displayItems.length]);
   const move = (i: number, dir: -1 | 1) => {
     if (disabled) return;
     const j = i + dir;

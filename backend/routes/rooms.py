@@ -16,6 +16,7 @@ router = APIRouter(tags=["rooms"])
 # Хранилище комнат и соединений (в памяти)
 rooms: dict[str, dict] = {}
 connections: dict[str, list[WebSocket]] = {}
+connection_identities: dict[int, dict] = {}
 room_cleanup_tasks: dict[str, asyncio.Task] = {}
 ROOM_RECONNECT_GRACE_SECONDS = 60
 ROOM_PERSISTENCE_TTL_SECONDS = 30 * 60
@@ -34,7 +35,7 @@ def _room_theme(value: object) -> str:
     return value if isinstance(value, str) and value in ROOM_THEMES else "classic"
 
 HOST_ACTIONS = {
-    "start", "reveal", "leaderboard", "next_question", "finish", "restart", "kick", "adjust_score",
+    "start", "timeout", "reveal", "leaderboard", "next_question", "finish", "restart", "kick", "adjust_score",
     "jeopardy_set_mode", "jeopardy_start", "jeopardy_select", "jeopardy_accept",
     "jeopardy_turn_wrong_finalize", "jeopardy_close_question", "jeopardy_skip",
     "jeopardy_back_to_board", "jeopardy_end_round", "jeopardy_final_start",
@@ -70,7 +71,7 @@ def validate_quiz_action(room: dict, action: str, data: dict, identity: dict | N
         given = data.get("given", "")
         if not isinstance(given, str) or len(given) > MAX_ANSWER_LENGTH or not _valid_quiz_draft(question, given):
             return "Некорректный текущий выбор"
-        if deadline_ms is not None and now_ms > deadline_ms:
+        if deadline_ms is not None and now_ms >= deadline_ms:
             return "Время вышло"
     if action == "answer":
         if status != "active":
@@ -87,10 +88,15 @@ def validate_quiz_action(room: dict, action: str, data: dict, identity: dict | N
         if player and (player.get("lastAnswer") or {}).get("questionIdx") == question_idx:
             return "На этот вопрос уже отвечали"
         draft = _quiz_draft(player, question_idx, deadline_ms) if player else None
-        if deadline_ms is not None and now_ms > deadline_ms and draft is None and not (data.get("timedOut") and given == ""):
+        if deadline_ms is not None and now_ms >= deadline_ms and draft is None and not (data.get("timedOut") and given == ""):
             return "Время вышло"
-    elif action == "reveal" and status != "active":
-        return "Ответы можно открыть только во время вопроса"
+    elif action == "timeout":
+        if status != "active":
+            return "Время уже остановлено"
+        if deadline_ms is None or now_ms < deadline_ms:
+            return "Время ещё не вышло"
+    elif action == "reveal" and status not in {"active", "timeout"}:
+        return "Ответы можно открыть только после вопроса"
     elif action == "leaderboard" and status != "reveal":
         return "Таблицу лидеров можно открыть после ответов"
     elif action == "next_question":
@@ -98,7 +104,7 @@ def validate_quiz_action(room: dict, action: str, data: dict, identity: dict | N
             return "Следующий вопрос недоступен на этой фазе"
         if not _is_int(question_idx) or question_idx + 1 >= question_count:
             return "Следующего вопроса нет"
-    elif action == "finish" and status not in {"active", "reveal", "leaderboard"}:
+    elif action == "finish" and status not in {"active", "timeout", "reveal", "leaderboard"}:
         return "Игру нельзя завершить на этой фазе"
     elif action == "restart" and status != "finished":
         return "Перезапуск доступен после завершения игры"
@@ -224,14 +230,41 @@ def validate_jeopardy_action(room: dict, action: str, data: dict, identity: dict
     return None
 
 
-def public_room_state(room: dict) -> dict:
-    """Never expose in-memory room credentials in a state broadcast."""
+def public_room_state(room: dict, identity: dict | None = None) -> dict:
+    """Return role-scoped state without credentials, drafts, or premature feedback."""
     state = {key: value for key, value in room.items() if key not in {"_credentials", "_credential_hashes", "_snapshot"}}
-    state["players"] = [
-        {key: value for key, value in player.items() if key != "currentAnswer"}
-        for player in room.get("players", [])
-        if isinstance(player, dict)
-    ]
+    current_idx = room.get("questionIdx")
+    can_reveal = room.get("status") in {"reveal", "leaderboard", "finished"}
+    is_player = identity and identity.get("role") == "player"
+    players = []
+    own_answer_submitted = False
+    own_draft = None
+    for player in room.get("players", []):
+        if not isinstance(player, dict):
+            continue
+        item = {key: value for key, value in player.items() if key not in {"currentAnswer", "answerHistory"}}
+        is_own = is_player and player.get("id") == identity.get("playerId")
+        if is_player:
+            if is_own and can_reveal:
+                if isinstance(player.get("lastAnswer"), dict):
+                    item["lastAnswer"] = copy.deepcopy(player["lastAnswer"])
+            else:
+                item.pop("lastAnswer", None)
+            draft = player.get("currentAnswer")
+            if is_own and isinstance(draft, dict) and draft.get("questionIdx") == current_idx:
+                own_draft = draft.get("given") if isinstance(draft.get("given"), str) else None
+            own_answer_submitted = own_answer_submitted or (
+                is_own and isinstance(player.get("lastAnswer"), dict)
+                and player["lastAnswer"].get("questionIdx") == current_idx
+            )
+        else:
+            if "lastAnswer" in player:
+                item["lastAnswer"] = copy.deepcopy(player["lastAnswer"])
+        players.append(item)
+    state["players"] = players
+    if is_player:
+        state["playerAnswerSubmitted"] = own_answer_submitted
+        state["playerAnswerDraft"] = own_draft
     return state
 
 
@@ -240,9 +273,44 @@ def public_room_snapshot(room: dict, identity: dict | None = None) -> dict | Non
     snapshot = room.get("_snapshot")
     if not isinstance(snapshot, dict) or not isinstance(snapshot.get("data"), dict):
         return None
-    data = {key: value for key, value in snapshot["data"].items() if key != "variants"}
+    data = copy.deepcopy({key: value for key, value in snapshot["data"].items() if key != "variants"})
+    if identity and identity.get("role") == "player" and snapshot.get("kind") == "quiz":
+        current_idx = room.get("questionIdx")
+        can_reveal = room.get("status") in {"reveal", "leaderboard", "finished"}
+        questions = data.get("questions", [])
+        source_questions = snapshot["data"].get("questions", [])
+        for index, question in enumerate(questions if isinstance(questions, list) else []):
+            if not isinstance(question, dict):
+                continue
+            source = source_questions[index] if isinstance(source_questions, list) and index < len(source_questions) and isinstance(source_questions[index], dict) else question
+            if not (can_reveal and index == current_idx):
+                question.pop("answer", None)
+                question["answer"] = ""
+                if question.get("type") == "matching":
+                    raw_pairs = source.get("answer", "")
+                    try:
+                        pairs = json.loads(raw_pairs or "[]")
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        pairs = []
+                    display = question.get("display") if isinstance(question.get("display"), dict) else {}
+                    matching = display.get("matching") if isinstance(display.get("matching"), dict) else {}
+                    left = matching.get("left") if isinstance(matching.get("left"), list) else []
+                    right = matching.get("right") if isinstance(matching.get("right"), list) else []
+                    if not left or not right:
+                        left = [pair.get("left") for pair in pairs if isinstance(pair, dict) and isinstance(pair.get("left"), str)]
+                        right = [pair.get("right") for pair in pairs if isinstance(pair, dict) and isinstance(pair.get("right"), str)]
+                    question["display"] = {"matching": {"left": left, "right": right}}
+                elif question.get("type") == "ordering":
+                    display = question.get("display") if isinstance(question.get("display"), dict) else {}
+                    values = display.get("ordering") if isinstance(display.get("ordering"), list) else []
+                    if not values:
+                        try:
+                            values = json.loads(source.get("answer", "[]") or "[]")
+                        except (TypeError, ValueError, json.JSONDecodeError):
+                            values = []
+                    values = [value for value in values if isinstance(value, str) and value.strip()]
+                    question["display"] = {"ordering": values[1:] + values[:1] if len(values) > 1 else values}
     if identity and identity.get("role") == "player" and snapshot.get("kind") == "jeopardy":
-        data = copy.deepcopy(data)
         for round_data in data.get("rounds", []):
             for category in round_data if isinstance(round_data, list) else []:
                 for question in category.get("questions", []) if isinstance(category, dict) else []:
@@ -566,13 +634,17 @@ async def broadcast(code: str, message: dict):
     """Отправить сообщение всем в комнате."""
     if code not in connections:
         return
-    if message.get("type") == "room_state" and isinstance(message.get("state"), dict):
-        _persist_room_state(rooms[code])
-        message = {**message, "state": public_room_state(message["state"])}
     dead = []
     for ws in connections[code]:
         try:
-            await ws.send_json(message)
+            identity = connection_identities.get(id(ws))
+            outgoing = message
+            if message.get("type") == "room_state" and isinstance(message.get("state"), dict):
+                _persist_room_state(rooms[code])
+                outgoing = {**message, "state": public_room_state(message["state"], identity)}
+            await ws.send_json(outgoing)
+            if message.get("type") == "room_state":
+                await send_room_snapshot(ws, rooms[code], identity)
         except Exception:
             dead.append(ws)
     for ws in dead:
@@ -600,7 +672,8 @@ async def room_websocket(websocket: WebSocket, code: str):
     # Unbound sockets may join by room code, but do not receive live game state.
     if code in rooms:
         if identity:
-            await websocket.send_json({"type": "room_state", "state": public_room_state(rooms[code])})
+            connection_identities[id(websocket)] = identity
+            await websocket.send_json({"type": "room_state", "state": public_room_state(rooms[code], identity)})
             if identity.get("role") == "host":
                 answers_credential, _ = issue_credential(rooms[code], "answers")
                 await websocket.send_json({"type": "room_identity", "role": "host", "answersCredential": answers_credential})
@@ -673,6 +746,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                 credential, identity = issue_credential(rooms[code], "host")
                 answers_credential, _ = issue_credential(rooms[code], "answers")
                 await websocket.send_json({"type": "room_identity", "credential": credential, "role": "host", "answersCredential": answers_credential})
+                connection_identities[id(websocket)] = identity
                 await send_room_snapshot(websocket, rooms[code], identity)
                 # Если Jeopardy — добавить начальное состояние
                 if game_kind == "jeopardy":
@@ -723,6 +797,7 @@ async def room_websocket(websocket: WebSocket, code: str):
                 player = {"id": player_id, "nickname": nickname, "avatar": avatar, "score": 0, "streak": 0, "connected": True}
                 rooms[code]["players"].append(player)
                 credential, identity = issue_credential(rooms[code], "player", player_id)
+                connection_identities[id(websocket)] = identity
                 await websocket.send_json({"type": "room_identity", "credential": credential, "role": "player", "playerId": player_id})
                 await send_room_snapshot(websocket, rooms[code], identity)
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
@@ -799,9 +874,18 @@ async def room_websocket(websocket: WebSocket, code: str):
                         given = data.get("given", "")
                         given = given if isinstance(given, str) else ""
                     if not draft and (not given or (question.get("type") == "text" and not given.strip())):
+                        if data.get("timedOut") and _quiz_deadline_ms(rooms[code], question) is not None and int(time.time() * 1000) >= _quiz_deadline_ms(rooms[code], question):
+                            rooms[code]["status"] = "timeout"
                         await broadcast(code, {"type": "room_state", "state": rooms[code]})
                         continue
                     _finalize_quiz_answer(rooms[code], player, given, received_at)
+                    if data.get("timedOut") and _quiz_deadline_ms(rooms[code], question) is not None and int(time.time() * 1000) >= _quiz_deadline_ms(rooms[code], question):
+                        rooms[code]["status"] = "timeout"
+                await broadcast(code, {"type": "room_state", "state": rooms[code]})
+
+            elif action == "timeout":
+                _finalize_quiz_drafts(rooms[code])
+                rooms[code]["status"] = "timeout"
                 await broadcast(code, {"type": "room_state", "state": rooms[code]})
 
             elif action == "reveal":
@@ -1170,6 +1254,7 @@ async def room_websocket(websocket: WebSocket, code: str):
     except WebSocketDisconnect:
         pass
     finally:
+        connection_identities.pop(id(websocket), None)
         connections[code] = [ws for ws in connections.get(code, []) if ws != websocket]
         if not connections.get(code):
             connections.pop(code, None)
