@@ -591,6 +591,7 @@ export interface JeopardyRoomState {
   finalRevealIdx: number;
   finalRevealStep: "bet" | "answer" | "score" | "done";
   finalRevealAt: number | null;
+  revealedAnswer?: string | null;
   lastDelta?: { playerId: string; delta: number } | null;
 }
 
@@ -623,6 +624,8 @@ type RoomConn = {
   snapshot: RoomSnapshot | null;
   snapshotHandlers: Set<(snapshot: RoomSnapshot) => void>;
   available: boolean;
+  playerId?: string;
+  credential?: string;
   openPromise: Promise<void>;
 };
 
@@ -633,42 +636,125 @@ type RoomMessage = {
   credential?: string;
   role?: "host" | "player";
   playerId?: string;
+  answersCredential?: string;
+  questionIdx?: number;
   snapshot?: RoomSnapshot;
 };
 
 const ROOM_HOST_CREDENTIAL_PREFIX = "islandquiz.room.host.";
 const ROOM_PLAYER_CREDENTIAL_PREFIX = "islandquiz.room.player.";
+const ROOM_PLAYER_INFO_PREFIX = "islandquiz.room.player-info.";
+const ROOM_ANSWERS_CREDENTIAL_PREFIX = "islandquiz.room.answers.";
+
+export interface StoredRoomPlayer {
+  playerId: string;
+  nickname: string;
+  avatar: string;
+}
+
+function roomPlayerCredential(code: string): string | null {
+  if (typeof window === "undefined") return null;
+  return (
+    sessionStorage.getItem(`${ROOM_PLAYER_CREDENTIAL_PREFIX}${code}`) ??
+    localStorage.getItem(`${ROOM_PLAYER_CREDENTIAL_PREFIX}${code}`)
+  );
+}
+
+function roomAnswersCredential(code: string): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(`${ROOM_ANSWERS_CREDENTIAL_PREFIX}${code}`);
+}
 
 function roomCredential(code: string): string | null {
   if (typeof window === "undefined") return null;
   return (
     localStorage.getItem(`${ROOM_HOST_CREDENTIAL_PREFIX}${code}`) ??
-    sessionStorage.getItem(`${ROOM_PLAYER_CREDENTIAL_PREFIX}${code}`)
+    roomPlayerCredential(code)
   );
 }
 
+export function getStoredRoomPlayer(code: string): StoredRoomPlayer | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw =
+      sessionStorage.getItem(`${ROOM_PLAYER_INFO_PREFIX}${code}`) ??
+      localStorage.getItem(`${ROOM_PLAYER_INFO_PREFIX}${code}`);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (
+      !parsed ||
+      typeof parsed.playerId !== "string" ||
+      typeof parsed.nickname !== "string" ||
+      typeof parsed.avatar !== "string"
+    ) return null;
+    return parsed as StoredRoomPlayer;
+  } catch {
+    return null;
+  }
+}
+
+function storeRoomPlayer(code: string, player: StoredRoomPlayer) {
+  if (typeof window === "undefined") return;
+  const raw = JSON.stringify(player);
+  try {
+    sessionStorage.setItem(`${ROOM_PLAYER_INFO_PREFIX}${code}`, raw);
+    localStorage.setItem(`${ROOM_PLAYER_INFO_PREFIX}${code}`, raw);
+  } catch {
+    /* ignore */
+  }
+}
+
 function storeRoomCredential(code: string, message: RoomMessage) {
-  if (!message.credential || !message.role || typeof window === "undefined") return;
+  if (!message.role || typeof window === "undefined") return;
   const key =
     message.role === "host"
       ? `${ROOM_HOST_CREDENTIAL_PREFIX}${code}`
       : `${ROOM_PLAYER_CREDENTIAL_PREFIX}${code}`;
-  const storage = message.role === "host" ? localStorage : sessionStorage;
-  storage.setItem(key, message.credential);
+  if (message.role === "host") {
+    if (message.credential) {
+      try {
+        localStorage.setItem(key, message.credential);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (message.answersCredential) {
+      try {
+        localStorage.setItem(`${ROOM_ANSWERS_CREDENTIAL_PREFIX}${code}`, message.answersCredential);
+      } catch {
+        /* ignore */
+      }
+    }
+    return;
+  }
+  if (!message.credential) return;
+  try {
+    sessionStorage.setItem(key, message.credential);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.setItem(key, message.credential);
+  } catch {
+    /* ignore */
+  }
 }
 
 const roomConns = new Map<string, RoomConn>();
 
 let reconnectAttempts: Record<string, number> = {};
 
-function ensureRoomConn(code: string): RoomConn {
+function ensureRoomConn(code: string, credentialOverride?: string): RoomConn {
   const existing = roomConns.get(code);
-  if (existing && (existing.ws.readyState === WebSocket.OPEN || existing.ws.readyState === WebSocket.CONNECTING)) {
+  if (
+    existing &&
+    (credentialOverride === undefined || existing.credential === credentialOverride) &&
+    (existing.ws.readyState === WebSocket.OPEN || existing.ws.readyState === WebSocket.CONNECTING)
+  ) {
     reconnectAttempts[code] = 0;
     return existing;
   }
 
-  const credential = roomCredential(code);
+  const credential = credentialOverride ?? roomCredential(code);
   const suffix = credential ? `?credential=${encodeURIComponent(credential)}` : "";
   const ws = new WebSocket(`${WS_BASE}/ws/room/${code}${suffix}`);
   const handlers = new Set<(s: RoomState) => void>();
@@ -680,7 +766,7 @@ function ensureRoomConn(code: string): RoomConn {
     resolveOpen = resolve;
   });
 
-  const conn: RoomConn = { ws, handlers, snapshotHandlers, onceWaiters, state: null, snapshot: null, available: false, openPromise };
+  const conn: RoomConn = { ws, handlers, snapshotHandlers, onceWaiters, state: null, snapshot: null, available: false, credential: credential ?? undefined, openPromise };
 
   ws.onopen = () => {
     reconnectAttempts[code] = 0;
@@ -690,7 +776,12 @@ function ensureRoomConn(code: string): RoomConn {
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data as string) as RoomMessage;
-      if (msg.type === "room_identity") storeRoomCredential(code, msg);
+      if (msg.type === "room_identity") {
+        storeRoomCredential(code, msg);
+        if (msg.role === "player" && msg.playerId) {
+          conn.playerId = msg.playerId;
+        }
+      }
       if (msg.type === "room_state" && msg.state) {
         const state = { ...msg.state, theme: normalizePlayerTheme(msg.state.theme) ?? "classic" };
         conn.available = true;
@@ -716,7 +807,7 @@ function ensureRoomConn(code: string): RoomConn {
       reconnectAttempts[code] = attempt + 1;
       console.log(`[WS] Room ${code} disconnected. Reconnecting in ${delay}ms (attempt ${attempt + 1})`);
       setTimeout(() => {
-        const newConn = ensureRoomConn(code);
+        const newConn = ensureRoomConn(code, conn.credential);
         // Перенести хендлеры в новое соединение
         handlers.forEach(h => newConn.handlers.add(h));
         snapshotHandlers.forEach(h => newConn.snapshotHandlers.add(h));
@@ -788,9 +879,9 @@ function sendJeopardyAction(
   return sendAndWaitState(code, payload);
 }
 
-export function subscribeRoom(code: string, handler: (s: RoomState) => void) {
+export function subscribeRoom(code: string, handler: (s: RoomState) => void, credential?: string) {
   if (typeof window === "undefined") return () => {};
-  const conn = ensureRoomConn(code);
+  const conn = ensureRoomConn(code, credential);
   conn.handlers.add(handler);
   if (conn.state) handler(conn.state);
   void conn.openPromise.then(() => {
@@ -833,6 +924,14 @@ function roomAvatar(avatar: string): string {
 export async function joinRoom(code: string, nickname: string, avatar: string) {
   const conn = ensureRoomConn(code);
   await conn.openPromise;
+  const remembered = getStoredRoomPlayer(code);
+  if (roomPlayerCredential(code) && remembered) {
+    const message = conn.state ? null : await waitRoomMessage(code, (m) => m.type === "room_state" && !!m.state, 2000).catch(() => null);
+    const state = conn.state ?? message?.state;
+    if (state?.players.some((player) => player.id === remembered.playerId)) {
+      return { success: true as const, player_id: remembered.playerId };
+    }
+  }
   // Unbound sockets receive room_available, while identified sockets receive room_state.
   let roomAvailable = conn.available;
   if (!roomAvailable) {
@@ -861,8 +960,9 @@ export async function joinRoom(code: string, nickname: string, avatar: string) {
     /* use cached */
   }
 
-  const playerId = conn.state?.players.find((p) => p.nickname === nickname)?.id;
+  const playerId = conn.playerId ?? conn.state?.players.find((p) => p.nickname === nickname)?.id;
   if (!playerId || !roomCredential(code)) return { success: false as const, error: "Не удалось присоединиться" };
+  storeRoomPlayer(code, { playerId, nickname, avatar: roomAvatar(avatar) });
   return { success: true as const, player_id: playerId };
 }
 
@@ -934,7 +1034,7 @@ export function computeKahootScore(opts: {
 export async function submitAnswer(
   code: string,
   playerId: string,
-  payload: { given?: string },
+  payload: { given?: string; timedOut?: boolean },
 ) {
   const s = roomConns.get(code)?.state;
   if (!s) return { correct: false, score: 0 };
@@ -946,6 +1046,7 @@ export async function submitAnswer(
   await sendAndWaitState(code, {
     action: "answer",
     given: payload.given ?? "",
+    timedOut: payload.timedOut ?? false,
   });
   const after = roomConns.get(code)?.state;
   const player = after?.players.find((pl) => pl.id === playerId);
@@ -1296,9 +1397,29 @@ export interface GeneratedQuizQuestion {
   time?: number;
 }
 
-export function subscribeRoomSnapshot(code: string, handler: (snapshot: RoomSnapshot) => void) {
+export async function saveAnswerDraft(code: string, playerId: string, given: string): Promise<boolean> {
+  const state = roomConns.get(code)?.state;
+  if (!state || state.status !== "active" || !state.players.some((player) => player.id === playerId)) return false;
+  const wait = waitRoomMessage(
+    code,
+    (message) => message.type === "answer_draft_saved" || message.type === "error",
+    1500,
+  );
+  sendRoom(code, { action: "answer_draft", given });
+  const message = await wait.catch(() => null);
+  return message?.type === "answer_draft_saved";
+}
+
+export function getRoomAnswersUrl(code: string, credential?: string): string {
+  const base = typeof window === "undefined" ? "" : window.location.origin;
+  const path = `${base}/room/${encodeURIComponent(code)}/answers`;
+  const accessCredential = credential ?? roomAnswersCredential(code);
+  return accessCredential ? `${path}?credential=${encodeURIComponent(accessCredential)}` : path;
+}
+
+export function subscribeRoomSnapshot(code: string, handler: (snapshot: RoomSnapshot) => void, credential?: string) {
   if (typeof window === "undefined") return () => {};
-  const conn = ensureRoomConn(code);
+  const conn = ensureRoomConn(code, credential);
   conn.snapshotHandlers.add(handler);
   if (conn.snapshot) handler(conn.snapshot);
   return () => {

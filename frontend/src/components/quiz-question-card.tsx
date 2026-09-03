@@ -3,11 +3,15 @@
 // experiences stay visually identical, but this version is decoupled so we
 // don't touch the offline route.
 
-import { useEffect, useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   DndContext,
+  KeyboardSensor,
+  PointerSensor,
   useDraggable,
   useDroppable,
+  useSensor,
+  useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { LaTeX } from "@/lib/latex";
@@ -122,9 +126,7 @@ export function QuizQuestionCard({
                     : isWrong
                       ? "border-danger bg-danger/20 text-danger"
                       : selected
-                        ? v === "true"
-                          ? "border-success bg-success/20 text-success"
-                          : "border-danger bg-danger/20 text-danger"
+                        ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-surface-strong)]"
                         : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]"
                 }`}
               >
@@ -205,18 +207,60 @@ function MatchingBoard({
   }, [value]);
 
   const usedRights = new Set(Object.values(assigned));
+  const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
+  const [selectedRight, setSelectedRight] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor),
+  );
 
-  const handleDragEnd = (e: DragEndEvent) => {
+  const assign = (left: string, right: string) => {
     if (disabled) return;
-    if (!e.over) return;
-    const right = String(e.active.id).replace("right:", "");
-    const left = String(e.over.id).replace("left:", "");
     const next: Record<string, string> = {};
     Object.entries(assigned).forEach(([k, v]) => {
-      if (v !== right) next[k] = v;
+      if (v !== right && k !== left) next[k] = v;
     });
     next[left] = right;
+    setSelectedLeft(null);
+    setSelectedRight(null);
     onChange(JSON.stringify(next));
+  };
+
+  const clear = (left: string) => {
+    if (disabled) return;
+    const next = { ...assigned };
+    delete next[left];
+    setSelectedLeft(null);
+    setSelectedRight(null);
+    onChange(JSON.stringify(next));
+  };
+
+  const selectLeft = (left: string) => {
+    if (disabled) return;
+    if (selectedRight) {
+      assign(left, selectedRight);
+      return;
+    }
+    setSelectedLeft(selectedLeft === left ? null : left);
+  };
+
+  const selectRight = (right: string) => {
+    if (disabled) return;
+    if (selectedLeft) {
+      if (assigned[selectedLeft] === right) clear(selectedLeft);
+      else assign(selectedLeft, right);
+      return;
+    }
+    const assignedLeft = Object.entries(assigned).find(([, value]) => value === right)?.[0] ?? null;
+    setSelectedLeft(assignedLeft);
+    setSelectedRight(selectedRight === right ? null : right);
+  };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    if (disabled || !e.over) return;
+    const right = String(e.active.id).replace("right:", "");
+    const left = String(e.over.id).replace("left:", "");
+    assign(left, right);
   };
 
   if (reveal) {
@@ -228,15 +272,16 @@ function MatchingBoard({
           return (
             <div
               key={p.left}
-              className={`flex items-center gap-3 rounded-xl border-2 p-3 ${
+              className={`rounded-xl border-2 p-3 ${
                 ok ? "border-success bg-success/10" : "border-danger bg-danger/10"
               }`}
             >
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.left}</span>
-              <span className="text-[color:var(--pt-text-muted)]">→</span>
-              <span className="rounded-lg bg-[color:var(--pt-accent)] px-3 py-1 text-sm font-bold text-black">
-                {p.right}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="min-w-0 flex-1 break-words text-sm font-semibold">{p.left}</span>
+                <span className="text-[color:var(--pt-text-muted)]">→</span>
+                <span className="min-w-0 break-words rounded-lg bg-[color:var(--pt-accent)] px-3 py-1 text-sm font-bold text-black">{p.right}</span>
+              </div>
+              {!ok && <p className="mt-2 text-xs text-danger">Ваш выбор: {given || "нет ответа"}</p>}
             </div>
           );
         })}
@@ -245,42 +290,53 @@ function MatchingBoard({
   }
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Пары</p>
+          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Пары · выбрано {Object.keys(assigned).length}/{pairs.length}</p>
           {pairs.map((p) => (
-            <DropZone key={p.left} left={p.left} value={assigned[p.left]} />
+            <DropZone
+              key={p.left}
+              left={p.left}
+              value={assigned[p.left]}
+              selected={selectedLeft === p.left}
+              onSelect={() => selectLeft(p.left)}
+              onClear={() => clear(p.left)}
+            />
           ))}
         </div>
         <div className="space-y-2">
-          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Перетащите варианты</p>
-          {shuffledRights
-            .filter((r) => !usedRights.has(r))
-            .map((r) => (
-              <Draggable key={r} value={r} />
-            ))}
-          {shuffledRights.filter((r) => !usedRights.has(r)).length === 0 && (
-            <p className="rounded-xl border border-dashed border-[color:var(--pt-border)] p-3 text-center text-xs text-[color:var(--pt-text-muted)]">
-              Все варианты расставлены
-            </p>
-          )}
+          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Варианты справа</p>
+          <p className="text-xs text-[color:var(--pt-text-muted)]">Коснитесь строки слева, затем варианта справа. Выбор можно менять или очистить до отправки.</p>
+          {shuffledRights.map((r) => (
+            <Draggable key={r} value={r} disabled={disabled} selected={selectedRight === r} assigned={usedRights.has(r)} onClick={() => selectRight(r)} />
+          ))}
         </div>
       </div>
     </DndContext>
   );
 }
 
-function DropZone({ left, value }: { left: string; value?: string }) {
+function DropZone({ left, value, selected, onSelect, onClear }: { left: string; value?: string; selected: boolean; onSelect: () => void; onClear: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: `left:${left}` });
   return (
     <div
       ref={setNodeRef}
-      className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border-2 border-dashed p-3 transition-all sm:flex sm:gap-3 ${
+      onClick={onSelect}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border-2 border-dashed p-3 transition-all sm:flex sm:gap-3 ${
         isOver
           ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-surface-strong)]"
           : "border-[color:var(--pt-border)]"
-      }`}
+      } ${selected ? "cursor-pointer ring-2 ring-[color:var(--pt-accent)]/50" : ""}`}
     >
       <span className="min-w-0 break-words text-sm font-semibold sm:flex-1">{left}</span>
       <span className="text-[color:var(--pt-text-muted)]">→</span>
@@ -293,25 +349,39 @@ function DropZone({ left, value }: { left: string; value?: string }) {
       >
         {value || "…"}
       </span>
+      {value && <button type="button" onClick={(event) => { event.stopPropagation(); onClear(); }} className="min-h-10 rounded-lg px-2 text-xs font-semibold text-danger hover:bg-danger/10">Очистить</button>}
     </div>
   );
 }
 
-function Draggable({ value }: { value: string }) {
+function Draggable({ value, disabled, selected, assigned, onClick }: { value: string; disabled: boolean; selected: boolean; assigned: boolean; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `right:${value}`,
+    disabled,
   });
   return (
     <div
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      onClick={onClick}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
       style={{
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+        touchAction: "pan-y",
       }}
-      className={`cursor-grab break-words rounded-xl border-2 border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3 text-sm font-semibold shadow-sm active:cursor-grabbing ${
+      aria-pressed={selected}
+      className={`min-h-14 cursor-grab break-words rounded-xl border-2 px-4 py-3 text-sm font-semibold shadow-sm active:cursor-grabbing ${
         isDragging ? "opacity-50" : ""
-      }`}
+      } ${selected ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-accent)]/20" : assigned ? "border-success/50 bg-success/10" : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]"} ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
     >
       {value}
     </div>
@@ -425,10 +495,6 @@ function OrderingBoard({
     }
     return initial;
   }, [value, initial, correct.length]);
-  useEffect(() => {
-    if (!value) onChange(JSON.stringify(initial));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const move = (i: number, dir: -1 | 1) => {
     if (disabled) return;
     const j = i + dir;
@@ -440,6 +506,9 @@ function OrderingBoard({
   if (reveal) {
     return (
       <div className="space-y-2">
+        <p className="rounded-xl bg-[color:var(--pt-surface-strong)] px-3 py-2 text-center text-xs font-semibold text-[color:var(--pt-text-muted)]">
+          Первый элемент — сверху, последний — снизу.
+        </p>
         {correct.map((v, i) => {
           const ok = items[i] === v;
           return (
@@ -466,6 +535,9 @@ function OrderingBoard({
   }
   return (
     <div className="space-y-2">
+      <p className="rounded-xl bg-[color:var(--pt-surface-strong)] px-3 py-2 text-center text-xs font-semibold text-[color:var(--pt-text-muted)]">
+        Первый элемент — сверху, последний — снизу.
+      </p>
       {items.map((v, i) => (
         <div
           key={`${v}-${i}`}

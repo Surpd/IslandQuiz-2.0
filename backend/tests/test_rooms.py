@@ -2,6 +2,7 @@ import copy
 import asyncio
 import json
 import os
+import time
 import unittest
 
 from fastapi import WebSocketDisconnect
@@ -15,12 +16,12 @@ os.environ.setdefault("JWT_SECRET", "test-jwt-secret-for-unit-tests-only-123456"
 
 QUIZ_SNAPSHOT_DATA = {
     "config": {"defaultTime": 30},
-    "questions": [{"id": "q1", "type": "choice", "q": "Capital?", "answer": "Paris", "points": 100, "time": 30}],
+    "questions": [{"id": "q1", "type": "choice", "q": "Capital?", "options": ["Paris", "London"], "answer": "Paris", "points": 100, "time": 30}],
 }
 
 JEOPARDY_SNAPSHOT_DATA = {
     "config": {},
-    "rounds": [[{"category": "Capital cities", "questions": [{"points": 100}]}]],
+    "rounds": [[{"category": "Capital cities", "questions": [{"points": 100, "q": "Round question", "a": "Round answer"}]}]],
     "final": {"category": "Final", "q": "Question", "a": "Answer"},
 }
 
@@ -92,6 +93,7 @@ def room_fixture():
         "_snapshot": issue_snapshot_token("game-1", "quiz", QUIZ_SNAPSHOT_DATA)[0],
         "_credentials": {
             "host-token": {"role": "host", "playerId": None},
+            "answers-token": {"role": "answers", "playerId": None},
             "player-1-token": {"role": "player", "playerId": "player-1"},
             "player-2-token": {"role": "player", "playerId": "player-2"},
         },
@@ -147,6 +149,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         state = next(message["state"] for message in websocket.sent if message["type"] == "room_state")
         self.assertEqual(identity["role"], "host")
         self.assertTrue(identity["credential"])
+        self.assertTrue(identity["answersCredential"])
         self.assertNotEqual(state["hostId"], "spoofed-host")
         self.assertEqual(state["theme"], "midnight")
         self.assertNotIn("_credentials", state)
@@ -183,6 +186,61 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         guest_snapshot = next(message for message in guest.sent if message["type"] == "room_snapshot")["snapshot"]
         self.assertEqual(guest_snapshot["data"]["selectedVariantId"], "variant-4")
         self.assertNotIn("variants", guest_snapshot["data"])
+
+    async def test_player_jeopardy_snapshot_hides_answers_but_teacher_token_keeps_them(self):
+        room = jeopardy_room_fixture()
+        player_snapshot = rooms_route.public_room_snapshot(room, {"role": "player", "playerId": "player-1"})
+        teacher_snapshot = rooms_route.public_room_snapshot(room, {"role": "answers"})
+
+        self.assertEqual(player_snapshot["data"]["rounds"][0][0]["questions"][0]["a"], "")
+        self.assertEqual(player_snapshot["data"]["final"]["a"], "")
+        self.assertEqual(teacher_snapshot["data"]["rounds"][0][0]["questions"][0]["a"], "Round answer")
+        self.assertEqual(teacher_snapshot["data"]["final"]["a"], "Answer")
+
+    async def test_jeopardy_reveal_state_exposes_only_the_revealed_answer_and_resync_keeps_snapshot_redacted(self):
+        room = jeopardy_room_fixture()
+        room["jeopardy"].update({
+            "phase": "question",
+            "selectedCat": 0,
+            "selectedQ": 0,
+        })
+        rooms_route.rooms["ROOM1"] = room
+
+        close = FakeWebSocket([json.dumps({"action": "jeopardy_close_question"})], credential="host-token")
+        await rooms_route.room_websocket(close, "ROOM1")
+        revealed_state = [message["state"] for message in close.sent if message["type"] == "room_state"][-1]
+        self.assertEqual(revealed_state["jeopardy"]["revealedAnswer"], "Round answer")
+
+        player = FakeWebSocket([], credential="player-1-token")
+        await rooms_route.room_websocket(player, "ROOM1")
+        player_state = next(message["state"] for message in player.sent if message["type"] == "room_state")
+        player_snapshot = next(message["snapshot"] for message in player.sent if message["type"] == "room_snapshot")
+        self.assertEqual(player_state["jeopardy"]["revealedAnswer"], "Round answer")
+        self.assertEqual(player_snapshot["data"]["rounds"][0][0]["questions"][0]["a"], "")
+
+    async def test_jeopardy_final_reveal_exposes_final_answer_after_host_action(self):
+        room = jeopardy_room_fixture()
+        room["jeopardy"].update({
+            "phase": "final-question",
+            "finalGiven": {"player-1": "Answer", "player-2": "Nope"},
+            "finalAnswers": {"player-1": True, "player-2": False},
+        })
+        rooms_route.rooms["ROOM1"] = room
+
+        host = FakeWebSocket([json.dumps({"action": "jeopardy_final_reveal"})], credential="host-token")
+        await rooms_route.room_websocket(host, "ROOM1")
+        state = [message["state"] for message in host.sent if message["type"] == "room_state"][-1]
+        self.assertEqual(state["jeopardy"]["phase"], "final-reveal")
+        self.assertEqual(state["jeopardy"]["revealedAnswer"], "Answer")
+
+    async def test_answers_credential_cannot_control_room(self):
+        room = jeopardy_room_fixture()
+        rooms_route.rooms["ROOM1"] = room
+
+        answers = FakeWebSocket([json.dumps({"action": "jeopardy_close_question"})], credential="answers-token")
+        await rooms_route.room_websocket(answers, "ROOM1")
+
+        self.assertTrue(any(message["type"] == "error" for message in answers.sent))
 
     async def test_large_snapshot_room_allows_guest_join(self):
         large_data = {
@@ -346,10 +404,216 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["players"][0]["id"], guest_identity["playerId"])
         self.assertEqual(state["players"][0]["score"], 1500)
 
+    async def test_choice_draft_keeps_last_selection_and_reveal_finalizes_it(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000)
+        rooms_route.rooms["ROOM1"] = room
+
+        draft = FakeWebSocket([json.dumps({"action": "answer_draft", "given": "Paris"})], credential="player-1-token")
+        await rooms_route.room_websocket(draft, "ROOM1")
+        self.assertEqual(room["players"][0]["currentAnswer"]["given"], "Paris")
+        self.assertFalse(any("currentAnswer" in player for message in draft.sent if message["type"] == "room_state" for player in message["state"]["players"]))
+
+        reveal = FakeWebSocket([json.dumps({"action": "reveal"})], credential="host-token")
+        await rooms_route.room_websocket(reveal, "ROOM1")
+        player = room["players"][0]
+        self.assertEqual(player["lastAnswer"]["given"], "Paris")
+        self.assertTrue(player["lastAnswer"]["correct"])
+        self.assertNotIn("currentAnswer", player)
+
+    async def test_choice_draft_uses_the_last_selection_before_timeout(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000)
+        rooms_route.rooms["ROOM1"] = room
+
+        draft = FakeWebSocket([
+            json.dumps({"action": "answer_draft", "given": "Paris"}),
+            json.dumps({"action": "answer_draft", "given": "London"}),
+        ], credential="player-1-token")
+        await rooms_route.room_websocket(draft, "ROOM1")
+        reveal = FakeWebSocket([json.dumps({"action": "reveal"})], credential="host-token")
+        await rooms_route.room_websocket(reveal, "ROOM1")
+
+        player = room["players"][0]
+        self.assertEqual(player["lastAnswer"]["given"], "London")
+        self.assertFalse(player["lastAnswer"]["correct"])
+
+    async def test_all_quiz_types_finalize_valid_drafts_without_submit(self):
+        cases = [
+            ("choice", ["Paris", "London"], "Paris"),
+            ("bool", [], "true"),
+            ("text", [], "Москва"),
+            ("matching", [], json.dumps({"Россия": "Москва"}, ensure_ascii=False)),
+            ("close", [], json.dumps(["Москва"], ensure_ascii=False)),
+            ("ordering", [], json.dumps(["B", "A", "C"], ensure_ascii=False)),
+        ]
+        answers = {
+            "choice": "Paris",
+            "bool": "true",
+            "text": "Москва",
+            "matching": json.dumps([{"left": "Россия", "right": "Москва"}], ensure_ascii=False),
+            "close": json.dumps(["Москва"], ensure_ascii=False),
+            "ordering": json.dumps(["B", "A", "C"], ensure_ascii=False),
+        }
+        for question_type, options, given in cases:
+            with self.subTest(question_type=question_type):
+                room = room_fixture()
+                room["_snapshot"] = copy.deepcopy(room["_snapshot"])
+                room["_snapshot"]["data"]["questions"][0] = {
+                    "id": "q1",
+                    "type": question_type,
+                    "q": "Тестовый вопрос",
+                    "options": options,
+                    "answer": answers[question_type],
+                    "points": 100,
+                    "time": 30,
+                }
+                room["status"] = "active"
+                room["questionStartAt"] = int(time.time() * 1000)
+                rooms_route.rooms["ROOM1"] = room
+
+                draft = FakeWebSocket(
+                    [json.dumps({"action": "answer_draft", "given": given}, ensure_ascii=False)],
+                    credential="player-1-token",
+                )
+                await rooms_route.room_websocket(draft, "ROOM1")
+                reveal = FakeWebSocket([json.dumps({"action": "reveal"})], credential="host-token")
+                await rooms_route.room_websocket(reveal, "ROOM1")
+
+                player = room["players"][0]
+                self.assertEqual(player["lastAnswer"]["given"], given)
+                self.assertTrue(player["lastAnswer"]["correct"])
+                self.assertEqual(player["score"], player["lastAnswer"]["delta"])
+                self.assertEqual(len(player["answerHistory"]), 1)
+
+    async def test_reveal_handles_explicit_null_last_answer(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000)
+        room["players"][0]["lastAnswer"] = None
+        rooms_route.rooms["ROOM1"] = room
+
+        reveal = FakeWebSocket([json.dumps({"action": "reveal"})], credential="host-token")
+        await rooms_route.room_websocket(reveal, "ROOM1")
+
+        self.assertEqual(room["status"], "reveal")
+        self.assertIsNone(room["players"][0]["lastAnswer"])
+        self.assertTrue(
+            any(
+                message["type"] == "room_state" and message["state"]["status"] == "reveal"
+                for message in reveal.sent
+            )
+        )
+
+    async def test_untouched_ordering_is_not_auto_submitted(self):
+        room = room_fixture()
+        room["_snapshot"] = copy.deepcopy(room["_snapshot"])
+        room["_snapshot"]["data"]["questions"][0] = {
+            "id": "q1",
+            "type": "ordering",
+            "q": "Расположите",
+            "options": [],
+            "answer": json.dumps(["A", "B", "C"]),
+            "points": 100,
+            "time": 30,
+        }
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000)
+        rooms_route.rooms["ROOM1"] = room
+
+        reveal = FakeWebSocket([json.dumps({"action": "reveal"})], credential="host-token")
+        await rooms_route.room_websocket(reveal, "ROOM1")
+
+        self.assertNotIn("lastAnswer", room["players"][0])
+
+    async def test_late_new_answer_is_rejected_but_saved_draft_can_finish(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000) - 31_000
+        rooms_route.rooms["ROOM1"] = room
+
+        late = FakeWebSocket([json.dumps({"action": "answer", "given": "Paris"})], credential="player-1-token")
+        await rooms_route.room_websocket(late, "ROOM1")
+        self.assertIn({"type": "error", "error": "Время вышло"}, late.sent)
+        self.assertNotIn("lastAnswer", room["players"][0])
+
+        room["players"][0]["currentAnswer"] = {
+            "questionIdx": 0,
+            "given": "London",
+            "receivedAt": room["questionStartAt"] + 1000,
+        }
+        timeout = FakeWebSocket([json.dumps({"action": "answer", "given": "", "timedOut": True})], credential="player-1-token")
+        await rooms_route.room_websocket(timeout, "ROOM1")
+        self.assertEqual(room["players"][0]["lastAnswer"]["given"], "London")
+
+    async def test_empty_text_timeout_remains_missing_answer(self):
+        room = room_fixture()
+        room["_snapshot"] = copy.deepcopy(room["_snapshot"])
+        room["_snapshot"]["data"]["questions"][0] = {
+            "id": "q1",
+            "type": "text",
+            "q": "Введите слово",
+            "answer": "слово",
+            "points": 100,
+            "time": 30,
+        }
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000) - 31_000
+        rooms_route.rooms["ROOM1"] = room
+
+        timeout = FakeWebSocket([json.dumps({"action": "answer", "given": "", "timedOut": True})], credential="player-1-token")
+        await rooms_route.room_websocket(timeout, "ROOM1")
+
+        self.assertNotIn("lastAnswer", room["players"][0])
+
+    async def test_duplicate_final_answer_is_idempotent_for_score(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000)
+        rooms_route.rooms["ROOM1"] = room
+        websocket = FakeWebSocket([
+            json.dumps({"action": "answer", "given": "Paris"}),
+            json.dumps({"action": "answer", "given": "Paris"}),
+        ], credential="player-1-token")
+
+        await rooms_route.room_websocket(websocket, "ROOM1")
+
+        self.assertEqual(room["players"][0]["score"], 1500)
+        self.assertEqual(len(room["players"][0]["answerHistory"]), 1)
+
+    async def test_timeout_submit_and_reveal_race_finalize_saved_draft_once(self):
+        room = room_fixture()
+        room["status"] = "active"
+        room["questionStartAt"] = int(time.time() * 1000) - 1_000
+        room["players"][0]["currentAnswer"] = {
+            "questionIdx": 0,
+            "given": "Paris",
+            "receivedAt": room["questionStartAt"] + 500,
+        }
+        rooms_route.rooms["ROOM1"] = room
+
+        submit = FakeWebSocket(
+            [json.dumps({"action": "answer", "given": "", "timedOut": True})],
+            credential="player-1-token",
+        )
+        reveal = FakeWebSocket([json.dumps({"action": "reveal"})], credential="host-token")
+        # Reveal-first is one possible ordering of the timeout/submit race;
+        # the saved draft must be finalized before the late submit is rejected.
+        await rooms_route.room_websocket(reveal, "ROOM1")
+        await rooms_route.room_websocket(submit, "ROOM1")
+
+        player = room["players"][0]
+        self.assertEqual(room["status"], "reveal")
+        self.assertEqual(player["lastAnswer"]["given"], "Paris")
+        self.assertEqual(player["score"], 1492)
+        self.assertEqual(len(player["answerHistory"]), 1)
+
     async def test_player_cannot_answer_for_another_player(self):
         room = room_fixture()
         room["status"] = "active"
-        room["questionStartAt"] = 1
+        room["questionStartAt"] = int(time.time() * 1000)
         rooms_route.rooms["ROOM1"] = room
         websocket = FakeWebSocket([json.dumps({
             "action": "answer",
@@ -429,7 +693,7 @@ class RoomAuthorizationTests(unittest.IsolatedAsyncioTestCase):
     async def test_quiz_answer_replay_and_oversized_message_are_rejected(self):
         room = room_fixture()
         room["status"] = "active"
-        room["questionStartAt"] = 1
+        room["questionStartAt"] = int(time.time() * 1000)
         rooms_route.rooms["ROOM1"] = room
         websocket = FakeWebSocket([
             json.dumps({"action": "answer", "given": "Paris"}),

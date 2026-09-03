@@ -26,6 +26,8 @@ Product tasks P3–P6 идут отдельно и не смешиваются �
 - AI Quiz: существующий modal поддерживает secondary advanced type distribution, backend-owned стартовые пропорции и exact response validation только для manual mode.
 - Quiz variants: root `questions` остаётся Variant 1, optional `variants` содержит только дополнительные наборы; отдельная таблица или game record не вводились.
 - Rooms: `online_rooms` хранит resumable state/snapshot с HMAC-digested credentials, TTL 30 минут; WebSocket connections остаются process-local.
+- Classroom regression hardening: feedback для всех Quiz question types, touch-first matching и ordering hint; scoped Answers link/QR; Jeopardy snapshots redacted for players with server-controlled reveal state; post-question question reopen, aligned responsive podium и reliable Quiz choice/bool draft finalization around timer deadline.
+- Urgent gameplay UX/regression pass: podium rebuilt as three aligned place columns; host can reopen the completed question; matching is fully editable by taps until submit; choice/bool selections are server drafts finalized exactly once around timeout/reveal.
 - Operations: request IDs, sanitized 5xx logs, admin 5xx summary, 90-day error-log cleanup и exact-SHA deployment gates.
 
 ## Owner decisions

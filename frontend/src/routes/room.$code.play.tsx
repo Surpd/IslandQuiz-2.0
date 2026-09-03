@@ -10,7 +10,7 @@ import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
 import { QuizQuestionCard } from "@/components/quiz-question-card";
 import { JeopardyRoomPlayer } from "@/components/jeopardy-room-player";
-import { subscribeRoom, subscribeRoomSnapshot, submitAnswer, type RoomState } from "@/lib/api";
+import { getStoredRoomPlayer, saveAnswerDraft, subscribeRoom, subscribeRoomSnapshot, submitAnswer, type RoomState } from "@/lib/api";
 import { sfx, isMuted, toggleMute } from "@/lib/sounds";
 import type { PlayerTheme, QuizData, QuizQuestion } from "@/lib/types";
 
@@ -35,12 +35,15 @@ function StudentPlay() {
   const [me, setMe] = useState<Me | null>(null);
   const [value, setValue] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [lastEarned, setLastEarned] = useState<number>(0);
   const [muted, setMutedState] = useState(true);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [showStreak, setShowStreak] = useState(false);
   const [streakFading, setStreakFading] = useState(false);
   const prevStatus = useRef<RoomState["status"] | null>(null);
+  const submitStartedRef = useRef(false);
+  const draftSequenceRef = useRef(0);
   const navigate = useNavigate();
 
   useEffect(() => setMutedState(isMuted()), []);
@@ -49,8 +52,13 @@ function StudentPlay() {
     try {
       const raw = sessionStorage.getItem(`islandquiz.me.${code}`);
       if (raw) setMe(JSON.parse(raw));
+      else {
+        const stored = getStoredRoomPlayer(code);
+        if (stored) setMe(stored);
+      }
     } catch {
-      /* ignore */
+      const stored = getStoredRoomPlayer(code);
+      if (stored) setMe(stored);
     }
   }, [code]);
 
@@ -75,6 +83,9 @@ function StudentPlay() {
     if (state?.status === "active") {
       setValue("");
       setSubmitted(false);
+      setDraftStatus("idle");
+      submitStartedRef.current = false;
+      draftSequenceRef.current += 1;
       setLastEarned(0);
     }
   }, [state?.questionIdx, state?.status]);
@@ -161,7 +172,8 @@ function StudentPlay() {
   }, [state, me, navigate]);
 
   const doSubmit = async (timeout = false) => {
-    if (!state || !question || !me || submitted) return;
+    if (!state || !question || !me || submitted || submitStartedRef.current) return;
+    submitStartedRef.current = true;
     setSubmitted(true);
     // Пустое значение для сложных типов — считаем неответом.
     let effectiveValue = value;
@@ -173,12 +185,30 @@ function StudentPlay() {
         effectiveValue = "";
       }
     }
-    if (timeout && (question.type === "close" || question.type === "ordering")) {
-      effectiveValue = "[]";
+    if (timeout) {
+      if (question.type === "text") {
+        effectiveValue = value.trim();
+      } else if (question.type === "close" || question.type === "ordering") {
+        try {
+          const parsed = JSON.parse(value || "null");
+          effectiveValue = Array.isArray(parsed) && parsed.some((item) => String(item ?? "").trim()) ? value : "";
+        } catch {
+          effectiveValue = "";
+        }
+      }
     }
-    await submitAnswer(code, me.playerId, {
-      given: effectiveValue,
-    });
+    await submitAnswer(code, me.playerId, { given: effectiveValue, timedOut: timeout });
+  };
+
+  const handleValueChange = (nextValue: string) => {
+    setValue(nextValue);
+    if (state?.status === "active" && me && question) {
+      const sequence = ++draftSequenceRef.current;
+      setDraftStatus("saving");
+      void saveAnswerDraft(code, me.playerId, nextValue).then((saved) => {
+        if (sequence === draftSequenceRef.current) setDraftStatus(saved ? "saved" : "idle");
+      });
+    }
   };
 
   const onToggleMute = () => setMutedState(toggleMute());
@@ -222,7 +252,10 @@ function StudentPlay() {
     return (
       <PlayerShell theme={theme}>
         <div className="mx-auto max-w-lg px-6 py-16 text-center">
-          <div className="flex justify-center pt-6">{MuteBtn}</div>
+          <div className="flex items-center justify-center gap-2 pt-6">
+            <RoomCodeBadge code={code} />
+            {MuteBtn}
+          </div>
           <Avatar name={me.nickname} size={80} className="mx-auto mt-6 iq-pop" />
           <h1 className="mt-3 font-display text-3xl font-black">Вы в комнате!</h1>
           <p className="mt-1 text-[color:var(--pt-text-muted)]">{me.nickname}</p>
@@ -260,7 +293,10 @@ function StudentPlay() {
     return (
       <PlayerShell theme={theme}>
         <div className="mx-auto max-w-md px-6 py-16 text-center">
-          <div className="flex justify-center">{MuteBtn}</div>
+          <div className="flex items-center justify-center gap-2">
+            <RoomCodeBadge code={code} />
+            {MuteBtn}
+          </div>
           <Avatar name={me.nickname} size={96} className={`mx-auto mt-6 ${isPodium ? "iq-bounce" : "iq-pop"}`} />
           <Trophy className="mx-auto mt-4 h-10 w-10 text-[color:var(--pt-accent)]" />
           <h1 className="mt-2 font-display text-3xl font-black">Финал</h1>
@@ -290,7 +326,10 @@ function StudentPlay() {
     return (
       <PlayerShell theme={theme}>
         <div className="mx-auto max-w-md px-6 py-20 text-center">
-          <div className="flex justify-center">{MuteBtn}</div>
+          <div className="flex items-center justify-center gap-2">
+            <RoomCodeBadge code={code} />
+            {MuteBtn}
+          </div>
           <Avatar name={me.nickname} size={80} className="mx-auto mt-8 iq-bounce" />
           <p className="mt-4 text-sm uppercase tracking-widest text-[color:var(--pt-text-muted)]">
             Ваше место
@@ -332,6 +371,7 @@ function StudentPlay() {
             <Avatar name={me.nickname} size={24} /> {me.nickname}
           </span>
           <div className="flex items-center gap-2">
+            <RoomCodeBadge code={code} />
             {MuteBtn}
             <span className="font-mono font-bold">
               {myPlayer?.score.toLocaleString("ru-RU") ?? 0}
@@ -355,7 +395,7 @@ function StudentPlay() {
           <QuizQuestionCard
             question={question}
             value={value}
-            onChange={(v) => setValue(v)}
+            onChange={handleValueChange}
             onClickSound={sfx.click}
             reveal={isReveal}
             locked={submitted || isReveal}
@@ -363,7 +403,10 @@ function StudentPlay() {
         </div>
 
         {state.status === "active" && !submitted && (
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <span role="status" className="text-xs text-[color:var(--pt-text-muted)]">
+              {draftStatus === "saving" ? "Сохраняем текущее состояние…" : draftStatus === "saved" ? "Текущее состояние сохранено · его можно изменить" : "Ответьте на вопрос"}
+            </span>
             <button
               onClick={() => {
                 sfx.click();
@@ -430,5 +473,17 @@ function FullScreen({ theme, msg }: { theme: PlayerTheme; msg: string }) {
         <p className="mt-4 text-[color:var(--pt-text-muted)]">{msg}</p>
       </div>
     </PlayerShell>
+  );
+}
+
+function RoomCodeBadge({ code }: { code: string }) {
+  return (
+    <span
+      aria-label={`Код комнаты ${code}`}
+      className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-3 py-1.5 text-xs font-semibold"
+    >
+      <span className="text-[color:var(--pt-text-muted)]">Код</span>
+      <span className="font-mono tracking-wider">{code}</span>
+    </span>
   );
 }

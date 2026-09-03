@@ -65,6 +65,7 @@ function TeacherRoom() {
   const [copied, setCopied] = useState(false);
   const [muted, setMutedState] = useState<boolean>(true);
   const [manageOpen, setManageOpen] = useState(false);
+  const [showPreviousQuestion, setShowPreviousQuestion] = useState(false);
   const prevStatus = useRef<RoomState["status"] | null>(null);
 
   useEffect(() => setMutedState(isMuted()), []);
@@ -130,6 +131,10 @@ function TeacherRoom() {
     }
   }, [state, code]);
 
+  useEffect(() => {
+    setShowPreviousQuestion(false);
+  }, [state?.questionIdx]);
+
   const theme = state?.theme ?? "classic";
 
   if (!state) {
@@ -185,6 +190,12 @@ function TeacherRoom() {
   };
 
   const onToggleMute = () => setMutedState(toggleMute());
+
+  const finishEarly = () => {
+    if (window.confirm("Закончить квиз сейчас и показать итоговый подиум?")) {
+      void finishRoom(code);
+    }
+  };
 
   const goNext = async () => {
     if (state.status === "active") {
@@ -265,6 +276,12 @@ function TeacherRoom() {
                   <ChevronRight className="h-4 w-4" />
                   {state.status === "active" ? "Далее (показать ответ)" : "К таблице"}
                 </button>
+                <button
+                  onClick={finishEarly}
+                  className="inline-flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 font-bold text-danger hover:bg-danger/20"
+                >
+                  <Flag className="h-4 w-4" /> Закончить квиз
+                </button>
               </div>
             </div>
             <div className="space-y-4">
@@ -282,7 +299,27 @@ function TeacherRoom() {
 
         {state.status === "leaderboard" && (
           <div className="mt-6 grid gap-6 lg:grid-cols-[3fr_2fr]">
-            <AnimatedLeaderboard state={state} />
+            <div className="space-y-4">
+              <AnimatedLeaderboard state={state} />
+              {question && (
+                <section className="rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-5 backdrop-blur-md">
+                  <button
+                    type="button"
+                    aria-expanded={showPreviousQuestion}
+                    onClick={() => setShowPreviousQuestion((open) => !open)}
+                    className="flex w-full items-center justify-between gap-3 text-left font-semibold"
+                  >
+                    <span>{showPreviousQuestion ? "Скрыть вопрос" : "Показать вопрос"}</span>
+                    <ChevronRight className={`h-4 w-4 transition-transform ${showPreviousQuestion ? "rotate-90" : ""}`} />
+                  </button>
+                  {showPreviousQuestion && (
+                    <div className="mt-4">
+                      <QuizQuestionCard question={question} value="" onChange={() => {}} reveal projector />
+                    </div>
+                  )}
+                </section>
+              )}
+            </div>
             <div className="rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-6 text-center backdrop-blur-md">
               <p className="text-sm text-[color:var(--pt-text-muted)]">Готовы к следующему?</p>
               {!isLast ? (
@@ -300,6 +337,12 @@ function TeacherRoom() {
                   <Flag className="h-4 w-4" /> Финальный подиум
                 </button>
               )}
+              <button
+                onClick={finishEarly}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-5 py-3 font-bold text-danger hover:bg-danger/20"
+              >
+                <Flag className="h-4 w-4" /> Закончить квиз сейчас
+              </button>
               <div className="mt-4">
                 <button
                   onClick={() => setManageOpen((v) => !v)}
@@ -346,10 +389,10 @@ function TopBar({
         <p className="text-xs uppercase tracking-widest text-[color:var(--pt-text-muted)]">
           Онлайн-комната
         </p>
-        <h1 className="truncate font-display text-lg font-bold md:text-2xl">
-          {title ?? "IslandQuiz"}{" "}
-          <span className="text-[color:var(--pt-text-muted)]">· {code}</span>
-        </h1>
+        <h1 className="truncate font-display text-lg font-bold md:text-2xl">{title ?? "IslandQuiz"}</h1>
+        <p className="text-xs font-semibold text-[color:var(--pt-text-muted)]">
+          Код для входа: <span className="font-mono tracking-wider text-[color:var(--pt-text)]">{code}</span>
+        </p>
       </div>
       <button
         onClick={onToggleMute}
@@ -673,37 +716,21 @@ function Finale({
   onRestart: () => void;
   gameId: string;
 }) {
-  const podium = players.slice(0, 3);
+  const podium: { rank: 1 | 2 | 3; player?: RoomPlayer }[] = [
+    { rank: 2, player: players[1] },
+    { rank: 1, player: players[0] },
+    { rank: 3, player: players[2] },
+  ];
   const rest = players.slice(3);
   return (
     <div className="mt-6 rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-6 text-center backdrop-blur-md md:p-10">
       <Trophy className="mx-auto mb-2 h-12 w-12 text-[color:var(--pt-accent)]" />
       <h1 className="font-display text-3xl font-black md:text-4xl">Игра окончена!</h1>
 
-      <div className="mx-auto mt-8 grid max-w-3xl grid-cols-3 items-end gap-3">
-        {[1, 0, 2].map((mapIdx, col) => {
-          const p = podium[mapIdx];
-          if (!p) return <div key={col} />;
-          const heights = ["h-32", "h-44", "h-24"];
-          const colors = ["bg-slate-300", "bg-[color:var(--pt-accent)]", "bg-amber-700"];
-          return (
-            <div key={p.id} className="flex flex-col items-center">
-              <Avatar
-                name={p.nickname}
-                size={64}
-                className={`${mapIdx === 0 ? "iq-bounce" : "iq-wiggle"}`}
-              />
-
-              <span className="mt-2 font-semibold">{p.nickname}</span>
-              <span className="font-mono text-lg font-bold">{p.score.toLocaleString("ru-RU")}</span>
-              <div
-                className={`mt-2 w-full rounded-t-2xl ${heights[col]} ${colors[col]} grid place-items-end pb-2 text-3xl font-black text-black/70`}
-              >
-                {mapIdx + 1}
-              </div>
-            </div>
-          );
-        })}
+      <div className="mx-auto mt-8 grid max-w-4xl grid-cols-3 items-end gap-2 sm:gap-4">
+        {podium.map(({ rank, player }) => (
+          <PodiumPlace key={rank} rank={rank} player={player} />
+        ))}
       </div>
 
       {rest.length > 0 && (
@@ -713,12 +740,12 @@ function Finale({
               key={p.id}
               className="flex items-center justify-between rounded-xl bg-[color:var(--pt-surface-strong)] px-4 py-2 text-sm"
             >
-              <span className="flex items-center gap-2">
-                <span className="font-mono text-xs text-[color:var(--pt-text-muted)]">{i + 4}</span>
-                <Avatar name={p.nickname} size={22} />
-                <span className="font-semibold">{p.nickname}</span>
-              </span>
-              <span className="font-mono font-bold">{p.score.toLocaleString("ru-RU")}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="font-mono text-xs text-[color:var(--pt-text-muted)]">{i + 4}</span>
+                  <Avatar name={p.nickname} size={22} />
+                  <span className="min-w-0 truncate font-semibold" title={p.nickname}>{p.nickname}</span>
+                </span>
+                <span className="shrink-0 font-mono font-bold">{p.score.toLocaleString("ru-RU")}</span>
             </div>
           ))}
         </div>
@@ -745,6 +772,32 @@ function Finale({
           <X className="h-4 w-4" /> Библиотека
         </Link>
 
+      </div>
+    </div>
+  );
+}
+
+function PodiumPlace({ rank, player }: { rank: 1 | 2 | 3; player?: RoomPlayer }) {
+  const base = rank === 1
+    ? "h-28 border-[color:var(--pt-accent)] bg-[color:var(--pt-accent)] text-black sm:h-40"
+    : rank === 2
+      ? "h-24 border-slate-400 bg-slate-300 text-slate-900 sm:h-32"
+      : "h-20 border-amber-800 bg-amber-700 text-black sm:h-28";
+  return (
+    <div className="flex min-w-0 h-full flex-col items-center justify-end">
+      <div className="flex min-h-[6.5rem] w-full min-w-0 flex-col items-center justify-end text-center sm:min-h-28">
+        {player ? (
+          <>
+            <Avatar name={player.nickname} size={rank === 1 ? 68 : 58} className={rank === 1 ? "iq-bounce" : "iq-wiggle"} />
+            <span className="mt-2 line-clamp-2 w-full break-words text-xs font-bold sm:text-sm" title={player.nickname}>{player.nickname}</span>
+            <span className="max-w-full truncate font-mono text-sm font-bold sm:text-lg">{player.score.toLocaleString("ru-RU")}</span>
+          </>
+        ) : (
+          <span className="text-sm text-[color:var(--pt-text-muted)]">—</span>
+        )}
+      </div>
+      <div data-testid={`podium-place-${rank}`} data-podium-empty={!player || undefined} className={`relative mt-2 flex w-full items-end justify-center rounded-t-2xl border border-b-0 px-2 pb-3 font-display text-3xl font-black sm:text-4xl ${base} ${player ? "" : "opacity-45"}`}>
+        <span aria-label={`${rank} место`}>{rank}</span>
       </div>
     </div>
   );

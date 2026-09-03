@@ -74,3 +74,7 @@ Backend models, `frontend/src/lib/api.ts` и room action/state types подде�
 Telegram replay protection; password-reset hardening; C2 WebSocket authorization; C3 server-side scoring; C4 basic JWT protection; C5 read-only Supabase audit; H1–H3, H5 и H7–H12; M4/M5/M7; P7/P8; **P9 extended AI Quiz generation**; Admin Panel v2; Tag System v1; Official Content Import; Library preview; permissions; unified answer formatter; mobile Results; offline completion; Admin analytics; AI telemetry; atomic AI quota; room persistence/resume. H6.1 rollback rehearsal remains active.
 
 **P10 Quiz variants — DONE:** до 4 наборов реализованы внутри одной game; hydration/readiness и runtime compatibility fixes внесены, полный Playwright suite 58/58 PASS, backend 159/159 PASS, TypeScript и production build проходят.
+
+**Classroom regression hardening — DONE:** усилена Quiz feedback semantics, matching/ordering UX и readability результатов; Answers route получил scoped link/QR; Jeopardy player snapshots больше не содержат ответы до server-side reveal.
+
+**Urgent classroom gameplay UX/regression pass — DONE:** podium получил адаптивную композицию 1/2/3 с общей нижней линией; host может раскрыть завершённый вопрос на results screen; mobile matching редактируется тапами до submit; choice/bool draft сохраняется на сервере и финализируется один раз при submit/reveal, включая timeout race.
