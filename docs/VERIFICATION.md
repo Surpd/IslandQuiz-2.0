@@ -2,7 +2,7 @@
 
 Статус: canonical policy для проверки задач на 2026-08-24.
 
-Эта policy определяет, как выбирать минимально достаточную проверку после изменения. Она согласована с `AGENTS.md`, `docs/WORKPLAN.md`, `docs/BACKLOG.md`, `docs/ROADMAP.md` и локальными agent skills. Она не требует менять Playwright config или package scripts.
+Эта policy определяет, как выбирать минимально достаточную проверку после изменения. Она является самостоятельной operational policy и не требует менять Playwright config или package scripts.
 
 ## Главный принцип
 
