@@ -168,7 +168,7 @@ function RootComponent() {
         <div data-app-hydrated={hydrated ? "true" : "false"} className={showMobileNav ? "pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0" : undefined}>
           <Outlet />
         </div>
-        {!hideFooter && (
+        {!hideFooter && !pathname.startsWith("/room/") && (
           <footer className={`border-t border-border py-10 ${showMobileNav ? "pb-24 md:pb-10" : ""}`}>
             <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 md:flex-row">
               <div className="flex items-center gap-2">

@@ -456,11 +456,142 @@ html.formula-keyboard-open {
 
 
 /* Player scope: applied by data-scope="player" on the wrapper */
+.player-stage-stack { display: grid; align-items: start; }
+.player-stage { width: 100%; }
+[data-scope="player"] .player-action-area {
+  position: relative;
+  min-height: 5.25rem;
+  margin-top: 0.875rem;
+  border-radius: 1rem;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-border);
+  box-shadow: 0 8px 20px -16px rgb(0 0 0 / .35);
+  overflow: hidden;
+}
+[data-scope="player"] .player-action-area .player-submit-bar { min-height: 5.25rem; padding-inline: .875rem; background: transparent; backdrop-filter: none; }
+[data-scope="player"] .player-action-area .player-feedback { min-height: 5.25rem; margin: 0; border-radius: 0; width: 100%; }
+[data-scope="player"] button:not(:disabled),
+[data-scope="player"] [role="button"]:not([aria-disabled="true"]) { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+[data-scope="player"] .player-answer:not(:disabled):active { transform: translateY(2px) scale(.985) !important; box-shadow: inset 0 2px 4px rgb(0 0 0 / .08) !important; }
+[data-scope="player"] .player-order-item button:active { transform: scale(.9); background: color-mix(in srgb, var(--pt-accent) 18%, transparent); }
+.player-order-item button { transition: transform 100ms ease, background-color 100ms ease; }
+.player-match-target, .player-match-option { transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease; }
+.player-match-target[data-paired="true"] { border-style: solid; }
+.player-match-target[data-paired="true"] > span:nth-of-type(3) { animation: player-pair 180ms ease-out; }
+.player-question-card[data-locked="true"] .player-answer { cursor: default; }
+.player-question-card[data-reveal="true"] [data-answer-state="correct"] { animation: player-correct 360ms cubic-bezier(.22,1,.36,1) both; }
+.player-question-card[data-reveal="true"]:has([data-answer-state="incorrect"]) [data-answer-state="correct"] { animation-delay: 120ms; }
+.player-reward { animation: player-pair 320ms ease-out; font-weight: 800; font-variant-numeric: tabular-nums; }
+.player-standing { display:flex; align-items:center; gap:.625rem; padding:.75rem; border:1px solid var(--pt-border); border-radius:.875rem; background:var(--pt-surface); font-size:.875rem; }
+.player-standing--me { background:color-mix(in srgb,var(--pt-accent) 14%,var(--pt-surface)); border-color:var(--pt-accent); }
+.player-standing:nth-child(1) > span:first-child { color:var(--pt-accent); }
+.player-stage > .text-center > svg { filter:drop-shadow(0 5px 10px color-mix(in srgb,var(--pt-accent) 25%,transparent)); }
+.player-standing > span:first-child { min-width:1.25rem; }
+.player-waiting-label::before { content:""; display:inline-block; width:.5rem; height:.5rem; border-radius:50%; margin-right:.5rem; background:var(--pt-accent); }
+@keyframes player-pair { from { opacity:.5; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+@keyframes player-correct { 0% { filter:brightness(1); } 45% { filter:brightness(1.08); transform:scale(1.012); } 100% { filter:brightness(1); transform:scale(1); } }
+@media (max-width:639px) { [data-scope="player"] .player-stage > .text-center { padding-top:2rem; padding-bottom:2rem; } }
+
 [data-scope="player"] {
   background: var(--pt-bg);
   color: var(--pt-text);
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: var(--font-sans);
+}
+
+[data-scope="player"] .player-shell-content {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+[data-scope="player"] .player-question-card {
+  box-shadow: 0 18px 44px -34px rgb(0 0 0 / 0.5);
+}
+
+[data-scope="player"] .player-game {
+  width: min(100%, 48rem);
+}
+
+[data-scope="player"] .player-submit-bar {
+  bottom: 0;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--pt-surface) 94%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+[data-scope="player"] .player-feedback {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  border-left: 3px solid var(--pt-accent);
+  border-radius: 0.625rem;
+  background: var(--pt-surface);
+  padding: 0.65rem 0.85rem;
+}
+
+[data-scope="player"] .player-feedback > svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  color: var(--pt-accent);
+}
+
+[data-scope="player"] .player-feedback strong,
+[data-scope="player"] .player-feedback span {
+  display: block;
+}
+
+[data-scope="player"] .player-feedback span {
+  margin-top: 0.1rem;
+  color: var(--pt-text-muted);
+  font-size: 0.75rem;
+}
+
+[data-scope="player"] .player-feedback--correct { border-left-color: var(--success); }
+[data-scope="player"] .player-feedback--correct > svg { color: var(--success); }
+[data-scope="player"] .player-feedback--incorrect { border-left-color: var(--danger); }
+[data-scope="player"] .player-feedback--incorrect > svg { color: var(--danger); }
+[data-scope="player"] .player-feedback--timeout { border-left-color: var(--pt-text-muted); }
+[data-scope="player"] .player-feedback--timeout > svg { color: var(--pt-text-muted); }
+
+[data-scope="player"] .player-streak {
+  bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem));
+}
+
+[data-scope="player"] .player-text-input {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+[data-scope="player"] .player-text-input:focus-visible {
+  border-color: var(--pt-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pt-accent) 20%, transparent);
+  outline-color: var(--pt-accent);
+}
+
+[data-scope="player"] .player-answer:focus-visible,
+[data-scope="player"] .player-match-target:focus-visible,
+[data-scope="player"] .player-match-option:focus-visible,
+[data-scope="player"] .player-utility-button:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 369px) {
+  [data-scope="player"] .player-room-code > span:first-child { display: none; }
+  [data-scope="player"] .player-room-code { padding-inline: 0.5rem; }
+  [data-scope="player"] .player-submit-bar > span { max-width: 8.5rem; }
+}
+
+@media (max-width: 639px) {
+  [data-scope="player"] .player-submit-bar {
+    position: static;
+  }
 }
 [data-scope="player"] h1,
 [data-scope="player"] h2,
@@ -1054,6 +1185,7 @@ html.formula-keyboard-open {
 }
 
 [data-scope="player"] .player-answer {
+  touch-action: manipulation;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -1089,6 +1221,18 @@ html.formula-keyboard-open {
   color: var(--pt-answer-selected-badge-text);
 }
 
+[data-scope="player"] button[data-answer-state="correct"] .player-answer__badge {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+
+[data-scope="player"] button[data-answer-state="incorrect"] .player-answer__badge {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
 [data-scope="player"] .player-answer.player-answer--selected:focus-visible {
   outline: 2px solid var(--pt-answer-selected-border);
   outline-offset: 3px;
@@ -1096,11 +1240,20 @@ html.formula-keyboard-open {
 
 @media (prefers-reduced-motion: reduce) {
   [data-scope="player"] .player-answer {
-    transition-duration: 0ms;
+    transition: none !important;
   }
 
   [data-scope="player"] button[data-answer-state="selected"] {
     transform: none !important;
+  }
+
+  [data-scope="player"] *,
+  [data-scope="player"] *::before,
+  [data-scope="player"] *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -1136,8 +1289,8 @@ html.formula-keyboard-open {
   100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
 }
 @keyframes iq-sway {
-  0%, 100% { margin-left: 0; }
-  50% { margin-left: 30px; }
+  0%, 100% { translate: 0 0; }
+  50% { translate: 30px 0; }
 }
 @keyframes iq-twinkle {
   0%, 100% { opacity: 0.2; }

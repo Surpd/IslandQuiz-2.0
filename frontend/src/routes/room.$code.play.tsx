@@ -4,10 +4,12 @@
 // room state so the teacher's projector can drive the flow.
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Hourglass, Trophy, Timer, Volume2, VolumeX, Users, Flame, Check, X } from "lucide-react";
 import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
+import { PlayerScore } from "@/components/player-motion";
 import { QuizQuestionCard } from "@/components/quiz-question-card";
 import { JeopardyRoomPlayer } from "@/components/jeopardy-room-player";
 import { getStoredRoomPlayer, saveAnswerDraft, subscribeRoom, subscribeRoomSnapshot, submitAnswer, type RoomState } from "@/lib/api";
@@ -33,8 +35,10 @@ function StudentPlay() {
   const [state, setState] = useState<RoomState | null>(null);
   const [quiz, setQuiz] = useState<QuizData | null>(null);
   const [me, setMe] = useState<Me | null>(null);
+  const [identityReady, setIdentityReady] = useState(false);
   const [value, setValue] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
   const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [lastEarned, setLastEarned] = useState<number>(0);
   const [muted, setMutedState] = useState(true);
@@ -45,6 +49,18 @@ function StudentPlay() {
   const submitStartedRef = useRef(false);
   const draftSequenceRef = useRef(0);
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
+  const rankSnapshot = useRef<Record<string, number>>({});
+  const [rankChange, setRankChange] = useState(0);
+  useEffect(() => {
+    if (!state || !me) return;
+    if (state.status === "active") {
+      rankSnapshot.current = Object.fromEntries([...state.players].sort((a, b) => b.score - a.score).map((p, i) => [p.id, i + 1]));
+    } else if (state.status === "leaderboard" || state.status === "finished") {
+      const place = [...state.players].sort((a, b) => b.score - a.score).findIndex((p) => p.id === me.playerId) + 1;
+      setRankChange(rankSnapshot.current[me.playerId] ? rankSnapshot.current[me.playerId] - place : 0);
+    }
+  }, [state?.status, state?.questionIdx, me?.playerId]);
 
   useEffect(() => setMutedState(isMuted()), []);
 
@@ -59,6 +75,8 @@ function StudentPlay() {
     } catch {
       const stored = getStoredRoomPlayer(code);
       if (stored) setMe(stored);
+    } finally {
+      setIdentityReady(true);
     }
   }, [code]);
 
@@ -83,6 +101,7 @@ function StudentPlay() {
     if (state?.status === "active") {
       setValue(state.playerAnswerDraft ?? "");
       setSubmitted(state.playerAnswerSubmitted === true);
+      setSending(false);
       setDraftStatus(state.playerAnswerDraft ? "saved" : "idle");
       submitStartedRef.current = false;
       draftSequenceRef.current += 1;
@@ -179,6 +198,7 @@ function StudentPlay() {
     if (!state || !question || !me || submitted || submitStartedRef.current) return;
     submitStartedRef.current = true;
     setSubmitted(true);
+    setSending(true);
     // Пустое значение для сложных типов — считаем неответом.
     let effectiveValue = value;
     if (question.type === "matching") {
@@ -201,7 +221,12 @@ function StudentPlay() {
         }
       }
     }
-    await submitAnswer(code, me.playerId, { given: effectiveValue, timedOut: timeout });
+    try {
+      await submitAnswer(code, me.playerId, { given: effectiveValue, timedOut: timeout });
+    } finally {
+      // Presentation only; never unlock a potentially accepted answer on a network delay.
+      setSending(false);
+    }
   };
 
   const handleValueChange = (nextValue: string) => {
@@ -217,9 +242,10 @@ function StudentPlay() {
 
   const onToggleMute = () => setMutedState(toggleMute());
 
+  if (!identityReady) return <FullScreen theme={theme} msg="Подключаемся к комнате…" />;
   if (!me) {
     return (
-      <PlayerShell theme={theme}>
+      <PlayerShell theme={theme} stageKey="waiting">
         <div className="mx-auto max-w-md px-6 py-20 text-center">
           <h1 className="font-display text-2xl font-bold">Сначала присоединитесь</h1>
           <Link
@@ -243,27 +269,31 @@ function StudentPlay() {
 
   const MuteBtn = (
     <button
+      type="button"
       onClick={onToggleMute}
-      className="inline-flex items-center gap-1 rounded-full border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-3 py-1.5 text-xs font-semibold"
+      aria-label={muted ? "Включить звук" : "Выключить звук"}
+      aria-pressed={!muted}
+      className="player-utility-button inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-3 text-xs font-semibold"
     >
-      {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-      {muted ? "Звук" : "Звук"}
+      {muted ? <VolumeX aria-hidden="true" className="h-4 w-4" /> : <Volume2 aria-hidden="true" className="h-4 w-4" />}
+      <span className="hidden min-[370px]:inline">Звук</span>
     </button>
   );
 
   // ---- WAITING ----
   if (state.status === "waiting") {
     return (
-      <PlayerShell theme={theme}>
+      <PlayerShell theme={theme} stageKey="waiting">
         <div className="mx-auto max-w-lg px-6 py-16 text-center">
           <div className="flex items-center justify-center gap-2 pt-6">
             <RoomCodeBadge code={code} />
             {MuteBtn}
           </div>
-          <Avatar name={me.nickname} size={80} className="mx-auto mt-6 iq-pop" />
+          <Avatar name={me.nickname} avatar={me.avatar} size={80} className="mx-auto mt-6 iq-pop" />
           <h1 className="mt-3 font-display text-3xl font-black">Вы в комнате!</h1>
           <p className="mt-1 text-[color:var(--pt-text-muted)]">{me.nickname}</p>
-          <p className="mt-6 text-sm text-[color:var(--pt-text-muted)]">Ждём начала игры...</p>
+          <p role="status" className="player-waiting-label mt-6 text-sm text-[color:var(--pt-text-muted)]">Ждём начала игры…</p>
+          {quiz?.config.title && <p className="mt-2 break-words font-semibold">{quiz.config.title}</p>}
           <div className="mt-6 rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-4 text-left backdrop-blur-md">
             <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-[color:var(--pt-text-muted)]">
               <Users className="h-3.5 w-3.5" /> В комнате ({state.players.length})
@@ -278,7 +308,7 @@ function StudentPlay() {
                       : "bg-[color:var(--pt-surface-strong)]"
                   }`}
                 >
-                  <Avatar name={p.nickname} size={22} />
+                  <Avatar name={p.nickname} avatar={p.avatar} size={22} />
                   {p.nickname}
                 </div>
               ))}
@@ -293,24 +323,25 @@ function StudentPlay() {
   if (state.status === "finished") {
     const sorted = [...state.players].sort((a, b) => b.score - a.score);
     const place = sorted.findIndex((p) => p.id === me.playerId) + 1;
-    const isPodium = place > 0 && place <= 3;
     return (
-      <PlayerShell theme={theme}>
+      <PlayerShell theme={theme} stageKey="finished">
         <div className="mx-auto max-w-md px-6 py-16 text-center">
           <div className="flex items-center justify-center gap-2">
             <RoomCodeBadge code={code} />
             {MuteBtn}
           </div>
-          <Avatar name={me.nickname} size={96} className={`mx-auto mt-6 ${isPodium ? "iq-bounce" : "iq-pop"}`} />
+          <Avatar name={me.nickname} avatar={me.avatar} size={96} className="mx-auto mt-6 iq-pop" />
           <Trophy className="mx-auto mt-4 h-10 w-10 text-[color:var(--pt-accent)]" />
-          <h1 className="mt-2 font-display text-3xl font-black">Финал</h1>
+          <h1 className="mt-2 font-display text-3xl font-black">{place === 1 ? "Победа!" : place <= 3 && place > 0 ? "Вы в тройке лучших!" : "Финал"}</h1>
           <p className="mt-1 text-[color:var(--pt-text-muted)]">
             Ваше место: <b className="text-[color:var(--pt-text)]">{place || "—"}</b>
           </p>
           <p className="mt-1 font-mono text-3xl font-bold">
-            {myPlayer?.score.toLocaleString("ru-RU") ?? 0}
+            <PlayerScore value={myPlayer?.score ?? 0} />
           </p>
           <p className="mt-6 text-sm text-[color:var(--pt-text-muted)]">Спасибо за игру!</p>
+          {!!myPlayer?.answerHistory?.length && <p className="mt-2 text-sm text-[color:var(--pt-text-muted)]">Верных ответов: {myPlayer.answerHistory.filter((answer) => answer.correct).length} из {myPlayer.answerHistory.length}</p>}
+          <PlayerStandings players={sorted} playerId={me.playerId} />
           <Link
             to="/join"
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[color:var(--pt-accent)] px-6 py-3 font-bold text-black transition-transform hover:scale-[1.02]"
@@ -328,25 +359,28 @@ function StudentPlay() {
     const sorted = [...state.players].sort((a, b) => b.score - a.score);
     const place = sorted.findIndex((p) => p.id === me.playerId) + 1;
     return (
-      <PlayerShell theme={theme}>
+      <PlayerShell theme={theme} stageKey="leaderboard">
         <div className="mx-auto max-w-md px-6 py-20 text-center">
           <div className="flex items-center justify-center gap-2">
             <RoomCodeBadge code={code} />
             {MuteBtn}
           </div>
-          <Avatar name={me.nickname} size={80} className="mx-auto mt-8 iq-bounce" />
+          <Avatar name={me.nickname} avatar={me.avatar} size={72} className="mx-auto mt-8 iq-pop" />
           <p className="mt-4 text-sm uppercase tracking-widest text-[color:var(--pt-text-muted)]">
             Ваше место
           </p>
-          <div className="my-2 font-display text-7xl font-black text-[color:var(--pt-accent)]">
+          <div className="my-2 font-display text-6xl font-black text-[color:var(--pt-accent)] tabular-nums">
             {place || "—"}
           </div>
           <p className="font-mono text-2xl font-bold">
-            {myPlayer?.score.toLocaleString("ru-RU") ?? 0}
+            <PlayerScore value={myPlayer?.score ?? 0} />
           </p>
+          <p className="mt-2 text-sm font-semibold text-[color:var(--pt-accent)]">{rankChange > 0 ? `↑ На ${rankChange} ${rankChange === 1 ? "место" : "места"} выше` : rankChange < 0 ? `↓ ${Math.abs(rankChange)} · Новый вопрос — новый шанс` : "Держим темп"}</p>
+          <PlayerStandings players={sorted} playerId={me.playerId} />
           {showStreak && (
             <div
-              className={`fixed left-1/2 bottom-8 z-50 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-[color:var(--pt-accent)] px-4 py-2 font-bold text-black shadow-lg transition-opacity duration-300 ${streakFading ? "opacity-0" : "opacity-100"} animate-slide-up`}
+              role="status"
+              className={`player-streak fixed left-1/2 z-50 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-lg bg-[color:var(--pt-accent)] px-4 py-2 font-bold text-black shadow-lg transition-opacity duration-300 ${streakFading ? "opacity-0" : "opacity-100"} animate-slide-up`}
             >
               <Flame className="h-4 w-4" /> Стрик {myPlayer?.streak}!
             </div>
@@ -361,7 +395,7 @@ function StudentPlay() {
   if (!question) return <FullScreen theme={theme} msg="Ждём вопрос..." />;
 
   const isReveal = state.status === "reveal";
-  const isTimeout = state.status === "timeout" || (state.status === "active" && timeLeft === 0);
+  const isTimeout = state.status === "timeout" || (state.status === "active" && timeLeft === 0 && !!state.questionStartAt && Date.now() >= state.questionStartAt + (question.time || 30) * 1000);
   const totalMs = (question.time || 30) * 1000;
   const timeSec = Math.ceil(timeLeft / 1000);
   const urgent = state.status === "active" && timeSec <= 5;
@@ -370,34 +404,40 @@ function StudentPlay() {
   const answerWasAccepted = state.playerAnswerSubmitted === true || !!myAnswer;
 
   return (
-    <PlayerShell theme={theme}>
-      <div className="mx-auto max-w-2xl px-4 py-6">
-        <div className="mb-3 flex items-center justify-between text-sm">
-          <span className="flex items-center gap-2 font-semibold">
-            <Avatar name={me.nickname} size={24} /> {me.nickname}
+    <PlayerShell theme={theme} stageKey={`question-${state.questionIdx}`}>
+      <div className="player-game mx-auto max-w-3xl px-3 pb-6 pt-2 min-[370px]:px-4 sm:pt-4">
+        <header className="mb-4 flex min-w-0 items-center justify-between gap-2 text-sm">
+          <span className="flex min-w-0 items-center gap-2 font-semibold">
+            <Avatar name={me.nickname} avatar={me.avatar} size={24} /> <span className="truncate">{me.nickname}</span>
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-shrink-0 items-center gap-1.5 min-[370px]:gap-2">
             <RoomCodeBadge code={code} />
             {MuteBtn}
-            <span className="font-mono font-bold">
-              {myPlayer?.score.toLocaleString("ru-RU") ?? 0}
+            <span aria-label="Счёт" className="min-w-8 text-right font-mono font-bold tabular-nums">
+              <PlayerScore value={myPlayer?.score ?? 0} />
             </span>
           </div>
-        </div>
+        </header>
 
         <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-widest text-[color:var(--pt-text-muted)]">
-          <span>Вопрос {state.questionIdx + 1}</span>
-          <span className="inline-flex items-center gap-1">
-            <Timer className="h-3.5 w-3.5" />
+          <span>Вопрос {state.questionIdx + 1}{quiz ? ` / ${quiz.questions.length}` : ""}</span>
+          <span role="timer" aria-live="off" className={`inline-flex items-center gap-1 tabular-nums ${urgent ? "font-bold text-danger" : ""}`}>
+            <Timer aria-hidden="true" className="h-3.5 w-3.5" />
             {state.status === "active" ? `${timeSec}с` : state.status === "timeout" ? "Время вышло" : "—"}
           </span>
         </div>
         <TimerBar
-          pct={state.status === "active" ? (timeLeft / totalMs) * 100 : 100}
+          pct={state.status === "active" ? (timeLeft / totalMs) * 100 : 0}
           urgent={urgent}
         />
 
-        <div className="mt-4">
+        <motion.div
+          key={question.id ?? state.questionIdx}
+          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reducedMotion ? 0 : 0.22, ease: "easeOut" }}
+          className="mt-4"
+        >
           <QuizQuestionCard
             question={question}
             value={value}
@@ -406,73 +446,63 @@ function StudentPlay() {
             reveal={isReveal}
             locked={submitted || isTimeout || isReveal || state.status !== "active"}
           />
-        </div>
+        </motion.div>
 
+        <div className="player-action-area" data-phase={isReveal ? "reveal" : isTimeout ? "timeout" : submitted ? "accepted" : "active"}>
         {state.status === "active" && !submitted && !isTimeout && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="player-submit-bar z-20 flex items-center justify-between gap-3 py-3">
             <span role="status" className="text-xs text-[color:var(--pt-text-muted)]">
-              {draftStatus === "saving" ? "Сохраняем текущее состояние…" : draftStatus === "saved" ? "Текущее состояние сохранено · его можно изменить" : "Ответьте на вопрос"}
+              {draftStatus === "saving" ? "Сохраняем…" : draftStatus === "saved" ? "Текущее состояние сохранено" : question.type === "ordering" ? "Расставьте по порядку" : question.type === "text" || question.type === "close" ? "Введите ответ" : "Выберите ответ"}
             </span>
             <button
+              type="button"
               onClick={() => {
                 sfx.click();
                 doSubmit(false);
               }}
               disabled={!value}
-              className="rounded-xl bg-[color:var(--pt-accent)] px-8 py-3 font-bold text-black transition-transform hover:scale-[1.02] disabled:opacity-40"
+              className="min-h-12 flex-shrink-0 rounded-lg bg-[color:var(--pt-accent)] px-7 font-bold text-black transition-[filter,transform,opacity] hover:brightness-105 active:scale-[0.98] disabled:opacity-40"
             >
               Ответить
             </button>
           </div>
         )}
 
-        {submitted && !isReveal && !isTimeout && (
-          <div className="mt-4 flex items-center gap-2 rounded-2xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-4 backdrop-blur-md">
-            <Hourglass className="h-4 w-4 text-[color:var(--pt-accent)]" />
-            <span>Ответ отправлен ⌛ ждём остальных...</span>
-          </div>
-        )}
-
-        {isTimeout && (
-          <div role="status" className="mt-4 rounded-2xl border border-danger/40 bg-danger/10 p-4 text-center">
-            <p className="font-bold text-danger">Время вышло</p>
-            <p className="mt-1 text-sm text-[color:var(--pt-text-muted)]">
-              {answerWasAccepted
-                ? "Ответ принят"
-                : "Ответ не был отправлен"}
-            </p>
-            <p className="mt-2 text-xs text-[color:var(--pt-text-muted)]">Ждём, пока ведущий покажет результаты.</p>
-          </div>
-        )}
-
-        {isReveal && myAnswer && (
-          <div className="relative mt-4 text-center">
-            {myAnswer.correct ? (
-              <p className="inline-flex items-center justify-center gap-2 text-2xl font-bold text-success">
-                <Check className="h-6 w-6" /> Верно!
-              </p>
-            ) : (
-              <p className="inline-flex items-center justify-center gap-2 text-2xl font-bold text-danger">
-                <X className="h-6 w-6" /> Неверно
-              </p>
+          <AnimatePresence mode="sync" initial={false}>
+            {(submitted || isTimeout || isReveal) && (
+              <motion.div
+                key={isReveal ? `reveal-${myAnswer?.correct ?? "missed"}` : isTimeout ? "timeout" : "submitted"}
+                role="status"
+                aria-live="polite"
+                initial={reducedMotion ? false : { opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, position: "absolute" }}
+                transition={{ duration: reducedMotion ? 0 : 0.18 }}
+                className={`player-feedback mt-3 ${isReveal && myAnswer?.correct ? "player-feedback--correct" : isReveal && myAnswer ? "player-feedback--incorrect" : isTimeout ? "player-feedback--timeout" : ""}`}
+              >
+                {isReveal ? (
+                  myAnswer ? (
+                    <>
+                      {myAnswer.correct ? <Check aria-hidden="true" /> : <X aria-hidden="true" />}
+                      <div><strong>{myAnswer.correct ? "Верно!" : "Неверно"}</strong><span className={lastEarned > 0 ? "player-reward" : ""}>{lastEarned > 0 ? `+${lastEarned} очков` : "Следующий вопрос скоро"}</span></div>
+                    </>
+                  ) : (
+                    <><X aria-hidden="true" /><div><strong>Не ответили</strong><span>Следующий вопрос скоро</span></div></>
+                  )
+                ) : isTimeout ? (
+                  <><Timer aria-hidden="true" /><div><strong>Время вышло</strong><span>{answerWasAccepted ? "Ответ принят" : "Ответ не отправлен"}</span></div></>
+                ) : (
+                  <>{answerWasAccepted ? <Check aria-hidden="true" /> : <Hourglass aria-hidden="true" />}<div><strong>{answerWasAccepted ? "Ответ принят" : sending ? "Отправляем…" : "Ждём подтверждения…"}</strong><span>{answerWasAccepted ? "Ждём остальных…" : "Ваш выбор зафиксирован на устройстве"}</span></div></>
+                )}
+              </motion.div>
             )}
-            {lastEarned > 0 && (
-              <span className="iq-points-fly pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-success/20 px-3 py-1 font-bold text-success">
-                +{lastEarned}
-              </span>
-            )}
-          </div>
-        )}
-
-        {isReveal && !myAnswer && (
-          <p className="mt-4 text-center text-sm text-[color:var(--pt-text-muted)]">
-            Вы не успели ответить
-          </p>
-        )}
+          </AnimatePresence>
+        </div>
 
         {showStreak && (
           <div
-            className={`fixed left-1/2 bottom-8 z-50 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-[color:var(--pt-accent)] px-4 py-2 font-bold text-black shadow-lg transition-opacity duration-300 ${streakFading ? "opacity-0" : "opacity-100"} animate-slide-up`}
+            role="status"
+            className={`player-streak fixed left-1/2 z-50 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-lg bg-[color:var(--pt-accent)] px-4 py-2 font-bold text-black shadow-lg transition-opacity duration-300 ${streakFading ? "opacity-0" : "opacity-100"} animate-slide-up`}
           >
             <Flame className="h-4 w-4" /> Стрик {myPlayer?.streak}!
           </div>
@@ -487,18 +517,32 @@ function FullScreen({ theme, msg }: { theme: PlayerTheme; msg: string }) {
   return (
     <PlayerShell theme={theme}>
       <div className="mx-auto max-w-md px-6 py-24 text-center">
-        <div className="h-10 w-10 mx-auto animate-spin rounded-full border-2 border-[color:var(--pt-border)] border-t-[color:var(--pt-accent)]" />
+        <div aria-hidden="true" className="h-10 w-10 mx-auto animate-spin rounded-full border-2 border-[color:var(--pt-border)] border-t-[color:var(--pt-accent)]" />
         <p className="mt-4 text-[color:var(--pt-text-muted)]">{msg}</p>
       </div>
     </PlayerShell>
   );
 }
 
+function PlayerStandings({ players, playerId }: { players: RoomState["players"]; playerId: string }) {
+  const reduced = useReducedMotion();
+  const own = players.findIndex((p) => p.id === playerId);
+  const visible = players.filter((_, i) => i < 3 || Math.abs(i - own) <= 1);
+  return <ol aria-label="Таблица игроков" className="player-standings mt-6 space-y-2 text-left">
+    {visible.map((player) => <motion.li layout={!reduced} key={player.id} className={`player-standing ${player.id === playerId ? "player-standing--me" : ""}`}>
+      <span className="font-mono font-bold">{players.indexOf(player) + 1}</span>
+      <Avatar name={player.nickname} avatar={player.avatar} size={28} />
+      <span className="min-w-0 flex-1 truncate font-semibold">{player.nickname}{player.id === playerId ? " · вы" : ""}</span>
+      <PlayerScore value={player.score} className="font-mono font-bold" />
+    </motion.li>)}
+  </ol>;
+}
+
 function RoomCodeBadge({ code }: { code: string }) {
   return (
     <span
       aria-label={`Код комнаты ${code}`}
-      className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-3 py-1.5 text-xs font-semibold"
+      className="player-room-code inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-2.5 text-xs font-semibold"
     >
       <span className="text-[color:var(--pt-text-muted)]">Код</span>
       <span className="font-mono tracking-wider">{code}</span>

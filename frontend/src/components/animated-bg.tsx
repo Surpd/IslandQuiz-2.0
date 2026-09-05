@@ -2,13 +2,21 @@
 // IMPORTANT: memoized so the per-second timer re-renders in player routes do not
 // re-randomize positions and cause the "jittering" effect. Animations are pure CSS.
 import { memo } from "react";
+import { useReducedMotion } from "framer-motion";
 import type { PlayerTheme } from "@/lib/types";
 import { SceneRenderer } from "@/theme-engine/scene-renderer";
 import { getThemeDefinition } from "@/theme-engine/registry";
 
-function AnimatedBackgroundImpl({ theme }: { theme: PlayerTheme }) {
+// Stable on the server, hydration and remounts; no mutable global RNG.
+const sample = (index: number, salt: number) => {
+  const value = Math.sin((index + 1) * 127.1 + salt * 311.7) * 43758.5453;
+  return value - Math.floor(value);
+};
+
+function AnimatedBackgroundImpl({ theme, playing = false }: { theme: PlayerTheme; playing?: boolean }) {
+  const reduced = useReducedMotion();
   if (getThemeDefinition(theme)) {
-    return <SceneRenderer theme={theme} mode="full" placement="player" />;
+    return <SceneRenderer theme={theme} mode="full" placement="player" eventsEnabled={!playing && !reduced} reducedMotion={!!reduced} />;
   }
   if (theme === "ocean") return <Bubbles />;
   if (theme === "forest") return <Leaves />;
@@ -25,10 +33,10 @@ function Bubbles() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       {bubbles.map((_, i) => {
-        const size = 12 + Math.round(Math.random() * 40);
-        const left = Math.round(Math.random() * 100);
-        const dur = 12 + Math.random() * 14;
-        const delay = -Math.random() * dur;
+        const size = 12 + Math.round(sample(i, 1) * 40);
+        const left = Math.round(sample(i, 2) * 100);
+        const dur = 12 + sample(i, 3) * 14;
+        const delay = -sample(i, 4) * dur;
         return (
           <span
             key={i}
@@ -53,10 +61,10 @@ function Leaves() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       {leaves.map((_, i) => {
-        const left = Math.round(Math.random() * 100);
-        const dur = 14 + Math.random() * 12;
-        const delay = -Math.random() * dur;
-        const size = 14 + Math.round(Math.random() * 14);
+        const left = Math.round(sample(i, 2) * 100);
+        const dur = 14 + sample(i, 3) * 12;
+        const delay = -sample(i, 4) * dur;
+        const size = 14 + Math.round(sample(i, 1) * 14);
         return (
           <svg
             key={i}
@@ -91,11 +99,11 @@ function Sparks() {
           key={i}
           className="absolute h-1 w-1 rounded-full bg-[color:var(--pt-accent)]"
           style={{
-            left: `${Math.random() * 100}%`,
+            left: `${sample(i, 2) * 100}%`,
             bottom: `-4px`,
             boxShadow: "0 0 8px var(--pt-accent)",
-            animation: `iq-float-up ${8 + Math.random() * 10}s linear infinite`,
-            animationDelay: `-${Math.random() * 12}s`,
+            animation: `iq-float-up ${8 + sample(i, 3) * 10}s linear infinite`,
+            animationDelay: `-${sample(i, 4) * 12}s`,
           }}
         />
       ))}
@@ -109,10 +117,10 @@ function Shapes() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       {shapes.map((_, i) => {
-        const size = 14 + Math.round(Math.random() * 26);
-        const left = Math.round(Math.random() * 100);
-        const dur = 16 + Math.random() * 14;
-        const delay = -Math.random() * dur;
+        const size = 14 + Math.round(sample(i, 1) * 26);
+        const left = Math.round(sample(i, 2) * 100);
+        const dur = 16 + sample(i, 3) * 14;
+        const delay = -sample(i, 4) * dur;
         const kind = kinds[i % kinds.length];
         const common: React.CSSProperties = {
           width: size,

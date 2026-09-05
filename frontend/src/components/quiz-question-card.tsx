@@ -4,6 +4,8 @@
 // don't touch the offline route.
 
 import { useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -23,7 +25,7 @@ import type { QuizQuestion } from "@/lib/types";
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(((Math.sin(i * 127.1 + arr.length * 311.7) * 43758.5453) % 1 + 1) % 1 * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -109,17 +111,19 @@ export function QuizQuestionCard({
   const disabled = !!locked || !!projector;
 
   return (
-    <div className="rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-6 md:p-8 backdrop-blur-md">
+    <section data-locked={disabled || undefined} data-reveal={reveal || undefined} className="player-question-card rounded-2xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-4 min-[370px]:p-5 md:p-7">
       {question.image && (
         <img
           src={question.image}
           alt=""
-          className="mx-auto mb-4 max-h-56 rounded-xl border border-[color:var(--pt-border)] object-contain"
+          width={640}
+          height={224}
+          className="mx-auto mb-4 h-56 w-full rounded-xl border border-[color:var(--pt-border)] object-contain"
         />
       )}
-      <div className={`mb-6 text-center font-semibold leading-snug ${fitQuestionSize(question.q)}`}>
-        <LaTeX>{question.q}</LaTeX>
-      </div>
+      <h1 className={`mb-5 break-words text-pretty text-center font-semibold leading-snug md:mb-6 ${fitQuestionSize(question.q)}`}>
+        <LaTeX>{question.type === "close" ? "Заполните пропуски" : question.q}</LaTeX>
+      </h1>
 
       {question.type === "choice" && (
         <div className="grid gap-2 sm:grid-cols-2">
@@ -140,7 +144,7 @@ export function QuizQuestionCard({
                   onClickSound?.();
                   onChange(opt);
                 }}
-                className={`player-answer player-answer--${answerState} flex items-center gap-3 rounded-xl border-2 px-4 py-4 text-left transition-all ${
+                className={`player-answer player-answer--${answerState} flex min-h-14 items-center gap-3 rounded-lg border px-3 py-3.5 text-left min-[370px]:px-4 ${
                   isCorrect
                     ? "border-success bg-success/20"
                     : isWrong
@@ -150,7 +154,7 @@ export function QuizQuestionCard({
                         : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] hover:border-[color:var(--pt-accent)]"
                 } ${disabled && !projector ? "cursor-not-allowed" : ""}`}
               >
-                <span className="player-answer__badge grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-[color:var(--pt-accent)] text-sm font-bold text-black">
+                <span className="player-answer__badge grid h-8 w-8 flex-shrink-0 place-items-center rounded-md border border-[color:var(--pt-border)] bg-transparent text-sm font-bold text-[color:var(--pt-text-muted)]">
                   {String.fromCharCode(65 + i)}
                 </span>
                 <span className={`min-w-0 break-words ${fitOptionSize(opt)}`}><LaTeX>{opt}</LaTeX></span>
@@ -178,7 +182,7 @@ export function QuizQuestionCard({
                   onClickSound?.();
                   onChange(v);
                 }}
-                className={`player-answer player-answer--${answerState} rounded-xl border-2 px-4 py-6 text-lg font-bold transition-all ${
+                className={`player-answer player-answer--${answerState} min-h-16 rounded-lg border px-3 py-4 text-base font-bold min-[370px]:text-lg ${
                   isCorrect
                     ? "border-success bg-success/20 text-success"
                     : isWrong
@@ -197,9 +201,13 @@ export function QuizQuestionCard({
 
       {question.type === "text" && (
         <div>
+          <label htmlFor={`answer-${question.id}`} className="sr-only">Ваш ответ</label>
           <input
+            id={`answer-${question.id}`}
+            name="answer"
+            autoComplete="off"
             disabled={disabled}
-            className="w-full rounded-xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3 text-lg text-[color:var(--pt-text)] outline-none focus:border-[color:var(--pt-accent)]"
+            className="player-text-input w-full rounded-lg border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3.5 text-base text-[color:var(--pt-text)] min-[370px]:text-lg"
             placeholder="Введите ответ..."
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -229,7 +237,7 @@ export function QuizQuestionCard({
       {question.type === "ordering" && (
         <OrderingBoard question={question} value={value} onChange={onChange} disabled={disabled} reveal={!!reveal} />
       )}
-    </div>
+    </section>
   );
 }
 
@@ -337,9 +345,9 @@ function MatchingBoard({
                 ok ? "border-success bg-success/10" : "border-danger bg-danger/10"
               }`}
             >
-              <div className="flex items-center gap-3">
+              <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
                 <span className="min-w-0 flex-1 break-words text-sm font-semibold">{p.left}</span>
-                <span className="text-[color:var(--pt-text-muted)]">→</span>
+                <span aria-hidden="true" className="hidden text-[color:var(--pt-text-muted)] sm:block">→</span>
                 <span className="min-w-0 break-words rounded-lg bg-[color:var(--pt-accent)] px-3 py-1 text-sm font-bold text-black">{p.right}</span>
               </div>
               {!ok && <p className="mt-2 text-xs text-danger">Ваш выбор: {given || "нет ответа"}</p>}
@@ -352,22 +360,23 @@ function MatchingBoard({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-5 sm:grid-cols-2 sm:gap-4">
         <div className="space-y-2">
-          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Пары · выбрано {Object.keys(assigned).length}/{leftItems.length}</p>
+          <p className="text-xs font-semibold text-[color:var(--pt-text-muted)]">1. Выберите начало пары · {Object.keys(assigned).length}/{leftItems.length}</p>
           {leftItems.map((left) => (
             <DropZone
               key={left}
               left={left}
               value={assigned[left]}
               selected={selectedLeft === left}
+              disabled={disabled}
               onSelect={() => selectLeft(left)}
               onClear={() => clear(left)}
             />
           ))}
         </div>
         <div className="space-y-2">
-          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Варианты справа</p>
+          <p className="text-xs font-semibold text-[color:var(--pt-text-muted)]">2. Выберите соответствие</p>
           {shuffledRights.map((r) => (
             <Draggable key={r} value={r} disabled={disabled} selected={selectedRight === r} assigned={usedRights.has(r)} onClick={() => selectRight(r)} />
           ))}
@@ -377,14 +386,16 @@ function MatchingBoard({
   );
 }
 
-function DropZone({ left, value, selected, onSelect, onClear }: { left: string; value?: string; selected: boolean; onSelect: () => void; onClear: () => void }) {
+function DropZone({ left, value, selected, disabled, onSelect, onClear }: { left: string; value?: string; selected: boolean; disabled: boolean; onSelect: () => void; onClear: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: `left:${left}` });
   return (
     <div
       ref={setNodeRef}
       onClick={onSelect}
       role="button"
-      tabIndex={0}
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      data-paired={!!value}
       aria-pressed={selected}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -392,24 +403,24 @@ function DropZone({ left, value, selected, onSelect, onClear }: { left: string; 
           onSelect();
         }
       }}
-      className={`flex min-w-0 min-h-14 flex-wrap items-center gap-2 rounded-xl border-2 border-dashed p-3 transition-all ${
+      className={`player-match-target flex min-h-14 min-w-0 flex-wrap items-center gap-2 rounded-lg border border-dashed p-3 ${
         isOver
           ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-surface-strong)]"
           : "border-[color:var(--pt-border)]"
-      } ${selected ? "cursor-pointer ring-2 ring-[color:var(--pt-accent)]/50" : ""}`}
+      } ${selected ? "cursor-pointer border-solid border-[color:var(--pt-accent)] bg-[color:var(--pt-surface-strong)] ring-2 ring-[color:var(--pt-accent)]/20" : ""}`}
     >
       <span className="min-w-0 basis-full break-words text-sm font-semibold sm:flex-1">{left}</span>
       <span className="text-[color:var(--pt-text-muted)]">→</span>
       <span
         className={`min-w-0 flex-1 break-words rounded-lg px-3 py-2 text-left text-sm sm:min-w-[40%] ${
           value
-            ? "bg-[color:var(--pt-accent)] font-bold text-black"
+            ? "border-l-2 border-[color:var(--pt-accent)] bg-[color:var(--pt-surface-strong)] font-semibold"
             : "bg-[color:var(--pt-surface-strong)] text-[color:var(--pt-text-muted)]"
         }`}
       >
         {value || "…"}
       </span>
-      {value && <button type="button" aria-label="Очистить" onClick={(event) => { event.stopPropagation(); onClear(); }} className="min-h-10 rounded-lg px-2 text-xs font-semibold text-danger hover:bg-danger/10">×</button>}
+      {value && <button type="button" disabled={disabled} aria-label="Очистить" onClick={(event) => { event.stopPropagation(); onClear(); }} className="grid min-h-10 min-w-10 place-items-center rounded-md text-[color:var(--pt-text-muted)] hover:bg-danger/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:opacity-30"><X aria-hidden="true" className="h-4 w-4" /></button>}
     </div>
   );
 }
@@ -439,9 +450,9 @@ function Draggable({ value, disabled, selected, assigned, onClick }: { value: st
         touchAction: "pan-y",
       }}
       aria-pressed={selected}
-      className={`min-h-14 cursor-grab break-words rounded-xl border-2 px-4 py-3 text-sm font-semibold shadow-sm active:cursor-grabbing ${
+      className={`player-match-option min-h-14 cursor-grab break-words rounded-lg border px-4 py-3 text-sm font-semibold active:cursor-grabbing ${
         isDragging ? "opacity-50" : ""
-      } ${selected ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-accent)]/20" : assigned ? "border-success/50 bg-success/10" : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]"} ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
+      } ${selected ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-accent)]/15 ring-2 ring-[color:var(--pt-accent)]/20" : assigned ? "border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] text-[color:var(--pt-text-muted)]" : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]"} ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
     >
       {value}
     </div>
@@ -495,12 +506,15 @@ function CloseBoard({
             <LaTeX>{p}</LaTeX>
             {i < blanks && (
               <input
+                aria-label={`Пропуск ${i + 1}`}
+                name={`blank-${i + 1}`}
+                autoComplete="off"
                 disabled={disabled}
                 value={values[i] ?? ""}
                 onChange={(e) => setAt(i, e.target.value)}
                 placeholder="…"
-                size={Math.max(6, (correct[i] || "").length + 2)}
-                className="inline-block rounded-lg border-2 border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-2 py-1 text-center font-semibold outline-none focus:border-[color:var(--pt-accent)]"
+                size={12}
+                className="player-text-input inline-block max-w-full rounded-md border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-2 py-1.5 text-center font-semibold"
               />
             )}
           </span>
@@ -518,7 +532,7 @@ function CloseBoard({
 function shuffleArr<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(((Math.sin(i * 127.1 + arr.length * 311.7) * 43758.5453) % 1 + 1) % 1 * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -537,6 +551,7 @@ function OrderingBoard({
   disabled: boolean;
   reveal: boolean;
 }) {
+  const reducedMotion = useReducedMotion();
   const correct = useMemo(() => {
     try {
       const a = JSON.parse(question.answer || "[]") as string[];
@@ -545,7 +560,7 @@ function OrderingBoard({
       return [];
     }
   }, [question.answer]);
-  const displayItems = quizQuestionDisplay(question).ordering ?? [];
+  const displayItems = useMemo(() => quizQuestionDisplay(question).ordering ?? [], [question]);
   const initial = useMemo(() => shuffleArr(correct.length ? correct : displayItems), [correct, displayItems]);
   const items: string[] = useMemo(() => {
     try {
@@ -567,7 +582,7 @@ function OrderingBoard({
   if (reveal) {
     return (
       <div className="space-y-2">
-        <p className="rounded-xl bg-[color:var(--pt-surface-strong)] px-3 py-2 text-center text-xs font-semibold text-[color:var(--pt-text-muted)]">
+        <p className="mb-3 text-center text-xs font-semibold text-[color:var(--pt-text-muted)]">
           Первый элемент — сверху, последний — снизу.
         </p>
         {correct.map((v, i) => {
@@ -575,18 +590,18 @@ function OrderingBoard({
           return (
             <div
               key={`${v}-${i}`}
-              className={`flex items-center gap-3 rounded-xl border-2 p-3 ${
+              className={`grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border p-3 ${
                 ok ? "border-success bg-success/10" : "border-danger bg-danger/10"
               }`}
             >
-              <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[color:var(--pt-accent)] font-bold text-black">
+              <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-md bg-[color:var(--pt-accent)] font-bold text-black">
                 {i + 1}
               </span>
               <span className="min-w-0 flex-1 break-words text-sm font-semibold">
                 <LaTeX>{v}</LaTeX>
               </span>
               {!ok && (
-                <span className="text-xs text-danger">был: {items[i] ?? "—"}</span>
+                <span className="col-start-2 min-w-0 break-words text-xs text-danger">Ваш вариант: {items[i] ?? "—"}</span>
               )}
             </div>
           );
@@ -596,41 +611,43 @@ function OrderingBoard({
   }
   return (
     <div className="space-y-2">
-      <p className="rounded-xl bg-[color:var(--pt-surface-strong)] px-3 py-2 text-center text-xs font-semibold text-[color:var(--pt-text-muted)]">
+      <p className="mb-3 text-center text-xs font-semibold text-[color:var(--pt-text-muted)]">
         Первый элемент — сверху, последний — снизу.
       </p>
       {items.map((v, i) => (
-        <div
-          key={`${v}-${i}`}
-          className="flex items-center gap-3 rounded-xl border-2 border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3"
+        <motion.div
+          layout={!reducedMotion}
+          transition={{ duration: reducedMotion ? 0 : 0.18, ease: "easeOut" }}
+          key={`${v}-${items.slice(0, i).filter((item) => item === v).length}`}
+          className="player-order-item grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-2.5 py-2.5 min-[370px]:gap-3 min-[370px]:px-3 max-[369px]:grid-cols-[auto_minmax(0,1fr)]"
         >
-          <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[color:var(--pt-accent)] font-bold text-black">
+          <span className="grid h-7 w-7 place-items-center rounded-md border border-[color:var(--pt-border)] text-sm font-bold">
             {i + 1}
           </span>
-          <span className="min-w-0 flex-1 break-words text-sm font-semibold">
+          <span className="min-w-0 break-words text-sm font-semibold">
             <LaTeX>{v}</LaTeX>
           </span>
-          <div className="flex flex-col gap-1">
+          <div className="flex gap-1 min-[370px]:flex-col min-[370px]:gap-0 max-[369px]:col-span-2 max-[369px]:justify-self-end">
             <button
               type="button"
               disabled={disabled || i === 0}
               onClick={() => move(i, -1)}
-              className="rounded p-1 text-[color:var(--pt-text-muted)] hover:text-[color:var(--pt-accent)] disabled:opacity-30"
+              className="grid min-h-10 min-w-10 place-items-center rounded-md text-[color:var(--pt-text-muted)] hover:bg-[color:var(--pt-surface)] hover:text-[color:var(--pt-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--pt-accent)] disabled:opacity-30"
               aria-label="Вверх"
             >
-              ▲
+              <ChevronUp aria-hidden="true" className="h-5 w-5" />
             </button>
             <button
               type="button"
               disabled={disabled || i === items.length - 1}
               onClick={() => move(i, 1)}
-              className="rounded p-1 text-[color:var(--pt-text-muted)] hover:text-[color:var(--pt-accent)] disabled:opacity-30"
+              className="grid min-h-10 min-w-10 place-items-center rounded-md text-[color:var(--pt-text-muted)] hover:bg-[color:var(--pt-surface)] hover:text-[color:var(--pt-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--pt-accent)] disabled:opacity-30"
               aria-label="Вниз"
             >
-              ▼
+              <ChevronDown aria-hidden="true" className="h-5 w-5" />
             </button>
           </div>
-        </div>
+        </motion.div>
       ))}
     </div>
   );

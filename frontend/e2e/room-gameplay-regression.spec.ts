@@ -88,6 +88,8 @@ function installRoomMock(
         onclose: ((event: CloseEvent) => void) | null = null;
         constructor() {
           setTimeout(() => {
+            // Start the fixture clock once the client has loaded, not during navigation.
+            if (currentState.status === "active") currentState.questionStartAt = Date.now() + (startOffsetMs ?? 15_000);
             this.onopen?.(new Event("open"));
             this.onmessage?.(
               new MessageEvent("message", {
@@ -173,7 +175,7 @@ test.describe("online room gameplay regression", () => {
     await installRoomMock(page, {
       role: "host",
       status: "active",
-      startOffsetMs: -29_000,
+      startOffsetMs: -26_000,
       question: {
         id: "q1",
         type: "choice",
