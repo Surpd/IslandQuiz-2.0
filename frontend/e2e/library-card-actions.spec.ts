@@ -136,3 +136,25 @@ test("Public Library cards keep touch-sized actions without owner controls", asy
   expect(eyeBox!.height).toBeGreaterThanOrEqual(36);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
+
+test("Offline share makes an owned private game accessible by link", async ({ page }) => {
+  await installLibraryApi(
+    page,
+    [game("private-share", "Private Share Game", owner.id, "private", {})],
+    true,
+  );
+  await page.goto("/library?tab=my");
+
+  await page.getByRole("button", { name: "Играть" }).click();
+  const visibilityRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return request.method() === "PATCH"
+      && url.pathname === "/api/games/private-share/visibility"
+      && url.searchParams.get("visibility") === "link";
+  });
+  await page.getByRole("button", { name: "Офлайн" }).click();
+
+  await visibilityRequest;
+  await expect(page.getByText("Ссылка для учеников", { exact: true })).toBeVisible();
+  await expect(page.locator("input[readonly]")).toHaveValue(/\/play\/quiz\/private-share\?theme=classic$/);
+});

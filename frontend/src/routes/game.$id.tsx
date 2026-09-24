@@ -619,7 +619,15 @@ function GameDashboard() {
       </main>
 
       {openPlay && (
-        <PlayModal gameId={game.id} kind={game.kind} onClose={() => setOpenPlay(false)} />
+        <PlayModal
+          gameId={game.id}
+          kind={game.kind}
+          onEnableLinkAccess={isMine && game.visibility === "private" ? async () => {
+            await setGameVisibility(game.id, "link");
+            setGame((current) => current ? { ...current, visibility: "link" } : current);
+          } : undefined}
+          onClose={() => setOpenPlay(false)}
+        />
       )}
 
       {toast && (

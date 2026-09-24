@@ -193,6 +193,12 @@ class VisibilityAndResultsTests(unittest.TestCase):
                 private_game,
             )
 
+    def test_link_game_allows_anonymous_submission_access(self):
+        link_game = {"owner_id": "owner", "visibility": "link", "kind": "quiz"}
+
+        with patch.object(results, "supabase", OneResultSupabase([link_game])):
+            self.assertEqual(results._check_can_submit("game-1", "quiz", None), link_game)
+
     def test_empty_game_result_is_denied_without_crashing(self):
         with patch.object(results, "supabase", OneResultSupabase([])):
             self.assertFalse(results._can_view_game("missing", {"id": "owner"}))

@@ -14,11 +14,13 @@ export function PlayModal({
   gameId,
   kind,
   localData,
+  onEnableLinkAccess,
   onClose,
 }: {
   gameId: string;
   kind: GameKind;
   localData?: AnyGameData;
+  onEnableLinkAccess?: () => Promise<void>;
   onClose: () => void;
 }) {
   const { user } = useAuth();
@@ -55,6 +57,20 @@ export function PlayModal({
     } catch (err) {
       console.error(err);
       setError("Не удалось создать комнату");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startOffline = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      await onEnableLinkAccess?.();
+      setHostView(true);
+    } catch (err) {
+      console.error(err);
+      setError("Не удалось открыть доступ по ссылке");
     } finally {
       setLoading(false);
     }
@@ -101,15 +117,16 @@ export function PlayModal({
           )}
 
           <button
-            onClick={() => setHostView(true)}
-            className="group flex flex-col items-start gap-2 rounded-2xl border-2 border-border p-5 text-left transition-all hover:border-amber hover:bg-amber-soft"
+            onClick={() => void startOffline()}
+            disabled={loading}
+            className="group flex flex-col items-start gap-2 rounded-2xl border-2 border-border p-5 text-left transition-all hover:border-amber hover:bg-amber-soft disabled:opacity-60"
           >
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-soft text-amber">
               <Monitor className="h-5 w-5" />
             </span>
             <span className="font-display text-base font-bold">Офлайн</span>
             <span className="text-xs text-muted-foreground">
-              Плеер на проекторе, ссылка + QR для учеников
+              {loading ? "Готовим ссылку…" : localData ? "Плеер на этом устройстве" : "Плеер на проекторе, ссылка + QR для учеников"}
             </span>
           </button>
         </div>
@@ -138,6 +155,8 @@ function OfflineHostView({
   localData?: AnyGameData;
   onClose: () => void;
 }) {
+  const isLocalOnly = !!localData;
+
   useEffect(() => {
     if (localData) saveLocalGame(kind, gameId, localData);
   }, [gameId, kind, localData]);
@@ -165,22 +184,29 @@ function OfflineHostView({
           </button>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+        <div className={`grid gap-4 ${isLocalOnly ? "" : "sm:grid-cols-[1fr_auto]"}`}>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Ссылка для учеников
+              {isLocalOnly ? "Локальный запуск" : "Ссылка для учеников"}
             </p>
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                readOnly
-                className="input-base flex-1 font-mono text-xs"
-                value={playUrl}
-                onFocus={(e) => e.currentTarget.select()}
-              />
-              <button className="btn-ghost" onClick={copy}>
-                <Copy className="h-4 w-4" /> {copied ? "Ок" : "Копировать"}
-              </button>
-            </div>
+            {!isLocalOnly && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  readOnly
+                  className="input-base flex-1 font-mono text-xs"
+                  value={playUrl}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <button className="btn-ghost" onClick={copy}>
+                  <Copy className="h-4 w-4" /> {copied ? "Ок" : "Копировать"}
+                </button>
+              </div>
+            )}
+            {isLocalOnly && (
+              <p className="mt-2 rounded-xl bg-amber-soft px-3 py-2 text-sm text-foreground">
+                Эта игра пока хранится только в вашем браузере. Войдите и сохраните её, чтобы отправить постоянную ссылку ученикам.
+              </p>
+            )}
             <button
               onClick={() => window.open(playUrl, "_blank", "noopener")}
               className="btn-accent mt-4 w-full justify-center py-3"
@@ -188,10 +214,12 @@ function OfflineHostView({
               <Monitor className="h-4 w-4" /> Открыть плеер на проекторе
             </button>
           </div>
-          <div className="grid place-items-center rounded-2xl border border-border bg-surface-muted p-3">
-            <img src={qrUrl} alt="QR" className="h-40 w-40 rounded-lg" />
-            <p className="mt-2 text-[11px] text-muted-foreground">QR к плееру</p>
-          </div>
+          {!isLocalOnly && (
+            <div className="grid place-items-center rounded-2xl border border-border bg-surface-muted p-3">
+              <img src={qrUrl} alt="QR" className="h-40 w-40 rounded-lg" />
+              <p className="mt-2 text-[11px] text-muted-foreground">QR к плееру</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

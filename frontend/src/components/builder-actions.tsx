@@ -878,7 +878,17 @@ export function BuilderFabs({
         />
       )}
       {openPlay && (savedId || localData) && (
-        <PlayModal gameId={savedId ?? `local-${kind}-draft`} kind={kind} localData={localData} onClose={() => setOpenPlay(false)} />
+        <PlayModal
+          gameId={savedId ?? `local-${kind}-draft`}
+          kind={kind}
+          localData={localData}
+          onEnableLinkAccess={user && visibility === "private" ? async () => {
+            if (!savedId) throw new Error("Игра ещё не сохранена");
+            await apiSetGameVisibility(savedId, "link");
+            onVisibilityChange("link");
+          } : undefined}
+          onClose={() => setOpenPlay(false)}
+        />
       )}
       {authPrompt && <AIAuthPrompt feature="сохранения игры в Library" onClose={() => setAuthPrompt(false)} />}
     </>

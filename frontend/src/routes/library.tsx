@@ -77,14 +77,14 @@ function titleOf(g: StoredGame): string {
 }
 
 function LibraryPage() {
-  const { user } = useAuth();
+  const { user, setGameVisibility } = useAuth();
   const nav = useNavigate();
   const { tab } = useSearch({ from: "/library" });
   const activeTab: TabKey = tab ?? (user ? "my" : "public");
   const [games, setGames] = useState<StoredGame[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [playedIds, setPlayedIds] = useState<Set<string>>(new Set());
-  const [playModal, setPlayModal] = useState<{ id: string; kind: GameKind } | null>(null);
+  const [playModal, setPlayModal] = useState<StoredGame | null>(null);
   const [previewGame, setPreviewGame] = useState<StoredGame | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -306,7 +306,7 @@ function LibraryPage() {
                 key={`${g.kind}-${g.id}`}
                 g={g}
                 tab={activeTab}
-                onPlay={() => setPlayModal({ id: g.id, kind: g.kind })}
+                onPlay={() => setPlayModal(g)}
                 onPreview={() => setPreviewGame(g)}
               />
             ))}
@@ -318,6 +318,11 @@ function LibraryPage() {
         <PlayModal
           gameId={playModal.id}
           kind={playModal.kind}
+          onEnableLinkAccess={user?.id === playModal.ownerId && playModal.visibility === "private" ? async () => {
+            await setGameVisibility(playModal.id, "link");
+            setPlayModal((current) => current ? { ...current, visibility: "link" } : current);
+            setGames((current) => current?.map((game) => game.id === playModal.id ? { ...game, visibility: "link" } : game) ?? current);
+          } : undefined}
           onClose={() => setPlayModal(null)}
         />
       )}
