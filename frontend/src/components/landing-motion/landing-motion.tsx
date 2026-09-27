@@ -87,8 +87,8 @@ function QuizDemo() {
           live preview
         </span>
       </div>
-      <div className="rounded-2xl bg-slate-950 p-5 text-white sm:p-7">
-        <div className="flex items-center justify-between text-xs font-bold text-white/55">
+      <div className="rounded-2xl border border-[#e3d7ca] bg-[#fbf7f0] p-5 text-[#2f2930] sm:p-7">
+        <div className="flex items-center justify-between text-xs font-bold text-[#74676f]">
           <span>ВОПРОС 3 / 10</span>
           <span>01:24</span>
         </div>
@@ -102,7 +102,7 @@ function QuizDemo() {
                 initial={reduced ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0, scale: correct ? 1.015 : 1 }}
                 transition={{ delay: reduced ? 0 : index * 0.08, duration: 0.3 }}
-                className={`flex min-h-12 items-center justify-between rounded-xl border px-4 py-3 text-sm font-bold ${correct ? "border-emerald-400 bg-emerald-400 text-slate-950" : "border-white/10 bg-white/[.06]"}`}
+                className={`flex min-h-12 items-center justify-between rounded-xl border px-4 py-3 text-sm font-bold ${correct ? "border-[#bd6d58] bg-[#bd6d58] text-white" : "border-[#e3d7ca] bg-white text-[#2f2930]"}`}
               >
                 <span>{answer}</span>
                 {correct && <Check className="h-4 w-4" />}
@@ -110,9 +110,9 @@ function QuizDemo() {
             );
           })}
         </div>
-        <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-[#e3d7ca]">
           <motion.div
-            className="h-full rounded-full bg-rose-400"
+            className="h-full rounded-full bg-[#bd6d58]"
             animate={{ scaleX: step >= 2 ? 0.72 : 0.38 }}
             style={{ transformOrigin: "left" }}
             transition={{ duration: reduced ? 0 : 0.6, ease }}
@@ -131,7 +131,7 @@ function QuizDemo() {
             <span className="block text-[10px] font-black uppercase tracking-wider text-amber-900/60">
               точный ответ
             </span>
-            <span className="font-display text-xl font-black text-slate-950">+300</span>
+            <span className="font-display text-xl font-black text-[#2f2930]">+300</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -407,9 +407,9 @@ function AIDemo() {
         className="mt-5 flex w-full items-center justify-between rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <span>Создать вопрос</span>
-        <WandSparkles className="h-4 w-4 text-primary" />
+        <WandSparkles className="h-4 w-4 text-[#bd6d58]" />
       </button>
-      <div className="mt-4 min-h-44 rounded-2xl bg-slate-950 p-4 text-white">
+      <div className="mt-4 min-h-44 rounded-2xl border border-[#e3d7ca] bg-[#fcf8f1] p-4 text-[#2f2930]">
         <AnimatePresence mode="wait">
           {!generated ? (
             <motion.div
@@ -417,13 +417,13 @@ function AIDemo() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex h-36 flex-col items-center justify-center gap-3 text-white/60"
+              className="flex h-36 flex-col items-center justify-center gap-3 text-[#74676f]"
             >
               <motion.div
                 animate={reduced ? undefined : { rotate: 360 }}
                 transition={{ repeat: Infinity, duration: 1.4, ease: "linear" }}
               >
-                <Sparkles className="h-6 w-6 text-primary" />
+                <Sparkles className="h-6 w-6 text-[#bd6d58]" />
               </motion.div>
               <span className="text-xs font-bold">Собираю варианты…</span>
             </motion.div>
@@ -441,7 +441,7 @@ function AIDemo() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.07 }}
                     key={a}
-                    className={`rounded-lg border p-2 text-xs font-bold ${i === 1 ? "border-emerald-400 bg-emerald-400/20 text-emerald-200" : "border-white/10 bg-white/5"}`}
+                    className={`rounded-lg border p-2 text-xs font-bold ${i === 1 ? "border-[#9289bd] bg-[#eeeaf6] text-[#4f456f]" : "border-[#e3d7ca] bg-white text-[#2f2930]"}`}
                   >
                     {a}
                   </motion.div>
@@ -777,7 +777,7 @@ export function LandingMotion() {
               <span className="hidden items-center gap-1.5 rounded-full bg-success-soft px-3 py-1.5 text-xs font-black text-success sm:inline-flex">
                 <Check className="h-3.5 w-3.5" /> Комната запущена
               </span>
-              <span className="rounded-full bg-foreground px-3 py-1.5 font-mono text-xs font-black text-white">
+              <span className="rounded-full bg-[#bd6d58] px-3 py-1.5 font-mono text-xs font-black text-white">
                 4207
               </span>
             </motion.div>
@@ -811,7 +811,7 @@ export function LandingMotion() {
           </div>
         </section>
 
-        <section id="ai" className="bg-white py-20 sm:py-28">
+        <section id="ai" className="bg-[#fcf8f1] py-20 sm:py-28">
           <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 lg:grid-cols-2">
             <Reveal>
               <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[.18em] text-accent">
@@ -853,7 +853,7 @@ export function LandingMotion() {
                   icon: Palette,
                   title: "2 визуальные темы",
                   text: "Выберите светлую или тёмную атмосферу игрока.",
-                  cls: "md:col-span-2 bg-slate-950 text-white",
+                  cls: "md:col-span-2 bg-[#f6ede3] text-[#2f2930]",
                 },
                 {
                   icon: FileSpreadsheet,
@@ -877,7 +877,7 @@ export function LandingMotion() {
                   icon: Trophy,
                   title: "Проектор и офлайн",
                   text: "Проводите игру в аудитории с одного экрана.",
-                  cls: "md:col-span-2 bg-primary text-white",
+                  cls: "md:col-span-2 bg-[#eeeaf6] text-[#2f2930]",
                 },
                 {
                   icon: Library,
@@ -893,9 +893,7 @@ export function LandingMotion() {
                   <article className={`h-full rounded-[1.75rem] border border-border p-6 ${f.cls}`}>
                     <f.icon className="h-6 w-6" />
                     <h3 className="mt-10 font-display text-xl font-black">{f.title}</h3>
-                    <p
-                      className={`mt-2 text-sm leading-relaxed ${f.cls.includes("text-white") ? "text-white/65" : "text-muted-foreground"}`}
-                    >
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                       {f.text}
                     </p>
                   </article>
@@ -906,7 +904,7 @@ export function LandingMotion() {
         </section>
 
         <section className="px-4 pb-6 sm:px-6 sm:pb-8">
-          <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-16 text-center text-white sm:px-12 sm:py-24">
+          <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-[#e3d7ca] bg-[#f6ede3] px-6 py-16 text-center text-[#2f2930] sm:px-12 sm:py-24">
             <motion.div
               aria-hidden
               className="absolute left-1/2 top-0 h-64 w-64 -translate-x-1/2 rounded-full bg-primary/30 blur-3xl"
@@ -914,17 +912,17 @@ export function LandingMotion() {
               transition={reduced ? undefined : { duration: 7, repeat: Infinity }}
             />
             <div className="relative">
-              <Sparkles className="mx-auto h-7 w-7 text-amber-300" />
+              <Sparkles className="mx-auto h-7 w-7 text-[#bd6d58]" />
               <h2 className="mx-auto mt-5 max-w-3xl font-display text-4xl font-black sm:text-6xl">
                 Следующая хорошая игра начинается с вопроса
               </h2>
-              <p className="mx-auto mt-5 max-w-xl text-white/60">
+              <p className="mx-auto mt-5 max-w-xl text-muted-foreground">
                 Соберите свой квиз, пригласите участников и проведите раунд по-своему.
               </p>
               <Link
                 to="/builder/quiz"
                 search={{ id: undefined }}
-                className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-accent px-7 py-4 font-black shadow-accent transition hover:-translate-y-0.5"
+                className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-[#bd6d58] px-7 py-4 font-black text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#a95745]"
               >
                 Начать бесплатно <ArrowRight className="h-4 w-4" />
               </Link>
