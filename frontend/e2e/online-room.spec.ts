@@ -153,3 +153,124 @@ test("createRoom sends the Play Setup theme as room runtime state", async ({ pag
   const sent = await page.evaluate(() => window.roomMessages);
   expect(JSON.parse(sent![0])).toMatchObject({ action: "create_room", theme: "midnight" });
 });
+
+test("reconnects a player after the tab is reopened", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("islandquiz.room.player.1234", "persisted-credential");
+    localStorage.setItem(
+      "islandquiz.room.player-info.1234",
+      JSON.stringify({ playerId: "player-1", nickname: "Guest", avatar: "" }),
+    );
+    (window as Window & { roomMessages?: string[]; roomUrl?: string }).roomMessages = [];
+    class RoomWebSocket {
+      static OPEN = 1;
+      readyState = RoomWebSocket.OPEN;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent<string>) => void) | null = null;
+      constructor(url: string) {
+        (window as Window & { roomUrl?: string }).roomUrl = url;
+        setTimeout(() => {
+          this.onopen?.(new Event("open"));
+          this.onmessage?.(
+            new MessageEvent("message", {
+              data: JSON.stringify({
+                type: "room_state",
+                state: {
+                  code: "1234",
+                  gameKind: "quiz",
+                  gameId: "game-1",
+                  theme: "classic",
+                  hostId: "host-1",
+                  status: "waiting",
+                  questionIdx: 0,
+                  questionStartAt: null,
+                  players: [{ id: "player-1", nickname: "Guest", avatar: "", score: 0, streak: 0 }],
+                  createdAt: Date.now(),
+                },
+              }),
+            }),
+          );
+        });
+      }
+      send(raw: string) {
+        (window as Window & { roomMessages?: string[] }).roomMessages?.push(raw);
+      }
+      close() {}
+    }
+    Object.defineProperty(window, "WebSocket", { value: RoomWebSocket });
+  });
+
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const { joinRoom } = await import("/src/lib/api.ts");
+    return joinRoom("1234", "Guest", "");
+  });
+
+  expect(result).toEqual({ success: true, player_id: "player-1" });
+  expect(await page.evaluate(() => window.roomMessages)).toEqual([]);
+  expect(await page.evaluate(() => window.roomUrl)).toContain("credential=persisted-credential");
+});
+
+test("finishRoom sends the early-finish action", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("islandquiz.room.host.1234", "host-credential");
+    (window as Window & { roomMessages?: string[] }).roomMessages = [];
+    class RoomWebSocket {
+      static OPEN = 1;
+      readyState = RoomWebSocket.OPEN;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent<string>) => void) | null = null;
+      constructor() {
+        setTimeout(() => this.onopen?.(new Event("open")));
+      }
+      send(raw: string) {
+        (window as Window & { roomMessages?: string[] }).roomMessages?.push(raw);
+        if (JSON.parse(raw).action === "finish") {
+          this.onmessage?.(
+            new MessageEvent("message", {
+              data: JSON.stringify({
+                type: "room_state",
+                state: {
+                  code: "1234",
+                  gameKind: "quiz",
+                  gameId: "game-1",
+                  theme: "classic",
+                  hostId: "host-1",
+                  status: "finished",
+                  questionIdx: 0,
+                  questionStartAt: null,
+                  players: [],
+                  createdAt: Date.now(),
+                },
+              }),
+            }),
+          );
+        }
+      }
+      close() {}
+    }
+    Object.defineProperty(window, "WebSocket", { value: RoomWebSocket });
+  });
+
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const { finishRoom } = await import("/src/lib/api.ts");
+    return finishRoom("1234");
+  });
+
+  expect(result?.status).toBe("finished");
+  expect(JSON.parse((await page.evaluate(() => window.roomMessages))![0])).toMatchObject({ action: "finish" });
+});
+
+test("answers URL keeps the existing answers route and scoped room credential", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("islandquiz.room.answers.1234", "answers-credential");
+  });
+  await page.goto("/");
+  const url = await page.evaluate(async () => {
+    const { getRoomAnswersUrl } = await import("/src/lib/api.ts");
+    return getRoomAnswersUrl("1234");
+  });
+  expect(url).toContain("/room/1234/answers");
+  expect(url).toContain("credential=answers-credential");
+});

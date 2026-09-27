@@ -2,18 +2,23 @@
 // Not visible to players. Can be opened at any time in a separate tab.
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Eye, FileText } from "lucide-react";
-import { loadGame, subscribeRoom, subscribeRoomSnapshot, type RoomState } from "@/lib/api";
+import { Copy, Eye, FileText } from "lucide-react";
+import { getRoomAnswersUrl, subscribeRoom, subscribeRoomSnapshot, type RoomState } from "@/lib/api";
+import { QrCode } from "@/components/qr-code";
 import { LaTeX } from "@/lib/latex";
 import type { JeopardyData, QuizData, MillionaireData, GameKind } from "@/lib/types";
 import { quizQuestionTypeLabel } from "@/lib/format-answer";
 import { QuizAnswerDisplay } from "@/components/quiz-answer-display";
 
 export const Route = createFileRoute("/room/$code/answers")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    credential: typeof search.credential === "string" ? search.credential : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Ответы — IslandQuiz" },
       { name: "robots", content: "noindex" },
+      { name: "referrer", content: "no-referrer" },
     ],
   }),
   component: AnswersPage,
@@ -21,33 +26,42 @@ export const Route = createFileRoute("/room/$code/answers")({
 
 function AnswersPage() {
   const { code } = Route.useParams();
+  const { credential } = Route.useSearch();
   const [state, setState] = useState<RoomState | null>(null);
   const [kind, setKind] = useState<GameKind | null>(null);
   const [jeopardy, setJeopardy] = useState<JeopardyData | null>(null);
   const [quiz, setQuiz] = useState<QuizData | null>(null);
   const [millionaire, setMillionaire] = useState<MillionaireData | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const unsubscribeState = subscribeRoom(code, setState);
+    const unsubscribeState = subscribeRoom(code, setState, credential);
     const unsubscribeSnapshot = subscribeRoomSnapshot(code, (snapshot) => {
       if (snapshot.kind === "quiz") setQuiz(snapshot.data as QuizData);
-    });
+      if (snapshot.kind === "jeopardy") setJeopardy(snapshot.data as JeopardyData);
+      if (snapshot.kind === "millionaire") setMillionaire(snapshot.data as MillionaireData);
+    }, credential);
     return () => {
       unsubscribeState();
       unsubscribeSnapshot();
     };
-  }, [code]);
+  }, [code, credential]);
   useEffect(() => {
     if (!state) return;
     setKind(state.gameKind);
-    if (state.gameKind === "jeopardy") {
-      loadGame<JeopardyData>("jeopardy", state.gameId).then((r) => r && setJeopardy(r.data));
-    } else if (state.gameKind === "millionaire") {
-      loadGame<MillionaireData>("millionaire", state.gameId).then(
-        (r) => r && setMillionaire(r.data),
-      );
-    }
   }, [state]);
+
+  const answersUrl = getRoomAnswersUrl(code, credential);
+  const qrLabel = "QR-код для открытия ответов на другом устройстве";
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(answersUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -65,6 +79,20 @@ function AnswersPage() {
         <h1 className="mb-6 flex items-center gap-2 font-display text-3xl font-black">
           <FileText className="h-7 w-7" /> Ответы
         </h1>
+
+        <section className="mb-8 grid gap-5 rounded-2xl border border-amber-500/30 bg-slate-900/70 p-4 sm:grid-cols-[auto_1fr] sm:items-center sm:p-5">
+          <div className="flex justify-center">
+            <div className="h-64 w-64 rounded-xl bg-white p-2"><QrCode value={answersUrl} label={qrLabel} /></div>
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-bold text-amber-300">Открыть на другом устройстве</p>
+            <p className="mt-1 text-sm text-slate-400">Сканируйте QR-код или скопируйте ссылку — откроется этот же экран ответов.</p>
+            <p className="mt-3 break-all rounded-lg bg-slate-950 px-3 py-2 font-mono text-xs text-slate-300">{answersUrl}</p>
+            <button type="button" onClick={copyLink} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-amber-300">
+              <Copy className="h-4 w-4" /> {copied ? "Ссылка скопирована" : "Копировать ссылку"}
+            </button>
+          </div>
+        </section>
 
         {!state && <p className="text-slate-400">Загрузка комнаты…</p>}
 

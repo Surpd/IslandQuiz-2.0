@@ -19,7 +19,7 @@ import { PlayerShell } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
 import { LaTeX } from "@/lib/latex";
 import {
-  loadGame,
+  subscribeRoomSnapshot,
   buzzJeopardy,
   submitJeopardyBuzzAnswer,
   submitJeopardyFinalBet,
@@ -56,8 +56,10 @@ export function JeopardyRoomPlayer({
 
   useEffect(() => setMutedState(isMuted()), []);
   useEffect(() => {
-    loadGame<JeopardyData>("jeopardy", state.gameId).then((r) => r && setGame(r.data));
-  }, [state.gameId]);
+    return subscribeRoomSnapshot(code, (snapshot) => {
+      if (snapshot.kind === "jeopardy") setGame(snapshot.data as JeopardyData);
+    });
+  }, [code]);
 
   // Redirect kicked players
   useEffect(() => {
@@ -282,7 +284,7 @@ export function JeopardyRoomPlayer({
 
           {(j.phase === "reveal" || j.showAnswer) && (
             <p className="mt-4 text-center text-xl font-bold text-[color:var(--pt-accent)]">
-              Ответ: <LaTeX>{question.a}</LaTeX>
+              Ответ: <LaTeX>{j.revealedAnswer ?? question.a}</LaTeX>
             </p>
           )}
 
@@ -436,7 +438,7 @@ export function JeopardyRoomPlayer({
             Ответ был:
           </p>
           <p className="mt-1 font-display text-2xl font-black text-[color:var(--pt-accent)]">
-            {game.final.a}
+            {j.revealedAnswer ?? game.final.a}
           </p>
           <p className="mt-4 font-mono text-3xl font-bold">
             {myPlayer?.score.toLocaleString("ru-RU") ?? 0}

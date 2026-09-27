@@ -64,7 +64,7 @@ function PlayQuiz() {
   const [answers, setAnswers] = useState<QAnswer[]>([]);
   const [timeLeft, setTimeLeft] = useState(0);
   const [current, setCurrent] = useState<string>("");
-  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | "accepted" | null>(null);
   const startedAt = useRef<number>(0);
   const savedRef = useRef(false);
   const [snapshotToken, setSnapshotToken] = useState<string | null>(null);
@@ -202,8 +202,8 @@ function PlayQuiz() {
       },
     ];
     setAnswers(nextAnswers);
-    setFeedback(isCorrect ? "correct" : "wrong");
-    const delay = config.showResult === "each" ? 1200 : 200;
+    setFeedback(config.showResult === "each" ? (isCorrect ? "correct" : "wrong") : "accepted");
+    const delay = config.showResult === "each" ? 1400 : 900;
     setTimeout(() => {
       setFeedback(null);
       setCurrent("");
@@ -221,7 +221,7 @@ function PlayQuiz() {
   const goTo = (newIdx: number) => {
     const answered = answers.find(a => a.qId === questions[order[newIdx]]?.id);
     setCurrent("");
-    setFeedback(answered ? (answered.correct ? "correct" : "wrong") : null);
+    setFeedback(answered ? (config?.showResult === "each" ? (answered.correct ? "correct" : "wrong") : "accepted") : null);
     setIdx(newIdx);
   };
 
@@ -463,11 +463,24 @@ function QuestionCard({
   question: QuizQuestion;
   value: string;
   onChange: (v: string) => void;
-  feedback: "correct" | "wrong" | null;
+  feedback: "correct" | "wrong" | "accepted" | null;
   config: QuizData["config"];
 }) {
+  const reveal = config.showResult === "each" && feedback !== null && feedback !== "accepted";
+  const disabled = feedback !== null;
   return (
-    <div className="rounded-3xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface)] p-4 backdrop-blur-md sm:p-8">
+    <div
+      data-feedback-state={feedback ?? "unanswered"}
+      className={`rounded-3xl border-2 bg-[color:var(--pt-surface)] p-4 backdrop-blur-md sm:p-8 ${
+        feedback === "correct"
+          ? "border-success/70"
+          : feedback === "wrong"
+            ? "border-danger/70"
+            : feedback === "accepted"
+              ? "border-[color:var(--pt-accent)]/70"
+              : "border-[color:var(--pt-border)]"
+      }`}
+    >
       {question.image && (
         <img
           src={question.image}
@@ -485,14 +498,14 @@ function QuestionCard({
         <div className="grid gap-2 sm:grid-cols-2">
           {question.options.map((opt, i) => {
             const selected = value === opt;
-            const isCorrect = config.showResult === "each" && feedback && opt === question.answer;
-            const isWrong = config.showResult === "each" && feedback === "wrong" && selected && opt !== question.answer;
+            const isCorrect = reveal && opt === question.answer;
+            const isWrong = reveal && feedback === "wrong" && selected && opt !== question.answer;
             const answerState = isCorrect ? "correct" : isWrong ? "incorrect" : selected ? "selected" : "default";
             return (
               <button
                 key={i}
                 type="button"
-                disabled={feedback !== null}
+                disabled={disabled}
                 aria-pressed={selected}
                 data-answer-state={answerState}
                 onClick={() => onChange(opt)}
@@ -520,20 +533,24 @@ function QuestionCard({
         <div className="grid grid-cols-2 gap-3">
           {(["true", "false"] as const).map((v) => {
             const selected = value === v;
-            const answerState = selected ? "selected" : "default";
+            const isCorrect = reveal && v === question.answer;
+            const isWrong = reveal && feedback === "wrong" && selected && v !== question.answer;
+            const answerState = isCorrect ? "correct" : isWrong ? "incorrect" : selected ? "selected" : "default";
             return (
             <button
               key={v}
-              disabled={feedback !== null}
+              disabled={disabled}
               aria-pressed={selected}
               data-answer-state={answerState}
               onClick={() => onChange(v)}
               className={`player-answer player-answer--${answerState} rounded-xl border-2 px-4 py-6 text-lg font-bold ${
-                value === v
-                  ? v === "true"
-                    ? "border-success bg-success/20 text-success"
-                    : "border-danger bg-danger/20 text-danger"
-                  : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]"
+                isCorrect
+                  ? "border-success bg-success/20 text-success"
+                  : isWrong
+                    ? "border-danger bg-danger/20 text-danger"
+                    : selected
+                      ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-surface-strong)]"
+                      : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]"
               }`}
             >
               {v === "true" ? "✓ Правда" : "✕ Ложь"}
@@ -545,7 +562,7 @@ function QuestionCard({
 
       {question.type === "text" && (
         <input
-          disabled={feedback !== null}
+          disabled={disabled}
           className="w-full rounded-xl border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3 text-lg text-[color:var(--pt-text)] outline-none focus:border-[color:var(--pt-accent)]"
           placeholder="Введите ответ..."
           value={value}
@@ -554,25 +571,33 @@ function QuestionCard({
       )}
 
       {question.type === "matching" && (
-        <MatchingBoard question={question} value={value} onChange={onChange} />
+        <MatchingBoard question={question} value={value} onChange={onChange} disabled={disabled} reveal={reveal} />
       )}
 
       {question.type === "close" && (
-        <CloseBoard question={question} value={value} onChange={onChange} disabled={feedback !== null} />
+        <CloseBoard question={question} value={value} onChange={onChange} disabled={disabled} reveal={reveal} />
       )}
 
       {question.type === "ordering" && (
-        <OrderingBoard question={question} value={value} onChange={onChange} disabled={feedback !== null} />
+        <OrderingBoard question={question} value={value} onChange={onChange} disabled={disabled} reveal={reveal} />
       )}
 
       {feedback && (
-        <div className="mt-4 text-center">
+        <div
+          role="status"
+          aria-live="polite"
+          className={`mt-5 rounded-2xl border-2 p-4 text-center ${
+            feedback === "correct"
+              ? "border-success/70 bg-success/15 text-success"
+              : feedback === "wrong"
+                ? "border-danger/70 bg-danger/15 text-danger"
+                : "border-[color:var(--pt-accent)]/70 bg-[color:var(--pt-accent)]/10 text-[color:var(--pt-text)]"
+          }`}
+        >
           <p
-            className={`text-lg font-bold ${
-              feedback === "correct" ? "text-success" : "text-danger"
-            }`}
+            className="text-lg font-black"
           >
-            {feedback === "correct" ? "✓ Верно!" : "✕ Неверно"}
+            {feedback === "correct" ? "✓ Верно!" : feedback === "wrong" ? "✕ Неверно" : "✓ Ответ принят"}
           </p>
           {feedback === "wrong" && config.showResult === "each" && (
             <p className="mt-1 text-sm text-[color:var(--pt-text-muted)]">
@@ -589,10 +614,14 @@ function MatchingBoard({
   question,
   value,
   onChange,
+  disabled,
+  reveal,
 }: {
   question: QuizQuestion;
   value: string;
   onChange: (v: string) => void;
+  disabled: boolean;
+  reveal: boolean;
 }) {
   const pairs = useMemo(() => {
     try {
@@ -613,55 +642,81 @@ function MatchingBoard({
   }, [value]);
 
   const usedRights = new Set(Object.values(assigned));
+  const [selectedRight, setSelectedRight] = useState<string | null>(null);
 
-  const handleDragEnd = (e: DragEndEvent) => {
-    if (!e.over) return;
-    const right = String(e.active.id).replace("right:", "");
-    const left = String(e.over.id).replace("left:", "");
-    // Remove any prior assignment of that right
+  const assign = (left: string, right: string) => {
+    if (disabled) return;
     const next: Record<string, string> = {};
     Object.entries(assigned).forEach(([k, v]) => {
-      if (v !== right) next[k] = v;
+      if (v !== right && k !== left) next[k] = v;
     });
     next[left] = right;
+    setSelectedRight(null);
     onChange(JSON.stringify(next));
   };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    if (disabled || !e.over) return;
+    const right = String(e.active.id).replace("right:", "");
+    const left = String(e.over.id).replace("left:", "");
+    assign(left, right);
+  };
+
+  if (reveal) {
+    return (
+      <div className="space-y-2">
+        {pairs.map((p) => {
+          const given = assigned[p.left];
+          const ok = given === p.right;
+          return (
+            <div key={p.left} className={`rounded-xl border-2 p-3 ${ok ? "border-success bg-success/10" : "border-danger bg-danger/10"}`}>
+              <div className="flex items-center gap-3">
+                <span className="min-w-0 flex-1 break-words text-sm font-semibold">{p.left}</span>
+                <span className="text-[color:var(--pt-text-muted)]">→</span>
+                <span className="min-w-0 break-words rounded-lg bg-[color:var(--pt-accent)] px-3 py-1 text-sm font-bold text-black">{p.right}</span>
+              </div>
+              {!ok && <p className="mt-2 text-xs text-danger">Ваш выбор: {given || "нет ответа"}</p>}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <DndContext onDragEnd={handleDragEnd}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Пары</p>
+          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Пары · выбрано {Object.keys(assigned).length}/{pairs.length}</p>
           {pairs.map((p) => (
-            <DropZone key={p.left} left={p.left} value={assigned[p.left]} />
+            <DropZone key={p.left} left={p.left} value={assigned[p.left]} selected={selectedRight !== null} onSelect={() => selectedRight && assign(p.left, selectedRight)} onClear={() => {
+              const next = { ...assigned };
+              delete next[p.left];
+              onChange(JSON.stringify(next));
+            }} />
           ))}
         </div>
         <div className="space-y-2">
-          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Перетащите варианты</p>
-          {shuffledRights
-            .filter((r) => !usedRights.has(r))
-            .map((r) => (
-              <Draggable key={r} value={r} />
-            ))}
-          {shuffledRights.filter((r) => !usedRights.has(r)).length === 0 && (
-            <p className="rounded-xl border border-dashed border-[color:var(--pt-border)] p-3 text-center text-xs text-[color:var(--pt-text-muted)]">
-              Все варианты расставлены
-            </p>
-          )}
+          <p className="text-xs uppercase text-[color:var(--pt-text-muted)]">Свободные варианты</p>
+          <p className="text-xs text-[color:var(--pt-text-muted)]">Перетащите вариант в пару или коснитесь варианта, затем нужной строки.</p>
+          {shuffledRights.map((r) => (
+            <Draggable key={r} value={r} disabled={disabled} selected={selectedRight === r} assigned={usedRights.has(r)} onClick={() => !disabled && setSelectedRight(selectedRight === r ? null : r)} />
+          ))}
         </div>
       </div>
     </DndContext>
   );
 }
 
-function DropZone({ left, value }: { left: string; value?: string }) {
+function DropZone({ left, value, selected, onSelect, onClear }: { left: string; value?: string; selected: boolean; onSelect: () => void; onClear: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: `left:${left}` });
   return (
     <div
       ref={setNodeRef}
+      onClick={onSelect}
       className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border-2 border-dashed p-3 transition-all sm:flex sm:gap-3 ${
         isOver ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-surface-strong)]" : "border-[color:var(--pt-border)]"
-      }`}
+      } ${selected ? "cursor-pointer ring-2 ring-[color:var(--pt-accent)]/50" : ""}`}
     >
       <span className="min-w-0 break-words text-sm font-semibold sm:flex-1">{left}</span>
       <span className="text-[color:var(--pt-text-muted)]">→</span>
@@ -674,23 +729,26 @@ function DropZone({ left, value }: { left: string; value?: string }) {
       >
         {value || "…"}
       </span>
+      {value && <button type="button" onClick={(event) => { event.stopPropagation(); onClear(); }} className="min-h-8 rounded-lg px-2 text-xs font-semibold text-danger hover:bg-danger/10">Очистить</button>}
     </div>
   );
 }
 
-function Draggable({ value }: { value: string }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `right:${value}` });
+function Draggable({ value, disabled, selected, assigned, onClick }: { value: string; disabled: boolean; selected: boolean; assigned: boolean; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `right:${value}`, disabled });
   return (
     <div
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      onClick={onClick}
       style={{
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
       }}
-      className={`cursor-grab break-words rounded-xl border-2 border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3 text-sm font-semibold shadow-sm active:cursor-grabbing ${
+      aria-pressed={selected}
+      className={`cursor-grab break-words rounded-xl border-2 px-4 py-3 text-sm font-semibold shadow-sm active:cursor-grabbing ${
         isDragging ? "opacity-50" : ""
-      }`}
+      } ${selected ? "border-[color:var(--pt-accent)] bg-[color:var(--pt-accent)]/20" : assigned ? "border-success/50 bg-success/10" : "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]"} ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
     >
       {value}
     </div>
@@ -702,11 +760,13 @@ function CloseBoard({
   value,
   onChange,
   disabled,
+  reveal,
 }: {
   question: QuizQuestion;
   value: string;
   onChange: (v: string) => void;
   disabled: boolean;
+  reveal: boolean;
 }) {
   const correct = useMemo(() => {
     try {
@@ -751,6 +811,11 @@ function CloseBoard({
           )}
         </span>
       ))}
+      {reveal && (
+        <p className="mt-3 w-full text-center text-sm text-[color:var(--pt-text-muted)]">
+          Ответ: <QuizAnswerDisplay question={question} className="font-semibold text-success" />
+        </p>
+      )}
     </div>
   );
 }
@@ -760,11 +825,13 @@ function OrderingBoard({
   value,
   onChange,
   disabled,
+  reveal,
 }: {
   question: QuizQuestion;
   value: string;
   onChange: (v: string) => void;
   disabled: boolean;
+  reveal: boolean;
 }) {
   const correct = useMemo(() => {
     try {
@@ -804,10 +871,15 @@ function OrderingBoard({
 
   return (
     <div className="space-y-2">
-      {items.map((v, i) => (
+      <p className="rounded-xl bg-[color:var(--pt-surface-strong)] px-3 py-2 text-center text-xs font-semibold text-[color:var(--pt-text-muted)]">
+        Первый элемент — сверху, последний — снизу.
+      </p>
+      {(reveal ? correct : items).map((v, i) => (
         <div
           key={`${v}-${i}`}
-          className="flex items-center gap-3 rounded-xl border-2 border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-4 py-3"
+          className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 ${
+            !reveal ? "border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)]" : items[i] === correct[i] ? "border-success bg-success/10" : "border-danger bg-danger/10"
+          }`}
         >
           <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[color:var(--pt-accent)] font-bold text-black">
             {i + 1}
@@ -815,6 +887,7 @@ function OrderingBoard({
           <span className="min-w-0 flex-1 break-words text-sm font-semibold">
             <LaTeX>{v}</LaTeX>
           </span>
+          {reveal && items[i] !== correct[i] && <span className="text-xs text-danger">был: {items[i] ?? "—"}</span>}
           <div className="flex flex-col gap-1">
             <button
               type="button"

@@ -174,6 +174,7 @@ Builder можно открыть Anonymous. Редактирование тек
 |---|---:|---:|---:|---|---|
 | Создать room | 🔒 | ✅ | ✅ | Anonymous видит возможность, но host create требует auth до snapshot/WebSocket | CORE |
 | Показать room code и QR на экране host | — | ✅ | ✅ | Только после Registered/Admin create | CORE |
+| Открыть «Ответы» по room link/QR | — | ✅ | ✅ | Read-only answers credential комнаты; действует в пределах TTL комнаты | DISCOVERABLE |
 | Join по 4-значному коду | ✅ | ✅ | ✅ | Auth не требуется | CORE |
 | Nickname и avatar/color | ✅ | ✅ | ✅ | Registered получает prefill из профиля; guest вводит вручную | CORE |
 | Host: start, reveal, leaderboard, next, finish, restart | — | ✅ | ✅ | Только Registered/Admin host credential конкретной комнаты | CORE |
@@ -191,7 +192,7 @@ Builder можно открыть Anonymous. Редактирование тек
 | Ввести nickname | ✅ | ✅ | ✅ | Обязателен для join | CORE |
 | Выбрать avatar/color | ✅ | ✅ | ✅ | Зарегистрированный получает prefill, но может изменить | DISCOVERABLE |
 | Присоединиться без email/account | ✅ | ✅ | ✅ | Join flow не требует auth | OBVIOUS |
-| Сохранить player identity для reconnect | ✅ | ✅ | ✅ | Session storage в браузере; зависит от браузера/кода комнаты | DISCOVERABLE |
+| Сохранить player identity для reconnect | ✅ | ✅ | ✅ | Session и local storage в браузере; повторное открытие возможно в пределах 60-second reconnect grace и зависит от браузера/кода комнаты | DISCOVERABLE |
 
 Отдельный onboarding для Join сейчас не требуется: flow короткий и самодостаточный.
 

@@ -15,6 +15,7 @@ import { Route as FaqRouteImport } from './routes/faq'
 import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as JoinRouteImport } from './routes/join'
+import { Route as LandingMotionRouteImport } from './routes/landing-motion'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -68,6 +69,11 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
 const JoinRoute = JoinRouteImport.update({
   id: '/join',
   path: '/join',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingMotionRoute = LandingMotionRouteImport.update({
+  id: '/landing-motion',
+  path: '/landing-motion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LibraryRoute = LibraryRouteImport.update({
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/feedback': typeof FeedbackRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/join': typeof JoinRoute
+  '/landing-motion': typeof LandingMotionRoute
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
@@ -231,6 +238,7 @@ export interface FileRoutesByTo {
   '/feedback': typeof FeedbackRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/join': typeof JoinRoute
+  '/landing-motion': typeof LandingMotionRoute
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
@@ -263,6 +271,7 @@ export interface FileRoutesById {
   '/feedback': typeof FeedbackRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/join': typeof JoinRoute
+  '/landing-motion': typeof LandingMotionRoute
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
@@ -297,6 +306,7 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/forgot-password'
     | '/join'
+    | '/landing-motion'
     | '/library'
     | '/login'
     | '/privacy'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/forgot-password'
     | '/join'
+    | '/landing-motion'
     | '/library'
     | '/login'
     | '/privacy'
@@ -360,6 +371,7 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/forgot-password'
     | '/join'
+    | '/landing-motion'
     | '/library'
     | '/login'
     | '/privacy'
@@ -393,6 +405,7 @@ export interface RootRouteChildren {
   FeedbackRoute: typeof FeedbackRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   JoinRoute: typeof JoinRoute
+  LandingMotionRoute: typeof LandingMotionRoute
   LibraryRoute: typeof LibraryRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -458,6 +471,13 @@ declare module '@tanstack/react-router' {
       path: '/join'
       fullPath: '/join'
       preLoaderRoute: typeof JoinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing-motion': {
+      id: '/landing-motion'
+      path: '/landing-motion'
+      fullPath: '/landing-motion'
+      preLoaderRoute: typeof LandingMotionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/library': {
@@ -654,6 +674,7 @@ const rootRouteChildren: RootRouteChildren = {
   FeedbackRoute: FeedbackRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   JoinRoute: JoinRoute,
+  LandingMotionRoute: LandingMotionRoute,
   LibraryRoute: LibraryRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,

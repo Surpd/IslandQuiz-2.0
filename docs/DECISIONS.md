@@ -28,6 +28,10 @@
 12. Состояние комнаты передаётся action-сообщениями между frontend и backend; изменение протокола требует синхронного изменения обоих компонентов.
 13. Server-side authorization WebSocket actions и trusted scoring реализованы; новые чувствительные операции всё равно нельзя добавлять, полагаясь только на frontend.
 
+### D10. Scoped room answers access — RESOLVED
+
+Экран «Ответы» остаётся тем же room route, но host получает отдельный случайный read-only credential для ссылки/QR. Этот credential не даёт room actions и хранится в persistence только как HMAC-digest. Jeopardy player snapshot редактируется server-side без правильных ответов; `revealedAnswer` передаётся только после соответствующего host action.
+
 ### D2. Принятая модель безопасности WebSocket player — RESOLVED
 
 Анонимный вход по коду комнаты разрешён. Сервер выдаёт и проверяет отдельную identity игровой сессии игрока; reconnect восстанавливает только эту сессию. Игрок не может выдать себя за другого или менять чужое состояние. Host и player имеют разные права, а identity и permissions определяются сервером, не клиентскими полями. Конкретный формат guest credential и reconnect token выбирается при реализации C2; D4 для этого решения не требуется.

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 DEFAULT_GROQ_MODEL = os.getenv(
     "GROQ_MODEL",
-    "qwen/qwen3.6-27b",
+    "qwen/qwen3.8-27b",
 )
 DB_ERROR_DETAIL = "Ошибка базы данных"
 AI_ERROR_DETAIL = "Ошибка AI-провайдера"

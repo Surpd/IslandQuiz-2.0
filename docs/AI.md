@@ -10,7 +10,7 @@ AI вызывается backend-функцией `call_openai` в `backend/route
 https://api.groq.com/openai/v1/chat/completions
 ```
 
-Ключ берётся из `OPENAI_API_KEY`. Модель берётся из `GROQ_MODEL`; если variable не задан, backend использует `qwen/qwen3.6-27b`.
+Ключ берётся из `OPENAI_API_KEY`. Модель берётся из `GROQ_MODEL`; если variable не задан, backend использует `qwen/qwen3.8-27b`. Проверяйте актуальность модели в [списке поддерживаемых моделей Groq](https://console.groq.com/docs/models).
 
 Frontend передаёт параметры в `frontend/src/lib/api.ts`; prompts и модель формируются на backend.
 Для Quiz/Jeopardy generation backend запрашивает Groq JSON mode (`response_format: json_object`) и отключает reasoning output (`reasoning_effort: none`), чтобы `message.content` содержал JSON, а не prose/reasoning.

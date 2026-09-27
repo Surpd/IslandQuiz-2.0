@@ -425,6 +425,9 @@ function OfflineAnswers({ result, questions }: { result: QuizResult; questions: 
                 ) : (
                   <X className="h-4 w-4 text-danger" />
                 )}
+                <span className={`ml-1 text-xs font-semibold ${a.isCorrect ? "text-success" : "text-danger"}`}>
+                  {a.isCorrect ? "Верно" : "Неверно"}
+                </span>
               </td>
               <td className="break-words px-3 py-2 align-top">{a.question}</td>
               <td className="break-words px-3 py-2 align-top text-xs"><QuizAnswerDisplay question={question} value={a.given} kind="given" /></td>
@@ -551,6 +554,9 @@ function PlayerAnswers({ player, questions }: { player: OnlineQuizPlayerResult; 
                 ) : (
                   <X className="h-4 w-4 text-danger" />
                 )}
+                <span className={`ml-1 text-xs font-semibold ${a.correct ? "text-success" : "text-danger"}`}>
+                  {a.correct ? "Верно" : "Неверно"}
+                </span>
               </td>
               <td className="break-words px-3 py-2 align-top">{a.question}</td>
               <td className="break-words px-3 py-2 align-top text-xs"><QuizAnswerDisplay question={question} value={a.given} kind="given" /></td>
@@ -608,6 +614,9 @@ function ResultAnswerCard({
       <div className="flex min-w-0 items-start gap-2">
         <span className={`mt-0.5 shrink-0 ${correct ? "text-success" : "text-danger"}`} aria-label={correct ? "Верно" : "Неверно"}>
           {correct ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+        </span>
+        <span className={`shrink-0 text-xs font-semibold ${correct ? "text-success" : "text-danger"}`}>
+          {correct ? "Верно" : "Неверно"}
         </span>
         <p className="min-w-0 flex-1 break-words font-semibold [overflow-wrap:anywhere]">
           {index + 1}. {questionText || "Вопрос"}

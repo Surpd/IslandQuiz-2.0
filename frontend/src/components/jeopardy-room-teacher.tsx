@@ -29,7 +29,7 @@ import {
 import { PlayerShell } from "@/components/player-shell";
 import { Avatar } from "@/components/avatar";
 import { LaTeX } from "@/lib/latex";
-import { loadGame } from "@/lib/api";
+import { getRoomAnswersUrl, loadGame } from "@/lib/api";
 import {
   setJeopardyMode,
   startJeopardyGame,
@@ -149,7 +149,7 @@ export function JeopardyRoomTeacher({ state, code, theme }: { state: RoomState; 
       </div>
       <div className="flex items-center gap-2">
         <a
-          href={`/room/${code}/answers`}
+          href={getRoomAnswersUrl(code)}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-2 rounded-full border border-[color:var(--pt-border)] bg-[color:var(--pt-surface-strong)] px-3 py-2 text-xs font-semibold hover:bg-[color:var(--pt-surface)]"

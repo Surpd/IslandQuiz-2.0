@@ -87,7 +87,7 @@ GROQ_URL = (
 
 AI_MODEL = os.getenv(
     "GROQ_MODEL",
-    "qwen/qwen3.6-27b",
+    "qwen/qwen3.8-27b",
 )
 
 AI_TIMEOUT = 60.0
