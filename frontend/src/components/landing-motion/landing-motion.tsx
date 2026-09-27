@@ -538,7 +538,7 @@ export function LandingMotion() {
                 initial={reduced ? false : { opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: reduced ? 0 : 0.08, duration: reduced ? 0 : 0.52, ease }}
-                className="mt-7 max-w-xl font-display text-5xl font-black leading-[.98] tracking-tight sm:text-6xl lg:text-7xl"
+                className="mt-7 max-w-xl font-display text-4xl font-black leading-[1.02] tracking-tight text-balance sm:text-6xl lg:text-7xl"
               >
                 Создавай викторины, в которые <span className="text-primary">хочется играть</span>
               </motion.h1>
@@ -555,18 +555,18 @@ export function LandingMotion() {
                 initial={reduced ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: reduced ? 0 : 0.22, duration: reduced ? 0 : 0.44, ease }}
-                className="mt-9 flex flex-wrap gap-3"
+                className="mt-9 flex flex-col gap-3 sm:flex-row"
               >
                 <Link
                   to="/builder/quiz"
                   search={{ id: undefined }}
-                  className="btn-accent inline-flex items-center gap-2"
+                  className="btn-accent inline-flex w-full items-center justify-center gap-2 sm:w-auto"
                 >
                   Создать игру <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   to="/library"
-                  className="inline-flex items-center gap-2 rounded-2xl border-2 border-border-strong bg-white px-7 py-3.5 font-black transition hover:border-foreground"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-border-strong bg-white px-7 py-3.5 font-black transition hover:border-foreground sm:w-auto"
                 >
                   Открыть библиотеку
                 </Link>
@@ -892,10 +892,8 @@ export function LandingMotion() {
                 >
                   <article className={`h-full rounded-[1.75rem] border border-border p-6 ${f.cls}`}>
                     <f.icon className="h-6 w-6" />
-                    <h3 className="mt-10 font-display text-xl font-black">{f.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {f.text}
-                    </p>
+                    <h3 className="mt-6 font-display text-xl font-black sm:mt-10">{f.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.text}</p>
                   </article>
                 </Reveal>
               ))}
