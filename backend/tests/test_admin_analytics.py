@@ -114,7 +114,7 @@ class AdminAnalyticsTests(unittest.TestCase):
                 return Query(name)
 
         with patch.object(admin_route, "supabase", Database()):
-            dashboard = admin_route.get_admin_dashboard("30d", {"id": "admin", "role": "admin"})
+            dashboard = admin_route.get_admin_dashboard("all", {"id": "admin", "role": "admin"})
 
         self.assertEqual(dashboard["kpis"]["plays"], 4)
         self.assertEqual(dashboard["kpis"]["online_sessions"], 1)
