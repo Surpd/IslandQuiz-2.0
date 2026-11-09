@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Minus, X, Trophy } from "lucide-react";
+import { Plus, Minus, X, Trophy, Check } from "lucide-react";
 import { PlayerShell, TimerBar } from "@/components/player-shell";
 import { LaTeX } from "@/lib/latex";
 import { createPlaySnapshot, submitJeopardyResult } from "@/lib/api";
@@ -52,6 +52,7 @@ function PlayJeopardy() {
   const [finalAnswers, setFinalAnswers] = useState<Record<string, boolean>>({});
   const [correctCounts, setCorrectCounts] = useState<Record<string, number>>({});
   const [wrongCounts, setWrongCounts] = useState<Record<string, number>>({});
+  const [questionJudgements, setQuestionJudgements] = useState<Record<string, "correct" | "wrong">>({});
   const [snapshotToken, setSnapshotToken] = useState("");
   const savedRef = useRef(false);
   const decisionsRef = useRef<JeopardyDecision[]>([]);
@@ -208,6 +209,7 @@ function PlayJeopardy() {
     if (decisionKeysRef.current.has(key)) return false;
     decisionKeysRef.current.add(key);
     decisionsRef.current.push({ kind: "question", playerId: team.id, correct, round: question.roundIdx, catIdx: question.catIdx, qIdx: question.qIdx });
+    setQuestionJudgements((prev) => ({ ...prev, [key]: correct ? "correct" : "wrong" }));
     return true;
   };
 
@@ -473,34 +475,64 @@ function PlayJeopardy() {
               {showAnswer && (
                 <div className="mt-6 space-y-2">
                   <p className="text-sm text-[color:var(--pt-text-muted)]">Начислить баллы:</p>
-                  {teams.map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-center gap-2 rounded-xl border border-[color:var(--pt-border)] p-3"
-                    >
-                      <span className="flex-1 truncate font-semibold">{t.name}</span>
-                      <button
-                        onClick={() => {
-                          if (!recordQuestionDecision(t, false, modal)) return;
-                          patchTeam(t.id, { score: t.score - q.points });
-                          setWrongCounts((prev) => ({ ...prev, [t.id]: (prev[t.id] ?? 0) + 1 }));
-                        }}
-                        className="rounded-lg bg-danger/20 px-3 py-1.5 font-bold text-danger"
+                  {teams.map((t) => {
+                    const key = `question-${modal.roundIdx}-${modal.catIdx}-${modal.qIdx}-${t.id}`;
+                    const judgement = questionJudgements[key];
+                    return (
+                      <div
+                        key={t.id}
+                        data-testid={`jeopardy-scoring-${t.id}`}
+                        data-judgement={judgement ?? "pending"}
+                        className={`flex items-center gap-2 rounded-xl border p-3 transition-colors duration-200 ${
+                          judgement === "correct"
+                            ? "border-success/70 bg-success/10"
+                            : judgement === "wrong"
+                              ? "border-danger/70 bg-danger/10"
+                              : "border-[color:var(--pt-border)]"
+                        }`}
                       >
-                        −{q.points}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (!recordQuestionDecision(t, true, modal)) return;
-                          patchTeam(t.id, { score: t.score + q.points });
-                          setCorrectCounts((prev) => ({ ...prev, [t.id]: (prev[t.id] ?? 0) + 1 }));
-                        }}
-                        className="rounded-lg bg-success/20 px-3 py-1.5 font-bold text-success"
-                      >
-                        +{q.points}
-                      </button>
-                    </div>
-                  ))}
+                        <span className="flex-1 truncate font-semibold">{t.name}</span>
+                        <button
+                          disabled={!!judgement}
+                          aria-pressed={judgement === "wrong"}
+                          onClick={() => {
+                            if (!recordQuestionDecision(t, false, modal)) return;
+                            patchTeam(t.id, { score: t.score - q.points });
+                            setWrongCounts((prev) => ({ ...prev, [t.id]: (prev[t.id] ?? 0) + 1 }));
+                          }}
+                          className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 font-bold transition-all duration-200 ${
+                            judgement === "wrong"
+                              ? "bg-danger text-white ring-2 ring-danger/70 shadow-lg shadow-danger/25"
+                              : judgement
+                                ? "cursor-not-allowed bg-danger/10 text-danger/40"
+                                : "bg-danger/20 text-danger hover:bg-danger/30"
+                          }`}
+                        >
+                          {judgement === "wrong" && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+                          −{q.points}
+                        </button>
+                        <button
+                          disabled={!!judgement}
+                          aria-pressed={judgement === "correct"}
+                          onClick={() => {
+                            if (!recordQuestionDecision(t, true, modal)) return;
+                            patchTeam(t.id, { score: t.score + q.points });
+                            setCorrectCounts((prev) => ({ ...prev, [t.id]: (prev[t.id] ?? 0) + 1 }));
+                          }}
+                          className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 font-bold transition-all duration-200 ${
+                            judgement === "correct"
+                              ? "bg-success text-white ring-2 ring-success/70 shadow-lg shadow-success/25"
+                              : judgement
+                                ? "cursor-not-allowed bg-success/10 text-success/40"
+                                : "bg-success/20 text-success hover:bg-success/30"
+                          }`}
+                        >
+                          {judgement === "correct" && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+                          +{q.points}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
